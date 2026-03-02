@@ -355,21 +355,126 @@ export const cashPolicyRules = [
 // ─── Horoscope Data for Profiles ───
 export interface ProfileHoroscope {
   profileId: string;
+  profileName: string;
+  branch: string;
+  religion: string;
   rasi: string;
   nakshatram: string;
   lagnam: string;
   dosham: string;
   dasa: string;
+  mangalDosham: boolean;
   horoscopeImageUrl: string;
+  jathagamPdfUrl: string;
+  jathagamStatus: "generated" | "pending" | "failed" | "not-applicable";
   birthDate: string;
   birthTime: string;
   birthPlace: string;
+  createdBy: string;
+  lastEditedBy: string;
+  lastEditedAt: string;
 }
 
 export const profileHoroscopes: ProfileHoroscope[] = [
-  { profileId: "AMP001", rasi: "Mesha (Aries)", nakshatram: "Ashwini", lagnam: "Thulam", dosham: "No Dosham", dasa: "Rahu Dasa", horoscopeImageUrl: "", birthDate: "2000-05-15", birthTime: "06:30 AM", birthPlace: "Chennai" },
-  { profileId: "AMP002", rasi: "Vrishabha (Taurus)", nakshatram: "Rohini", lagnam: "Simha", dosham: "Sevvai Dosham", dasa: "Jupiter Dasa", horoscopeImageUrl: "", birthDate: "1996-08-22", birthTime: "03:15 PM", birthPlace: "Coimbatore" },
-  { profileId: "AMP003", rasi: "Kanya (Virgo)", nakshatram: "Hastham", lagnam: "Dhanus", dosham: "No Dosham", dasa: "Saturn Dasa", horoscopeImageUrl: "", birthDate: "1998-01-10", birthTime: "09:45 AM", birthPlace: "Madurai" },
-  { profileId: "AMP004", rasi: "Makara (Capricorn)", nakshatram: "Uthradam", lagnam: "Mesha", dosham: "Rahu-Ketu Dosham", dasa: "Mercury Dasa", horoscopeImageUrl: "", birthDate: "1994-11-30", birthTime: "12:00 PM", birthPlace: "Trichy" },
-  { profileId: "AMP005", rasi: "Mithuna (Gemini)", nakshatram: "Thiruvathirai", lagnam: "Kanya", dosham: "No Dosham", dasa: "Venus Dasa", horoscopeImageUrl: "", birthDate: "1997-03-08", birthTime: "07:20 AM", birthPlace: "Salem" },
+  { profileId: "AMP001", profileName: "Priya Sharma", branch: "Chennai Central", religion: "Hindu", rasi: "Mesha (Aries)", nakshatram: "Ashwini", lagnam: "Thulam", dosham: "No Dosham", dasa: "Rahu Dasa", mangalDosham: false, horoscopeImageUrl: "", jathagamPdfUrl: "s3://jathagam/AMP001.pdf", jathagamStatus: "generated", birthDate: "2000-05-15", birthTime: "06:30 AM", birthPlace: "Chennai", createdBy: "Anitha Lakshmi", lastEditedBy: "Admin", lastEditedAt: "2026-02-28 10:30 AM" },
+  { profileId: "AMP002", profileName: "Rajesh Kumar", branch: "Chennai Central", religion: "Hindu", rasi: "Vrishabha (Taurus)", nakshatram: "Rohini", lagnam: "Simha", dosham: "Sevvai Dosham", dasa: "Jupiter Dasa", mangalDosham: true, horoscopeImageUrl: "", jathagamPdfUrl: "s3://jathagam/AMP002.pdf", jathagamStatus: "generated", birthDate: "1996-08-22", birthTime: "03:15 PM", birthPlace: "Coimbatore", createdBy: "Mohan Raj", lastEditedBy: "Mohan Raj", lastEditedAt: "2026-02-25 02:15 PM" },
+  { profileId: "AMP003", profileName: "Deepa Rajan", branch: "Coimbatore Main", religion: "Hindu", rasi: "Kanya (Virgo)", nakshatram: "Hastham", lagnam: "Dhanus", dosham: "No Dosham", dasa: "Saturn Dasa", mangalDosham: false, horoscopeImageUrl: "", jathagamPdfUrl: "s3://jathagam/AMP003.pdf", jathagamStatus: "generated", birthDate: "1998-01-10", birthTime: "09:45 AM", birthPlace: "Madurai", createdBy: "Priya Krishnan", lastEditedBy: "Priya Krishnan", lastEditedAt: "2026-02-20 11:00 AM" },
+  { profileId: "AMP004", profileName: "Karthik M", branch: "Coimbatore Main", religion: "Hindu", rasi: "Makara (Capricorn)", nakshatram: "Uthradam", lagnam: "Mesha", dosham: "Rahu-Ketu Dosham", dasa: "Mercury Dasa", mangalDosham: false, horoscopeImageUrl: "", jathagamPdfUrl: "", jathagamStatus: "pending", birthDate: "1994-11-30", birthTime: "12:00 PM", birthPlace: "Trichy", createdBy: "Karthik Rajan", lastEditedBy: "Karthik Rajan", lastEditedAt: "2026-02-18 04:30 PM" },
+  { profileId: "AMP005", profileName: "Arun S", branch: "Madurai Branch", religion: "Christian", rasi: "Mithuna (Gemini)", nakshatram: "Thiruvathirai", lagnam: "Kanya", dosham: "No Dosham", dasa: "Venus Dasa", mangalDosham: false, horoscopeImageUrl: "", jathagamPdfUrl: "", jathagamStatus: "not-applicable", birthDate: "1997-03-08", birthTime: "07:20 AM", birthPlace: "Salem", createdBy: "Deepa Sundaram", lastEditedBy: "Deepa Sundaram", lastEditedAt: "2026-02-15 09:00 AM" },
+  { profileId: "AMP006", profileName: "Meena K", branch: "Madurai Branch", religion: "Hindu", rasi: "", nakshatram: "", lagnam: "", dosham: "", dasa: "", mangalDosham: false, horoscopeImageUrl: "", jathagamPdfUrl: "", jathagamStatus: "pending", birthDate: "2001-07-20", birthTime: "05:00 AM", birthPlace: "Trichy", createdBy: "Deepa Sundaram", lastEditedBy: "", lastEditedAt: "" },
+];
+
+// ─── Horoscope Matches (Porutham) ───
+export interface HoroscopeMatch {
+  id: number;
+  profile1Id: string;
+  profile1Name: string;
+  profile2Id: string;
+  profile2Name: string;
+  totalScore: number; // out of 10
+  poruthams: {
+    name: string;
+    matched: boolean;
+    score: number;
+  }[];
+  overallResult: "Excellent" | "Good" | "Average" | "Poor";
+  calculatedAt: string;
+  branch: string;
+}
+
+export const horoscopeMatches: HoroscopeMatch[] = [
+  {
+    id: 1, profile1Id: "AMP001", profile1Name: "Priya Sharma", profile2Id: "AMP002", profile2Name: "Rajesh Kumar",
+    totalScore: 8.5, overallResult: "Excellent", calculatedAt: "2026-02-28 11:00 AM", branch: "Chennai Central",
+    poruthams: [
+      { name: "Dina Porutham", matched: true, score: 1 },
+      { name: "Gana Porutham", matched: true, score: 1 },
+      { name: "Mahendra Porutham", matched: true, score: 1 },
+      { name: "Stree Deergha", matched: true, score: 1 },
+      { name: "Yoni Porutham", matched: false, score: 0 },
+      { name: "Rasi Porutham", matched: true, score: 1 },
+      { name: "Rasiyathipathi", matched: true, score: 1 },
+      { name: "Vasya Porutham", matched: true, score: 1 },
+      { name: "Rajju Porutham", matched: true, score: 1 },
+      { name: "Vedha Porutham", matched: true, score: 0.5 },
+    ]
+  },
+  {
+    id: 2, profile1Id: "AMP001", profile1Name: "Priya Sharma", profile2Id: "AMP004", profile2Name: "Karthik M",
+    totalScore: 6.0, overallResult: "Average", calculatedAt: "2026-02-27 03:00 PM", branch: "Chennai Central",
+    poruthams: [
+      { name: "Dina Porutham", matched: true, score: 1 },
+      { name: "Gana Porutham", matched: false, score: 0 },
+      { name: "Mahendra Porutham", matched: true, score: 1 },
+      { name: "Stree Deergha", matched: false, score: 0 },
+      { name: "Yoni Porutham", matched: true, score: 1 },
+      { name: "Rasi Porutham", matched: false, score: 0 },
+      { name: "Rasiyathipathi", matched: true, score: 1 },
+      { name: "Vasya Porutham", matched: false, score: 0 },
+      { name: "Rajju Porutham", matched: true, score: 1 },
+      { name: "Vedha Porutham", matched: true, score: 1 },
+    ]
+  },
+  {
+    id: 3, profile1Id: "AMP003", profile1Name: "Deepa Rajan", profile2Id: "AMP002", profile2Name: "Rajesh Kumar",
+    totalScore: 7.0, overallResult: "Good", calculatedAt: "2026-02-26 10:00 AM", branch: "Coimbatore Main",
+    poruthams: [
+      { name: "Dina Porutham", matched: true, score: 1 },
+      { name: "Gana Porutham", matched: true, score: 1 },
+      { name: "Mahendra Porutham", matched: false, score: 0 },
+      { name: "Stree Deergha", matched: true, score: 1 },
+      { name: "Yoni Porutham", matched: true, score: 1 },
+      { name: "Rasi Porutham", matched: false, score: 0 },
+      { name: "Rasiyathipathi", matched: true, score: 1 },
+      { name: "Vasya Porutham", matched: true, score: 1 },
+      { name: "Rajju Porutham", matched: false, score: 0 },
+      { name: "Vedha Porutham", matched: true, score: 1 },
+    ]
+  },
+  {
+    id: 4, profile1Id: "AMP003", profile1Name: "Deepa Rajan", profile2Id: "AMP004", profile2Name: "Karthik M",
+    totalScore: 4.5, overallResult: "Poor", calculatedAt: "2026-02-25 04:00 PM", branch: "Coimbatore Main",
+    poruthams: [
+      { name: "Dina Porutham", matched: false, score: 0 },
+      { name: "Gana Porutham", matched: true, score: 1 },
+      { name: "Mahendra Porutham", matched: false, score: 0 },
+      { name: "Stree Deergha", matched: true, score: 1 },
+      { name: "Yoni Porutham", matched: false, score: 0 },
+      { name: "Rasi Porutham", matched: true, score: 1 },
+      { name: "Rasiyathipathi", matched: false, score: 0 },
+      { name: "Vasya Porutham", matched: false, score: 0 },
+      { name: "Rajju Porutham", matched: true, score: 1 },
+      { name: "Vedha Porutham", matched: false, score: 0.5 },
+    ]
+  },
+];
+
+// ─── Horoscope Audit Log ───
+export const horoscopeAuditLog = [
+  { id: 1, timestamp: "2026-03-02 10:30 AM", user: "Admin", role: "Admin", action: "Override Rasi", profileId: "AMP002", details: "Changed Rasi from 'Rishabha' to 'Vrishabha (Taurus)'" },
+  { id: 2, timestamp: "2026-03-01 02:15 PM", user: "Mohan Raj", role: "Staff", action: "Created Horoscope", profileId: "AMP002", details: "Initial horoscope data entry for Rajesh Kumar" },
+  { id: 3, timestamp: "2026-02-28 11:00 AM", user: "System", role: "System", action: "Jathagam Generated", profileId: "AMP001", details: "PDF auto-generated via Celery task, stored in S3" },
+  { id: 4, timestamp: "2026-02-27 03:00 PM", user: "System", role: "System", action: "Porutham Calculated", profileId: "AMP001", details: "Compatibility score calculated: AMP001 ↔ AMP004 = 6.0/10" },
+  { id: 5, timestamp: "2026-02-25 04:30 PM", user: "Karthik Rajan", role: "Staff", action: "Edited DOB", profileId: "AMP004", details: "Corrected DOB from 1994-11-28 to 1994-11-30" },
+  { id: 6, timestamp: "2026-02-20 11:00 AM", user: "Priya Krishnan", role: "Staff", action: "Created Horoscope", profileId: "AMP003", details: "Initial horoscope data entry for Deepa Rajan" },
 ];

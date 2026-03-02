@@ -18,6 +18,7 @@ import Reports from "@/pages/admin/Reports";
 import EmailTemplates from "@/pages/admin/EmailTemplates";
 import SystemSettings from "@/pages/admin/SystemSettings";
 import AuditLog from "@/pages/admin/AuditLog";
+import HoroscopeManagement from "@/pages/admin/HoroscopeManagement";
 
 function DashboardHome() {
   const { role } = useRole();
@@ -45,6 +46,7 @@ const Index = () => {
         <Route path="/email-templates" element={<EmailTemplates />} />
         <Route path="/settings" element={<SystemSettings />} />
         <Route path="/audit-log" element={<AuditLog />} />
+        <Route path="/horoscope" element={<HoroscopeManagement />} />
         {/* Staff & Branch Manager shared routes */}
         <Route path="/my-commissions" element={<AllCommissions />} />
         <Route path="/my-salary" element={<SalaryPayroll />} />

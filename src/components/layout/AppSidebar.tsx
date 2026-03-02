@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Building2, Users, CreditCard, Receipt, Wallet, IndianRupee,
   UserCircle, Upload, MessageSquare, Banknote, BarChart3, Mail, Settings,
-  ClipboardList, Target, CheckSquare, CalendarClock, Activity, FileText
+  ClipboardList, Target, CheckSquare, CalendarClock, Activity, FileText, Sparkles
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -20,6 +20,7 @@ const adminItems = [
   { title: "All Commissions", url: "/commissions", icon: Wallet },
   { title: "Salary & Payroll", url: "/salary", icon: IndianRupee },
   { title: "Profile Admin", url: "/profiles", icon: UserCircle },
+  { title: "Horoscope", url: "/horoscope", icon: Sparkles },
   { title: "Bulk Upload", url: "/bulk-upload", icon: Upload },
   { title: "Enquiries", url: "/enquiries", icon: MessageSquare },
   { title: "Cash Payments", url: "/cash-payments", icon: Banknote },
@@ -34,6 +35,7 @@ const staffItems = [
   { title: "My Commissions", url: "/my-commissions", icon: Wallet },
   { title: "My Salary", url: "/my-salary", icon: IndianRupee },
   { title: "My Profiles", url: "/my-profiles", icon: UserCircle },
+  { title: "Horoscope", url: "/horoscope", icon: Sparkles },
   { title: "Enquiries", url: "/enquiries", icon: MessageSquare },
   { title: "Subscriptions", url: "/subscriptions", icon: CreditCard },
   { title: "Cash Payment Entry", url: "/cash-entry", icon: Banknote },
@@ -49,6 +51,7 @@ const branchManagerItems = [
   { title: "My Commissions", url: "/my-commissions", icon: Wallet },
   { title: "My Salary", url: "/my-salary", icon: IndianRupee },
   { title: "My Profiles", url: "/my-profiles", icon: UserCircle },
+  { title: "Horoscope", url: "/horoscope", icon: Sparkles },
   { title: "Enquiries", url: "/enquiries", icon: MessageSquare },
   { title: "Subscriptions", url: "/subscriptions", icon: CreditCard },
 ];

@@ -194,3 +194,182 @@ export const dayCloseData = {
   discrepancy: 500,
   status: "shortage" as const,
 };
+
+// ─── Cash Receipts (Layer 1) ───
+export interface CashReceipt {
+  id: number;
+  receiptNo: string;
+  staffName: string;
+  staffCode: string;
+  branch: string;
+  customerName: string;
+  profileId: string;
+  plan: string;
+  amount: number;
+  receiptDate: string;
+  cashierReceiptNo: string;
+  cashierVerifiedAt: string;
+  customerOtpConfirmed: boolean;
+  customerOtpConfirmedAt: string;
+  subscriptionId: string;
+  isVoided: boolean;
+  voidReason: string;
+  commissionStatus: "locked" | "pending" | "approved" | "released";
+}
+
+export const cashReceipts: CashReceipt[] = [
+  { id: 1, receiptNo: "BR01-2026-00847", staffName: "Priya Krishnan", staffCode: "EMP003", branch: "Chennai Central", customerName: "Ravi Kumar", profileId: "MAT-00123", plan: "Gold 3 Months", amount: 5000, receiptDate: "2026-03-02 10:35 AM", cashierReceiptNo: "CSH-CHN-20260302-014", cashierVerifiedAt: "2026-03-02 11:00 AM", customerOtpConfirmed: true, customerOtpConfirmedAt: "2026-03-02 10:42 AM", subscriptionId: "SUB-20260302-0034", isVoided: false, voidReason: "", commissionStatus: "released" },
+  { id: 2, receiptNo: "BR01-2026-00848", staffName: "Anitha Lakshmi", staffCode: "EMP001", branch: "Chennai Central", customerName: "Meera S", profileId: "MAT-00456", plan: "Platinum 12 Months", amount: 15000, receiptDate: "2026-03-02 11:20 AM", cashierReceiptNo: "CSH-CHN-20260302-015", cashierVerifiedAt: "2026-03-02 11:45 AM", customerOtpConfirmed: true, customerOtpConfirmedAt: "2026-03-02 11:28 AM", subscriptionId: "SUB-20260302-0035", isVoided: false, voidReason: "", commissionStatus: "approved" },
+  { id: 3, receiptNo: "BR01-2026-00849", staffName: "Mohan Raj", staffCode: "EMP002", branch: "Chennai Central", customerName: "Ganesh T", profileId: "MAT-00789", plan: "Silver 3 Months", amount: 5000, receiptDate: "2026-03-02 02:10 PM", cashierReceiptNo: "", cashierVerifiedAt: "", customerOtpConfirmed: false, customerOtpConfirmedAt: "", subscriptionId: "", isVoided: false, voidReason: "", commissionStatus: "locked" },
+  { id: 4, receiptNo: "CBE01-2026-00321", staffName: "Karthik Rajan", staffCode: "EMP004", branch: "Coimbatore Main", customerName: "Saranya P", profileId: "MAT-00234", plan: "Gold 6 Months", amount: 9000, receiptDate: "2026-03-02 09:50 AM", cashierReceiptNo: "CSH-CBE-20260302-008", cashierVerifiedAt: "2026-03-02 10:15 AM", customerOtpConfirmed: true, customerOtpConfirmedAt: "2026-03-02 09:58 AM", subscriptionId: "SUB-20260302-0036", isVoided: false, voidReason: "", commissionStatus: "pending" },
+  { id: 5, receiptNo: "BR01-2026-00850", staffName: "Anitha Lakshmi", staffCode: "EMP001", branch: "Chennai Central", customerName: "Vijay N", profileId: "MAT-00567", plan: "Diamond 24 Months", amount: 25000, receiptDate: "2026-03-02 03:45 PM", cashierReceiptNo: "CSH-CHN-20260302-016", cashierVerifiedAt: "2026-03-02 04:00 PM", customerOtpConfirmed: true, customerOtpConfirmedAt: "2026-03-02 03:52 PM", subscriptionId: "SUB-20260302-0037", isVoided: false, voidReason: "", commissionStatus: "locked" },
+  { id: 6, receiptNo: "MDU01-2026-00112", staffName: "Deepa Sundaram", staffCode: "EMP005", branch: "Madurai Branch", customerName: "Kavitha M", profileId: "MAT-00890", plan: "Silver 3 Months", amount: 5000, receiptDate: "2026-03-01 04:20 PM", cashierReceiptNo: "CSH-MDU-20260301-005", cashierVerifiedAt: "2026-03-01 04:35 PM", customerOtpConfirmed: true, customerOtpConfirmedAt: "2026-03-01 04:28 PM", subscriptionId: "SUB-20260301-0028", isVoided: false, voidReason: "", commissionStatus: "released" },
+];
+
+// ─── Receipt Book Registry ───
+export interface ReceiptBookEntry {
+  id: number;
+  staffName: string;
+  staffCode: string;
+  branch: string;
+  rangeStart: string;
+  rangeEnd: string;
+  totalReceipts: number;
+  used: number;
+  remaining: number;
+  gaps: number;
+  lastUsed: string;
+  status: "active" | "exhausted" | "gap-alert";
+}
+
+export const receiptBooks: ReceiptBookEntry[] = [
+  { id: 1, staffName: "Anitha Lakshmi", staffCode: "EMP001", branch: "Chennai Central", rangeStart: "BR01-2026-00801", rangeEnd: "BR01-2026-00900", totalReceipts: 100, used: 50, remaining: 50, gaps: 0, lastUsed: "BR01-2026-00850", status: "active" },
+  { id: 2, staffName: "Mohan Raj", staffCode: "EMP002", branch: "Chennai Central", rangeStart: "BR01-2026-00901", rangeEnd: "BR01-2026-01000", totalReceipts: 100, used: 35, remaining: 65, gaps: 2, lastUsed: "BR01-2026-00937", status: "gap-alert" },
+  { id: 3, staffName: "Priya Krishnan", staffCode: "EMP003", branch: "Chennai Central", rangeStart: "BR01-2026-00701", rangeEnd: "BR01-2026-00800", totalReceipts: 100, used: 82, remaining: 18, gaps: 0, lastUsed: "BR01-2026-00782", status: "active" },
+  { id: 4, staffName: "Karthik Rajan", staffCode: "EMP004", branch: "Coimbatore Main", rangeStart: "CBE01-2026-00301", rangeEnd: "CBE01-2026-00400", totalReceipts: 100, used: 21, remaining: 79, gaps: 0, lastUsed: "CBE01-2026-00321", status: "active" },
+  { id: 5, staffName: "Deepa Sundaram", staffCode: "EMP005", branch: "Madurai Branch", rangeStart: "MDU01-2026-00101", rangeEnd: "MDU01-2026-00200", totalReceipts: 100, used: 12, remaining: 88, gaps: 1, lastUsed: "MDU01-2026-00112", status: "gap-alert" },
+];
+
+// ─── Staff Cash Performance ───
+export interface StaffCashPerformance {
+  staffName: string;
+  staffCode: string;
+  branch: string;
+  totalCashCollected: number;
+  totalTransactions: number;
+  avgTransaction: number;
+  discrepancyCount: number;
+  lastDiscrepancyAmount: number;
+  lastDiscrepancyDate: string;
+}
+
+export const staffCashPerformance: StaffCashPerformance[] = [
+  { staffName: "Anitha Lakshmi", staffCode: "EMP001", branch: "Chennai Central", totalCashCollected: 245000, totalTransactions: 32, avgTransaction: 7656, discrepancyCount: 0, lastDiscrepancyAmount: 0, lastDiscrepancyDate: "" },
+  { staffName: "Mohan Raj", staffCode: "EMP002", branch: "Chennai Central", totalCashCollected: 180000, totalTransactions: 28, avgTransaction: 6428, discrepancyCount: 2, lastDiscrepancyAmount: 500, lastDiscrepancyDate: "2026-02-25" },
+  { staffName: "Priya Krishnan", staffCode: "EMP003", branch: "Chennai Central", totalCashCollected: 310000, totalTransactions: 40, avgTransaction: 7750, discrepancyCount: 0, lastDiscrepancyAmount: 0, lastDiscrepancyDate: "" },
+  { staffName: "Karthik Rajan", staffCode: "EMP004", branch: "Coimbatore Main", totalCashCollected: 145000, totalTransactions: 18, avgTransaction: 8055, discrepancyCount: 1, lastDiscrepancyAmount: 2000, lastDiscrepancyDate: "2026-02-18" },
+  { staffName: "Deepa Sundaram", staffCode: "EMP005", branch: "Madurai Branch", totalCashCollected: 98000, totalTransactions: 15, avgTransaction: 6533, discrepancyCount: 0, lastDiscrepancyAmount: 0, lastDiscrepancyDate: "" },
+];
+
+// ─── Discrepancy History ───
+export interface DiscrepancyRecord {
+  id: number;
+  date: string;
+  branch: string;
+  staffName: string;
+  expectedAmount: number;
+  actualAmount: number;
+  shortage: number;
+  explanation: string;
+  resolution: string;
+  severity: "minor" | "medium" | "critical";
+  status: "resolved" | "pending" | "investigating";
+}
+
+export const discrepancyHistory: DiscrepancyRecord[] = [
+  { id: 1, date: "2026-02-28", branch: "Coimbatore Main", staffName: "Karthik Rajan", expectedAmount: 32000, actualAmount: 31500, shortage: 500, explanation: "Counting error — coins miscounted", resolution: "Staff paid difference", severity: "minor", status: "resolved" },
+  { id: 2, date: "2026-02-25", branch: "Chennai Central", staffName: "Mohan Raj", expectedAmount: 18000, actualAmount: 17500, shortage: 500, explanation: "Customer returned ₹500 change not recorded", resolution: "Adjusted in next day-close", severity: "minor", status: "resolved" },
+  { id: 3, date: "2026-02-18", branch: "Coimbatore Main", staffName: "Karthik Rajan", expectedAmount: 9000, actualAmount: 7000, shortage: 2000, explanation: "Pending investigation", resolution: "", severity: "medium", status: "investigating" },
+  { id: 4, date: "2026-02-10", branch: "Trichy Office", staffName: "Vijay Kumar", expectedAmount: 15000, actualAmount: 15000, shortage: 0, explanation: "Initial alert — false positive", resolution: "Cleared after recount", severity: "minor", status: "resolved" },
+  { id: 5, date: "2026-01-28", branch: "Madurai Branch", staffName: "Deepa Sundaram", expectedAmount: 5000, actualAmount: 4900, shortage: 100, explanation: "Rounding — ₹100 coin missing", resolution: "Minor note added", severity: "minor", status: "resolved" },
+];
+
+// ─── Bank Deposits ───
+export interface BankDeposit {
+  id: number;
+  branch: string;
+  depositedBy: string;
+  depositDate: string;
+  amount: number;
+  bankName: string;
+  accountNumber: string;
+  depositSlipUploaded: boolean;
+  dayCloseDate: string;
+  verifiedByAdmin: boolean;
+  verifiedAt: string;
+  status: "verified" | "pending" | "overdue" | "mismatch";
+}
+
+export const bankDeposits: BankDeposit[] = [
+  { id: 1, branch: "Chennai Central", depositedBy: "Cashier: Meena", depositDate: "2026-03-01", amount: 45000, bankName: "SBI", accountNumber: "XXXXX1234", depositSlipUploaded: true, dayCloseDate: "2026-03-01", verifiedByAdmin: true, verifiedAt: "2026-03-02 09:00 AM", status: "verified" },
+  { id: 2, branch: "Coimbatore Main", depositedBy: "Cashier: Lakshmi", depositDate: "2026-03-01", amount: 30000, bankName: "HDFC", accountNumber: "XXXXX5678", depositSlipUploaded: true, dayCloseDate: "2026-03-01", verifiedByAdmin: false, verifiedAt: "", status: "mismatch" },
+  { id: 3, branch: "Madurai Branch", depositedBy: "Cashier: Revathi", depositDate: "2026-03-01", amount: 18000, bankName: "ICICI", accountNumber: "XXXXX9012", depositSlipUploaded: true, dayCloseDate: "2026-03-01", verifiedByAdmin: true, verifiedAt: "2026-03-02 09:15 AM", status: "verified" },
+  { id: 4, branch: "Trichy Office", depositedBy: "Cashier: Priya", depositDate: "", amount: 0, bankName: "", accountNumber: "", depositSlipUploaded: false, dayCloseDate: "2026-03-01", verifiedByAdmin: false, verifiedAt: "", status: "overdue" },
+  { id: 5, branch: "Chennai Central", depositedBy: "Cashier: Meena", depositDate: "2026-03-02", amount: 45000, bankName: "SBI", accountNumber: "XXXXX1234", depositSlipUploaded: false, dayCloseDate: "2026-03-02", verifiedByAdmin: false, verifiedAt: "", status: "pending" },
+];
+
+// ─── Commission Release Flow (Cash) ───
+export interface CommissionStage {
+  id: number;
+  receiptNo: string;
+  staffName: string;
+  customer: string;
+  amount: number;
+  stage: number;
+  stageName: string;
+  status: "complete" | "current" | "pending";
+  commissionAmount: number;
+}
+
+export const commissionReleaseFlow: CommissionStage[] = [
+  { id: 1, receiptNo: "BR01-2026-00847", staffName: "Priya Krishnan", customer: "Ravi Kumar", amount: 5000, stage: 6, stageName: "Released — Paid", status: "complete", commissionAmount: 500 },
+  { id: 2, receiptNo: "BR01-2026-00848", staffName: "Anitha Lakshmi", customer: "Meera S", amount: 15000, stage: 5, stageName: "Admin Verification", status: "current", commissionAmount: 1500 },
+  { id: 3, receiptNo: "BR01-2026-00849", staffName: "Mohan Raj", customer: "Ganesh T", amount: 5000, stage: 1, stageName: "Locked — Awaiting OTP", status: "current", commissionAmount: 400 },
+  { id: 4, receiptNo: "CBE01-2026-00321", staffName: "Karthik Rajan", customer: "Saranya P", amount: 9000, stage: 4, stageName: "Pending — Deposit Uploaded", status: "current", commissionAmount: 720 },
+];
+
+// ─── Cash Handling Policy Rules ───
+export const cashPolicyRules = [
+  { ruleNo: "CP-01", rule: "Every cash collection must be issued a pre-printed receipt immediately", consequence: "Warning → Suspension" },
+  { ruleNo: "CP-02", rule: "Cash must be handed to Branch Cashier within 30 minutes of collection", consequence: "Day-Close discrepancy raised" },
+  { ruleNo: "CP-03", rule: "Cash subscription must be entered in system on the same day as collection", consequence: "Commission not released; investigation opened" },
+  { ruleNo: "CP-04", rule: "Customer OTP must be confirmed before subscription is activated", consequence: "Subscription cannot be activated — system block" },
+  { ruleNo: "CP-05", rule: "All cash must be deposited to company bank within 24 hours", consequence: "48-hour alert; 72-hour commission freeze; admin investigation" },
+  { ruleNo: "CP-06", rule: "Bank deposit slip must be uploaded to system same day as deposit", consequence: "Yellow alert after 24 hours; red alert after 48 hours" },
+  { ruleNo: "CP-07", rule: "Any discrepancy in Day-Close must be explained in writing within 24 hours", consequence: "Account frozen for new subscriptions until resolved" },
+  { ruleNo: "CP-08", rule: "Receipt books may not be defaced, altered, or have pages removed", consequence: "Immediate suspension; HR investigation" },
+  { ruleNo: "CP-09", rule: "Staff may not accept UPI payments to their personal mobile number", consequence: "Termination — treated as embezzlement" },
+  { ruleNo: "CP-10", rule: "Commission released only after full audit trail complete (OTP + Cashier + Deposit + Admin verification)", consequence: "Commission held permanently for unverified transactions" },
+];
+
+// ─── Horoscope Data for Profiles ───
+export interface ProfileHoroscope {
+  profileId: string;
+  rasi: string;
+  nakshatram: string;
+  lagnam: string;
+  dosham: string;
+  dasa: string;
+  horoscopeImageUrl: string;
+  birthDate: string;
+  birthTime: string;
+  birthPlace: string;
+}
+
+export const profileHoroscopes: ProfileHoroscope[] = [
+  { profileId: "AMP001", rasi: "Mesha (Aries)", nakshatram: "Ashwini", lagnam: "Thulam", dosham: "No Dosham", dasa: "Rahu Dasa", horoscopeImageUrl: "", birthDate: "2000-05-15", birthTime: "06:30 AM", birthPlace: "Chennai" },
+  { profileId: "AMP002", rasi: "Vrishabha (Taurus)", nakshatram: "Rohini", lagnam: "Simha", dosham: "Sevvai Dosham", dasa: "Jupiter Dasa", horoscopeImageUrl: "", birthDate: "1996-08-22", birthTime: "03:15 PM", birthPlace: "Coimbatore" },
+  { profileId: "AMP003", rasi: "Kanya (Virgo)", nakshatram: "Hastham", lagnam: "Dhanus", dosham: "No Dosham", dasa: "Saturn Dasa", horoscopeImageUrl: "", birthDate: "1998-01-10", birthTime: "09:45 AM", birthPlace: "Madurai" },
+  { profileId: "AMP004", rasi: "Makara (Capricorn)", nakshatram: "Uthradam", lagnam: "Mesha", dosham: "Rahu-Ketu Dosham", dasa: "Mercury Dasa", horoscopeImageUrl: "", birthDate: "1994-11-30", birthTime: "12:00 PM", birthPlace: "Trichy" },
+  { profileId: "AMP005", rasi: "Mithuna (Gemini)", nakshatram: "Thiruvathirai", lagnam: "Kanya", dosham: "No Dosham", dasa: "Venus Dasa", horoscopeImageUrl: "", birthDate: "1997-03-08", birthTime: "07:20 AM", birthPlace: "Salem" },
+];

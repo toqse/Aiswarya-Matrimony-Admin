@@ -15,6 +15,7 @@ import {
   UserCheck, UserX, AlertTriangle, Users, CreditCard, CheckCircle2, XCircle
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import AddProfileWizard from "@/components/profile/AddProfileWizard";
 
 const statusFilters = ["All", "Incomplete", "Complete", "Subscribed", "Unsubscribed", "Verified", "Unverified"];
 
@@ -29,9 +30,6 @@ export default function MyProfiles() {
   const [showNoteDialog, setShowNoteDialog] = useState(false);
   const [noteTarget, setNoteTarget] = useState<string>("");
   const [noteText, setNoteText] = useState("");
-  const [newProfile, setNewProfile] = useState({
-    name: "", gender: "Male", age: 25, religion: "Hindu", caste: "", maritalStatus: "Never Married",
-  });
   const { toast } = useToast();
 
   const filtered = profiles.filter((p) => {
@@ -49,14 +47,11 @@ export default function MyProfiles() {
   // Expiring within 7 days highlight
   const expiringProfiles = profiles.filter(p => p.subscription !== "None" && p.completeness < 80);
 
-  const addNewProfile = () => {
+  const addNewProfile = (profileData: any) => {
     const id = `AMP${String(profiles.length + 1).padStart(3, "0")}`;
-    setProfiles([...profiles, {
-      id, ...newProfile, subscription: "None", verified: false, completeness: 30,
-    }]);
+    setProfiles([...profiles, { id, ...profileData }]);
     setShowAddProfile(false);
-    setNewProfile({ name: "", gender: "Male", age: 25, religion: "Hindu", caste: "", maritalStatus: "Never Married" });
-    toast({ title: "Profile Created", description: `${newProfile.name} added as ${id}` });
+    toast({ title: "Profile Created", description: `${profileData.name} added as ${id}` });
   };
 
   const saveEditProfile = () => {
@@ -246,66 +241,8 @@ export default function MyProfiles() {
         </DialogContent>
       </Dialog>
 
-      {/* Add New Profile Dialog */}
-      <Dialog open={showAddProfile} onOpenChange={setShowAddProfile}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>Add New Profile</DialogTitle></DialogHeader>
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="col-span-2">
-                <Label>Full Name *</Label>
-                <Input value={newProfile.name} onChange={(e) => setNewProfile({ ...newProfile, name: e.target.value })} placeholder="Enter full name" />
-              </div>
-              <div>
-                <Label>Gender *</Label>
-                <Select value={newProfile.gender} onValueChange={(v) => setNewProfile({ ...newProfile, gender: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Male">Male</SelectItem>
-                    <SelectItem value="Female">Female</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Age *</Label>
-                <Input type="number" value={newProfile.age} onChange={(e) => setNewProfile({ ...newProfile, age: parseInt(e.target.value) || 25 })} />
-              </div>
-              <div>
-                <Label>Religion *</Label>
-                <Select value={newProfile.religion} onValueChange={(v) => setNewProfile({ ...newProfile, religion: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Hindu">Hindu</SelectItem>
-                    <SelectItem value="Christian">Christian</SelectItem>
-                    <SelectItem value="Muslim">Muslim</SelectItem>
-                    <SelectItem value="Jain">Jain</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Caste</Label>
-                <Input value={newProfile.caste} onChange={(e) => setNewProfile({ ...newProfile, caste: e.target.value })} placeholder="Enter caste" />
-              </div>
-              <div className="col-span-2">
-                <Label>Marital Status</Label>
-                <Select value={newProfile.maritalStatus} onValueChange={(v) => setNewProfile({ ...newProfile, maritalStatus: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Never Married">Never Married</SelectItem>
-                    <SelectItem value="Divorced">Divorced</SelectItem>
-                    <SelectItem value="Widowed">Widowed</SelectItem>
-                    <SelectItem value="Separated">Separated</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddProfile(false)}>Cancel</Button>
-            <Button onClick={addNewProfile} disabled={!newProfile.name}>Create Profile</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Add New Profile Wizard */}
+      <AddProfileWizard open={showAddProfile} onOpenChange={setShowAddProfile} onComplete={addNewProfile} />
 
       {/* Edit Profile Dialog */}
       <Dialog open={showEditProfile} onOpenChange={setShowEditProfile}>

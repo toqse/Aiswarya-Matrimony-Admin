@@ -19,6 +19,11 @@ import EmailTemplates from "@/pages/admin/EmailTemplates";
 import SystemSettings from "@/pages/admin/SystemSettings";
 import AuditLog from "@/pages/admin/AuditLog";
 import HoroscopeManagement from "@/pages/admin/HoroscopeManagement";
+import MyProfiles from "@/pages/staff/MyProfiles";
+import StaffEnquiries from "@/pages/staff/StaffEnquiries";
+import StaffSubscriptions from "@/pages/staff/StaffSubscriptions";
+import MySalary from "@/pages/staff/MySalary";
+import MyCommissions from "@/pages/staff/MyCommissions";
 
 function DashboardHome() {
   const { role } = useRole();
@@ -47,10 +52,12 @@ const Index = () => {
         <Route path="/settings" element={<SystemSettings />} />
         <Route path="/audit-log" element={<AuditLog />} />
         <Route path="/horoscope" element={<HoroscopeManagement />} />
-        {/* Staff & Branch Manager shared routes */}
-        <Route path="/my-commissions" element={<AllCommissions />} />
-        <Route path="/my-salary" element={<SalaryPayroll />} />
-        <Route path="/my-profiles" element={<ProfileAdmin />} />
+        {/* Staff & Branch Manager dedicated routes */}
+        <Route path="/my-commissions" element={<MyCommissions />} />
+        <Route path="/my-salary" element={<MySalary />} />
+        <Route path="/my-profiles" element={<MyProfiles />} />
+        <Route path="/my-enquiries" element={<StaffEnquiries />} />
+        <Route path="/my-subscriptions" element={<StaffSubscriptions />} />
         <Route path="/cash-entry" element={<CashPayments />} />
         <Route path="/activity-log" element={<AuditLog />} />
         <Route path="/staff-performance" element={<StaffManagement />} />

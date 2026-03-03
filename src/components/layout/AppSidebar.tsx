@@ -36,8 +36,8 @@ const staffItems = [
   { title: "My Salary", url: "/my-salary", icon: IndianRupee },
   { title: "My Profiles", url: "/my-profiles", icon: UserCircle },
   { title: "Horoscope", url: "/horoscope", icon: Sparkles },
-  { title: "Enquiries", url: "/enquiries", icon: MessageSquare },
-  { title: "Subscriptions", url: "/subscriptions", icon: CreditCard },
+  { title: "Enquiries", url: "/my-enquiries", icon: MessageSquare },
+  { title: "Subscriptions", url: "/my-subscriptions", icon: CreditCard },
   { title: "Cash Payment Entry", url: "/cash-entry", icon: Banknote },
   { title: "Activity Log", url: "/activity-log", icon: Activity },
 ];
@@ -52,8 +52,8 @@ const branchManagerItems = [
   { title: "My Salary", url: "/my-salary", icon: IndianRupee },
   { title: "My Profiles", url: "/my-profiles", icon: UserCircle },
   { title: "Horoscope", url: "/horoscope", icon: Sparkles },
-  { title: "Enquiries", url: "/enquiries", icon: MessageSquare },
-  { title: "Subscriptions", url: "/subscriptions", icon: CreditCard },
+  { title: "Enquiries", url: "/my-enquiries", icon: MessageSquare },
+  { title: "Subscriptions", url: "/my-subscriptions", icon: CreditCard },
 ];
 
 const roleLabels = { admin: "Admin Panel", staff: "Staff Panel", "branch-manager": "Branch Manager" };

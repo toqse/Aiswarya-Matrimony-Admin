@@ -45,6 +45,7 @@ const staffItems = [
 const branchManagerItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Staff Performance", url: "/staff-performance", icon: Target },
+  { title: "Enquiry Overview", url: "/branch-enquiries", icon: MessageSquare },
   { title: "Commission Approval", url: "/commission-approval", icon: CheckSquare },
   { title: "Salary Management", url: "/branch-salary", icon: IndianRupee },
   { title: "Day-Close", url: "/day-close", icon: CalendarClock },
@@ -52,8 +53,6 @@ const branchManagerItems = [
   { title: "My Salary", url: "/my-salary", icon: IndianRupee },
   { title: "My Profiles", url: "/my-profiles", icon: UserCircle },
   { title: "Horoscope", url: "/horoscope", icon: Sparkles },
-  { title: "Enquiries", url: "/my-enquiries", icon: MessageSquare },
-  { title: "Subscriptions", url: "/my-subscriptions", icon: CreditCard },
 ];
 
 const roleLabels = { admin: "Admin Panel", staff: "Staff Panel", "branch-manager": "Branch Manager" };

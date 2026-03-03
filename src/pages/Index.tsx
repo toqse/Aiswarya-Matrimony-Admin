@@ -7,6 +7,9 @@ import BranchManagerDashboard from "@/pages/branch/BranchManagerDashboard";
 import BranchManagement from "@/pages/admin/BranchManagement";
 import StaffManagement from "@/pages/admin/StaffManagement";
 import SubscriptionPlans from "@/pages/admin/SubscriptionPlans";
+import BranchStaffPerformance from "@/pages/branch/BranchStaffPerformance";
+import BranchEnquiryOverview from "@/pages/branch/BranchEnquiryOverview";
+import BranchSalary from "@/pages/branch/BranchSalary";
 import AllSubscriptions from "@/pages/admin/AllSubscriptions";
 import AllCommissions from "@/pages/admin/AllCommissions";
 import SalaryPayroll from "@/pages/admin/SalaryPayroll";
@@ -60,9 +63,10 @@ const Index = () => {
         <Route path="/my-subscriptions" element={<StaffSubscriptions />} />
         <Route path="/cash-entry" element={<CashPayments />} />
         <Route path="/activity-log" element={<AuditLog />} />
-        <Route path="/staff-performance" element={<StaffManagement />} />
+        <Route path="/staff-performance" element={<BranchStaffPerformance />} />
         <Route path="/commission-approval" element={<AllCommissions />} />
-        <Route path="/branch-salary" element={<SalaryPayroll />} />
+        <Route path="/branch-salary" element={<BranchSalary />} />
+        <Route path="/branch-enquiries" element={<BranchEnquiryOverview />} />
         <Route path="/day-close" element={<CashPayments />} />
       </Routes>
     </DashboardLayout>

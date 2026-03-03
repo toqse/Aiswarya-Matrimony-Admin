@@ -187,29 +187,29 @@ export default function MyProfiles() {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
-                      <Button variant="ghost" size="icon" className="h-7 w-7" title="Edit Profile"
+                      <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-blue-500/10" title="Edit Profile"
                         onClick={() => { setEditProfile(p); setShowEditProfile(true); }}>
-                        <Edit className="h-3.5 w-3.5" />
+                        <Edit className="h-3.5 w-3.5 text-blue-500" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7" title="View Profile"
+                      <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-violet-500/10" title="View Profile"
                         onClick={() => setViewProfile(p)}>
-                        <Eye className="h-3.5 w-3.5" />
+                        <Eye className="h-3.5 w-3.5 text-violet-500" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7" title="Renew Subscription"
+                      <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-emerald-500/10" title="Renew Subscription"
                         onClick={() => toast({ title: "Renewal", description: `Renewal initiated for ${p.name}` })}>
-                        <RefreshCw className="h-3.5 w-3.5" />
+                        <RefreshCw className="h-3.5 w-3.5 text-emerald-500" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7" title="View Matches"
+                      <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-pink-500/10" title="View Matches"
                         onClick={() => toast({ title: "Matches", description: `Viewing matches for ${p.name}` })}>
-                        <Heart className="h-3.5 w-3.5" />
+                        <Heart className="h-3.5 w-3.5 text-pink-500" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7" title="Send Email"
+                      <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-amber-500/10" title="Send Email"
                         onClick={() => sendEmail(p.name)}>
-                        <Mail className="h-3.5 w-3.5" />
+                        <Mail className="h-3.5 w-3.5 text-amber-500" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7" title="Add Note"
+                      <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-teal-500/10" title="Add Note"
                         onClick={() => { setNoteTarget(p.name); setShowNoteDialog(true); }}>
-                        <StickyNote className="h-3.5 w-3.5" />
+                        <StickyNote className="h-3.5 w-3.5 text-teal-500" />
                       </Button>
                     </div>
                   </TableCell>

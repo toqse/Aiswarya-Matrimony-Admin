@@ -10,17 +10,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { enquiries as initialEnquiries, type Enquiry, type EnquiryStatus, type EnquirySource } from "@/data/mockData";
 import {
   Plus, Search, ArrowRight, Phone, Clock, AlertTriangle, MessageSquare,
-  UserPlus, Globe, Footprints, Mail, CreditCard
+  UserPlus, Globe, Footprints, Mail, CreditCard, TrendingUp, Users, Zap, Eye, Trash2
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { useToast } from "@/hooks/use-toast";
 
-const stages: { key: EnquiryStatus; label: string; color: string; bg: string }[] = [
-  { key: "new", label: "New", color: "text-info", bg: "bg-info/10 border-info/30" },
-  { key: "contacted", label: "Contacted", color: "text-warning", bg: "bg-warning/10 border-warning/30" },
-  { key: "interested", label: "Interested", color: "text-accent-foreground", bg: "bg-accent/20 border-accent/30" },
-  { key: "converted", label: "Converted", color: "text-success", bg: "bg-success/10 border-success/30" },
-  { key: "lost", label: "Lost", color: "text-destructive", bg: "bg-destructive/10 border-destructive/30" },
+const stages: { key: EnquiryStatus; label: string; color: string; bg: string; gradient: string; iconBg: string }[] = [
+  { key: "new", label: "New", color: "text-blue-600", bg: "bg-blue-50 border-blue-200", gradient: "from-blue-500 to-blue-600", iconBg: "bg-blue-100" },
+  { key: "contacted", label: "Contacted", color: "text-amber-600", bg: "bg-amber-50 border-amber-200", gradient: "from-amber-500 to-amber-600", iconBg: "bg-amber-100" },
+  { key: "interested", label: "Interested", color: "text-purple-600", bg: "bg-purple-50 border-purple-200", gradient: "from-purple-500 to-purple-600", iconBg: "bg-purple-100" },
+  { key: "converted", label: "Converted", color: "text-emerald-600", bg: "bg-emerald-50 border-emerald-200", gradient: "from-emerald-500 to-emerald-600", iconBg: "bg-emerald-100" },
+  { key: "lost", label: "Lost", color: "text-rose-600", bg: "bg-rose-50 border-rose-200", gradient: "from-rose-500 to-rose-600", iconBg: "bg-rose-100" },
 ];
 
 const sourceIcons: Record<string, any> = {
@@ -33,6 +33,7 @@ export default function StaffEnquiries() {
   const [enquiries, setEnquiries] = useState<Enquiry[]>(initialEnquiries);
   const [showAddEnquiry, setShowAddEnquiry] = useState(false);
   const [showFollowUp, setShowFollowUp] = useState<Enquiry | null>(null);
+  const [showViewLead, setShowViewLead] = useState<Enquiry | null>(null);
   const [followUpNote, setFollowUpNote] = useState("");
   const [search, setSearch] = useState("");
   const [newEnquiry, setNewEnquiry] = useState<Partial<Enquiry>>({
@@ -52,6 +53,10 @@ export default function StaffEnquiries() {
     (e) => e.status !== "converted" && e.status !== "lost" && new Date(e.date) < new Date(Date.now() - 3 * 86400000)
   );
 
+  const conversionRate = enquiries.length > 0
+    ? ((enquiries.filter(e => e.status === "converted").length / enquiries.length) * 100).toFixed(0)
+    : "0";
+
   const moveStage = (id: number, newStatus: EnquiryStatus) => {
     setEnquiries((prev) => prev.map((e) => e.id === id ? { ...e, status: newStatus } : e));
     toast({ title: "Status Updated", description: `Lead moved to ${newStatus}` });
@@ -60,6 +65,11 @@ export default function StaffEnquiries() {
   const convertToSubscription = (e: Enquiry) => {
     setEnquiries((prev) => prev.map((eq) => eq.id === e.id ? { ...eq, status: "converted" as EnquiryStatus } : eq));
     toast({ title: "Converted!", description: `${e.name} converted to subscription — redirecting to subscription creation` });
+  };
+
+  const markAsLost = (e: Enquiry) => {
+    setEnquiries((prev) => prev.map((eq) => eq.id === e.id ? { ...eq, status: "lost" as EnquiryStatus } : eq));
+    toast({ title: "Marked as Lost", description: `${e.name} moved to lost` });
   };
 
   const addEnquiry = () => {
@@ -80,6 +90,13 @@ export default function StaffEnquiries() {
     setFollowUpNote("");
   };
 
+  const kpis = [
+    { label: "Total Leads", value: enquiries.length, icon: Users, color: "text-blue-600", bg: "bg-blue-50", iconBg: "bg-blue-100" },
+    { label: "Active Leads", value: enquiries.filter(e => !["converted", "lost"].includes(e.status)).length, icon: Zap, color: "text-amber-600", bg: "bg-amber-50", iconBg: "bg-amber-100" },
+    { label: "Converted", value: enquiries.filter(e => e.status === "converted").length, icon: TrendingUp, color: "text-emerald-600", bg: "bg-emerald-50", iconBg: "bg-emerald-100" },
+    { label: "Conversion Rate", value: `${conversionRate}%`, icon: CreditCard, color: "text-purple-600", bg: "bg-purple-50", iconBg: "bg-purple-100" },
+  ];
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -87,16 +104,35 @@ export default function StaffEnquiries() {
           <h1 className="text-2xl font-bold text-foreground">Enquiry & Lead Management</h1>
           <p className="text-muted-foreground text-sm mt-1">Track, nurture, and convert leads</p>
         </div>
-        <Button onClick={() => setShowAddEnquiry(true)} className="gap-2 bg-gradient-to-r from-primary to-primary/80 shadow-lg">
+        <Button onClick={() => setShowAddEnquiry(true)} className="gap-2 bg-gradient-to-r from-primary to-primary/80 shadow-lg hover:shadow-xl transition-all">
           <Plus className="h-4 w-4" /> Add Enquiry
         </Button>
       </div>
 
+      {/* KPI Summary Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {kpis.map((k) => (
+          <Card key={k.label} className="shadow-elegant border-0 hover:shadow-lg transition-all hover:-translate-y-0.5">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className={`h-11 w-11 rounded-xl ${k.iconBg} flex items-center justify-center`}>
+                <k.icon className={`h-5 w-5 ${k.color}`} />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">{k.label}</p>
+                <p className={`text-xl font-bold ${k.color}`}>{k.value}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
       {/* Overdue Alert */}
       {overdueEnquiries.length > 0 && (
-        <Card className="border-l-4 border-l-destructive bg-destructive/5 shadow-elegant border-0">
+        <Card className="border-l-4 border-l-destructive bg-destructive/5 shadow-elegant border-0 animate-fade-in">
           <CardContent className="p-4 flex items-center gap-3">
-            <AlertTriangle className="h-5 w-5 text-destructive shrink-0" />
+            <div className="h-10 w-10 rounded-full bg-destructive/10 flex items-center justify-center">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+            </div>
             <div>
               <p className="font-semibold text-sm text-destructive">Overdue Follow-ups</p>
               <p className="text-xs text-muted-foreground">{overdueEnquiries.length} lead(s) have not been followed up in 3+ days</p>
@@ -110,7 +146,7 @@ export default function StaffEnquiries() {
         <div className="lg:col-span-2 space-y-4">
           <div className="relative max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search leads..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+            <Input placeholder="Search leads..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 border-border/60 focus:border-primary" />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
@@ -119,8 +155,11 @@ export default function StaffEnquiries() {
               return (
                 <div key={stage.key} className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <h3 className={`text-sm font-bold ${stage.color}`}>{stage.label}</h3>
-                    <Badge variant="outline" className="text-xs">{stageEnquiries.length}</Badge>
+                    <div className="flex items-center gap-2">
+                      <div className={`h-2.5 w-2.5 rounded-full bg-gradient-to-r ${stage.gradient}`} />
+                      <h3 className={`text-sm font-bold ${stage.color}`}>{stage.label}</h3>
+                    </div>
+                    <Badge variant="outline" className={`text-xs font-bold ${stage.color} border-current/30`}>{stageEnquiries.length}</Badge>
                   </div>
                   <div className="space-y-2 min-h-[200px]">
                     {stageEnquiries.map((e) => {
@@ -128,35 +167,47 @@ export default function StaffEnquiries() {
                       const isOverdue = e.status !== "converted" && e.status !== "lost" &&
                         new Date(e.date) < new Date(Date.now() - 3 * 86400000);
                       return (
-                        <Card key={e.id} className={`shadow-sm border ${stage.bg} hover:shadow-md transition-shadow cursor-pointer ${isOverdue ? "ring-2 ring-destructive/50" : ""}`}>
+                        <Card key={e.id} className={`shadow-sm border ${stage.bg} hover:shadow-lg transition-all hover:-translate-y-0.5 cursor-pointer ${isOverdue ? "ring-2 ring-destructive/50 animate-pulse" : ""}`}>
                           <CardContent className="p-3 space-y-2">
                             <div className="flex items-center justify-between">
-                              <p className="font-semibold text-sm">{e.name}</p>
-                              {isOverdue && <AlertTriangle className="h-3.5 w-3.5 text-destructive" />}
+                              <p className="font-semibold text-sm truncate">{e.name}</p>
+                              {isOverdue && <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0" />}
                             </div>
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <SourceIcon className="h-3 w-3" /> {e.source}
+                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                              <div className={`h-5 w-5 rounded-md ${stage.iconBg} flex items-center justify-center`}>
+                                <SourceIcon className="h-3 w-3" />
+                              </div>
+                              {e.source}
                             </div>
                             <p className="text-xs text-muted-foreground">Last: {e.date}</p>
                             <div className="flex gap-1 flex-wrap">
+                              {/* View button for all stages */}
+                              <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2 text-blue-600 hover:bg-blue-50"
+                                onClick={() => setShowViewLead(e)}>
+                                <Eye className="h-3 w-3 mr-1" /> View
+                              </Button>
                               {stage.key !== "converted" && stage.key !== "lost" && (
                                 <>
-                                  <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2"
+                                  <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2 text-amber-600 hover:bg-amber-50"
                                     onClick={() => setShowFollowUp(e)}>
                                     <Clock className="h-3 w-3 mr-1" /> Follow-up
                                   </Button>
                                   {stage.key === "interested" && (
-                                    <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2 text-success"
+                                    <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2 text-emerald-600 hover:bg-emerald-50"
                                       onClick={() => convertToSubscription(e)}>
                                       <CreditCard className="h-3 w-3 mr-1" /> Convert
                                     </Button>
                                   )}
                                   {stage.key !== "interested" && (
-                                    <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2"
+                                    <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2 text-violet-600 hover:bg-violet-50"
                                       onClick={() => moveStage(e.id, stages[stages.findIndex(s => s.key === stage.key) + 1]?.key || stage.key)}>
                                       <ArrowRight className="h-3 w-3" />
                                     </Button>
                                   )}
+                                  <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2 text-rose-500 hover:bg-rose-50"
+                                    onClick={() => markAsLost(e)}>
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
                                 </>
                               )}
                             </div>
@@ -173,7 +224,7 @@ export default function StaffEnquiries() {
 
         {/* Lead Source Chart */}
         <div className="space-y-4">
-          <Card className="shadow-elegant border-0">
+          <Card className="shadow-elegant border-0 hover:shadow-lg transition-shadow">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-semibold">Lead Sources</CardTitle>
             </CardHeader>
@@ -191,25 +242,48 @@ export default function StaffEnquiries() {
           </Card>
 
           {/* Follow-up Timeline */}
-          <Card className="shadow-elegant border-0">
+          <Card className="shadow-elegant border-0 hover:shadow-lg transition-shadow">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-semibold">Recent Follow-ups</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {enquiries.slice(0, 4).map((e) => (
-                <div key={e.id} className="flex items-start gap-2 text-sm border-b border-border/50 pb-2 last:border-0">
-                  <div className="h-2 w-2 rounded-full bg-primary mt-1.5 shrink-0" />
-                  <div>
-                    <p className="font-medium text-xs">{e.name}</p>
-                    <p className="text-xs text-muted-foreground">{e.notes}</p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">{e.date}</p>
+              {enquiries.slice(0, 4).map((e, idx) => {
+                const stageColors = ["bg-blue-500", "bg-amber-500", "bg-purple-500", "bg-emerald-500"];
+                return (
+                  <div key={e.id} className="flex items-start gap-3 text-sm border-b border-border/50 pb-2 last:border-0">
+                    <div className={`h-2.5 w-2.5 rounded-full ${stageColors[idx % stageColors.length]} mt-1.5 shrink-0 ring-2 ring-offset-2 ring-offset-background ${stageColors[idx % stageColors.length]}/30`} />
+                    <div className="flex-1">
+                      <p className="font-medium text-xs">{e.name}</p>
+                      <p className="text-xs text-muted-foreground">{e.notes}</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">{e.date}</p>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </CardContent>
           </Card>
         </div>
       </div>
+
+      {/* View Lead Dialog */}
+      <Dialog open={!!showViewLead} onOpenChange={() => setShowViewLead(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Lead Details — {showViewLead?.name}</DialogTitle></DialogHeader>
+          {showViewLead && (
+            <div className="space-y-3 text-sm">
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label className="text-muted-foreground">Phone</Label><p className="font-medium">{showViewLead.phone}</p></div>
+                <div><Label className="text-muted-foreground">Source</Label><p className="font-medium">{showViewLead.source}</p></div>
+                <div><Label className="text-muted-foreground">Status</Label><Badge className="mt-1">{showViewLead.status}</Badge></div>
+                <div><Label className="text-muted-foreground">Assigned To</Label><p className="font-medium">{showViewLead.assignedTo}</p></div>
+                <div><Label className="text-muted-foreground">Branch</Label><p className="font-medium">{showViewLead.branch}</p></div>
+                <div><Label className="text-muted-foreground">Last Contact</Label><p className="font-medium">{showViewLead.date}</p></div>
+              </div>
+              <div><Label className="text-muted-foreground">Notes</Label><p className="bg-muted/50 rounded-lg p-3 mt-1">{showViewLead.notes}</p></div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Add Enquiry Dialog */}
       <Dialog open={showAddEnquiry} onOpenChange={setShowAddEnquiry}>

@@ -3,20 +3,23 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
-import { profiles as initialProfiles, profileHoroscopes } from "@/data/mockData";
-import { Search, Eye, Trash2, Shield, ShieldOff, Star } from "lucide-react";
+import { profiles as initialProfiles, profileHoroscopes, staffMembers } from "@/data/mockData";
+import { Search, Eye, Trash2, Shield, ShieldOff, Star, Edit, Ban } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 export default function ProfileAdmin() {
-  const [profs, setProfs] = useState(initialProfiles);
+  const [profs, setProfs] = useState(initialProfiles.map(p => ({ ...p, assignedStaff: staffMembers[Math.floor(Math.random() * staffMembers.length)].name, blocked: false })));
   const [search, setSearch] = useState("");
-  const [viewProfile, setViewProfile] = useState<typeof initialProfiles[0] | null>(null);
+  const [viewProfile, setViewProfile] = useState<typeof profs[0] | null>(null);
   const [viewTab, setViewTab] = useState("details");
+  const [editProfile, setEditProfile] = useState<typeof profs[0] | null>(null);
   const { toast } = useToast();
 
   const filtered = profs.filter((p) =>
@@ -28,19 +31,29 @@ export default function ProfileAdmin() {
     toast({ title: "Verification toggled" });
   };
 
+  const toggleBlock = (id: string) => {
+    setProfs(prev => prev.map(p => p.id === id ? { ...p, blocked: !p.blocked } : p));
+    toast({ title: "Profile block status updated" });
+  };
+
   const deleteProfile = (id: string) => {
     setProfs((prev) => prev.filter((p) => p.id !== id));
     toast({ title: "Profile deleted" });
   };
 
+  const saveEdit = () => {
+    if (!editProfile) return;
+    setProfs(prev => prev.map(p => p.id === editProfile.id ? editProfile : p));
+    setEditProfile(null);
+    toast({ title: "Profile updated" });
+  };
+
   const getHoroscope = (profileId: string) => profileHoroscopes.find(h => h.profileId === profileId);
 
-  // Horoscope chart grid (South Indian style)
   const renderHoroscopeChart = (horoscope: typeof profileHoroscopes[0]) => {
     const houses = ["Su", "Mo", "Ma", "Me", "Ju", "Ve", "Sa", "Ra", "Ke", "La", "", ""];
     return (
       <div className="grid grid-cols-4 grid-rows-4 border-2 border-primary w-full max-w-[320px] mx-auto aspect-square">
-        {/* South Indian horoscope chart layout */}
         {[
           { r: 0, c: 0, label: "12" }, { r: 0, c: 1, label: "1" }, { r: 0, c: 2, label: "2" }, { r: 0, c: 3, label: "3" },
           { r: 1, c: 0, label: "11" }, { r: 1, c: 1, label: "", span: true }, { r: 1, c: 2, label: "", span: true }, { r: 1, c: 3, label: "4" },
@@ -56,7 +69,6 @@ export default function ProfileAdmin() {
             </div>
           );
         })}
-        {/* Center area */}
         <div className="col-start-2 col-span-2 row-start-2 row-span-2 border border-primary/30 flex items-center justify-center bg-soft/30">
           <div className="text-center">
             <p className="font-bold text-primary text-sm">{horoscope.rasi}</p>
@@ -96,6 +108,7 @@ export default function ProfileAdmin() {
                 <TableHead>Caste</TableHead>
                 <TableHead>Marital Status</TableHead>
                 <TableHead>Plan</TableHead>
+                <TableHead>Assigned Staff</TableHead>
                 <TableHead>Verified</TableHead>
                 <TableHead>Complete</TableHead>
                 <TableHead>Horoscope</TableHead>
@@ -106,7 +119,7 @@ export default function ProfileAdmin() {
               {filtered.map((p) => {
                 const hasHoroscope = !!getHoroscope(p.id);
                 return (
-                  <TableRow key={p.id}>
+                  <TableRow key={p.id} className={p.blocked ? "opacity-50" : ""}>
                     <TableCell className="font-mono text-xs">{p.id}</TableCell>
                     <TableCell className="font-medium">{p.name}</TableCell>
                     <TableCell>{p.gender}</TableCell>
@@ -115,6 +128,7 @@ export default function ProfileAdmin() {
                     <TableCell>{p.caste}</TableCell>
                     <TableCell>{p.maritalStatus}</TableCell>
                     <TableCell><Badge variant="outline">{p.subscription}</Badge></TableCell>
+                    <TableCell className="text-xs">{p.assignedStaff}</TableCell>
                     <TableCell>
                       {p.verified ? <Badge className="bg-success text-success-foreground">Verified</Badge> : <Badge variant="secondary">Unverified</Badge>}
                     </TableCell>
@@ -133,18 +147,26 @@ export default function ProfileAdmin() {
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => { setViewProfile(p); setViewTab("details"); }}><Eye className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" onClick={() => toggleVerify(p.id)}>
-                          {p.verified ? <ShieldOff className="h-4 w-4" /> : <Shield className="h-4 w-4" />}
+                        <Button variant="ghost" size="icon" className="h-7 w-7" title="View Profile" onClick={() => { setViewProfile(p); setViewTab("details"); }}>
+                          <Eye className="h-3.5 w-3.5 text-primary" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" title="Edit Profile" onClick={() => setEditProfile({ ...p })}>
+                          <Edit className="h-3.5 w-3.5 text-info" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" title="Toggle Verify" onClick={() => toggleVerify(p.id)}>
+                          {p.verified ? <ShieldOff className="h-3.5 w-3.5 text-warning" /> : <Shield className="h-3.5 w-3.5 text-success" />}
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" title={p.blocked ? "Unblock" : "Block"} onClick={() => toggleBlock(p.id)}>
+                          <Ban className={`h-3.5 w-3.5 ${p.blocked ? "text-success" : "text-destructive"}`} />
                         </Button>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon" className="text-destructive"><Trash2 className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" title="Delete"><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
                           </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
                               <AlertDialogTitle>Delete Profile?</AlertDialogTitle>
-                              <AlertDialogDescription>This action cannot be undone. Profile {p.id} will be permanently deleted.</AlertDialogDescription>
+                              <AlertDialogDescription>Profile {p.id} will be permanently deleted.</AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                               <AlertDialogCancel>Cancel</AlertDialogCancel>
@@ -162,7 +184,51 @@ export default function ProfileAdmin() {
         </CardContent>
       </Card>
 
-      {/* View Profile Dialog with Horoscope */}
+      {/* Edit Profile Dialog */}
+      <Dialog open={!!editProfile} onOpenChange={() => setEditProfile(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Edit Profile — {editProfile?.id}</DialogTitle></DialogHeader>
+          {editProfile && (
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div><Label>Name</Label><Input value={editProfile.name} onChange={e => setEditProfile({ ...editProfile, name: e.target.value })} /></div>
+              <div><Label>Age</Label><Input type="number" value={editProfile.age} onChange={e => setEditProfile({ ...editProfile, age: Number(e.target.value) })} /></div>
+              <div><Label>Gender</Label>
+                <Select value={editProfile.gender} onValueChange={v => setEditProfile({ ...editProfile, gender: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="Male">Male</SelectItem><SelectItem value="Female">Female</SelectItem></SelectContent>
+                </Select>
+              </div>
+              <div><Label>Religion</Label><Input value={editProfile.religion} onChange={e => setEditProfile({ ...editProfile, religion: e.target.value })} /></div>
+              <div><Label>Caste</Label><Input value={editProfile.caste} onChange={e => setEditProfile({ ...editProfile, caste: e.target.value })} /></div>
+              <div><Label>Marital Status</Label>
+                <Select value={editProfile.maritalStatus} onValueChange={v => setEditProfile({ ...editProfile, maritalStatus: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Never Married">Never Married</SelectItem>
+                    <SelectItem value="Divorced">Divorced</SelectItem>
+                    <SelectItem value="Widowed">Widowed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div><Label>Subscription</Label><Input value={editProfile.subscription} onChange={e => setEditProfile({ ...editProfile, subscription: e.target.value })} /></div>
+              <div><Label>Assigned Staff</Label>
+                <Select value={editProfile.assignedStaff} onValueChange={v => setEditProfile({ ...editProfile, assignedStaff: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {staffMembers.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditProfile(null)}>Cancel</Button>
+            <Button onClick={saveEdit}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Profile Dialog */}
       <Dialog open={!!viewProfile} onOpenChange={() => setViewProfile(null)}>
         <DialogContent className="max-w-2xl">
           <DialogHeader><DialogTitle>Profile Details — {viewProfile?.id}</DialogTitle></DialogHeader>
@@ -172,14 +238,14 @@ export default function ProfileAdmin() {
                 <TabsTrigger value="details">Profile Details</TabsTrigger>
                 <TabsTrigger value="horoscope" className="gap-1"><Star className="h-3 w-3" /> Horoscope</TabsTrigger>
               </TabsList>
-
               <TabsContent value="details">
                 <div className="grid gap-3 text-sm mt-3">
                   {Object.entries({
                     Name: viewProfile.name, Gender: viewProfile.gender, Age: viewProfile.age,
                     Religion: viewProfile.religion, Caste: viewProfile.caste, "Marital Status": viewProfile.maritalStatus,
-                    Subscription: viewProfile.subscription, Verified: viewProfile.verified ? "Yes" : "No",
-                    Completeness: `${viewProfile.completeness}%`
+                    Subscription: viewProfile.subscription, "Assigned Staff": viewProfile.assignedStaff,
+                    Verified: viewProfile.verified ? "Yes" : "No", Completeness: `${viewProfile.completeness}%`,
+                    Blocked: viewProfile.blocked ? "Yes" : "No"
                   }).map(([k, v]) => (
                     <div key={k} className="flex justify-between border-b border-border/50 pb-1">
                       <span className="text-muted-foreground">{k}</span>
@@ -188,51 +254,33 @@ export default function ProfileAdmin() {
                   ))}
                 </div>
               </TabsContent>
-
               <TabsContent value="horoscope">
                 {(() => {
                   const horoscope = getHoroscope(viewProfile.id);
-                  if (!horoscope) {
-                    return <p className="text-center text-muted-foreground py-8">No horoscope data available for this profile.</p>;
-                  }
+                  if (!horoscope) return <p className="text-center text-muted-foreground py-8">No horoscope data available.</p>;
                   return (
                     <div className="space-y-4 mt-3">
-                      {/* Birth Details */}
-                      <Card className="border">
-                        <CardContent className="pt-4 pb-3">
-                          <div className="grid grid-cols-3 gap-4 text-sm">
-                            <div><p className="text-muted-foreground text-xs">Date of Birth</p><p className="font-semibold">{horoscope.birthDate}</p></div>
-                            <div><p className="text-muted-foreground text-xs">Time of Birth</p><p className="font-semibold">{horoscope.birthTime}</p></div>
-                            <div><p className="text-muted-foreground text-xs">Place of Birth</p><p className="font-semibold">{horoscope.birthPlace}</p></div>
-                          </div>
-                        </CardContent>
-                      </Card>
-
-                      {/* Horoscope Chart */}
-                      <div className="flex justify-center">
-                        {renderHoroscopeChart(horoscope)}
-                      </div>
-
-                      {/* Horoscope Details */}
+                      <Card className="border"><CardContent className="pt-4 pb-3">
+                        <div className="grid grid-cols-3 gap-4 text-sm">
+                          <div><p className="text-muted-foreground text-xs">DOB</p><p className="font-semibold">{horoscope.birthDate}</p></div>
+                          <div><p className="text-muted-foreground text-xs">Time</p><p className="font-semibold">{horoscope.birthTime}</p></div>
+                          <div><p className="text-muted-foreground text-xs">Place</p><p className="font-semibold">{horoscope.birthPlace}</p></div>
+                        </div>
+                      </CardContent></Card>
+                      <div className="flex justify-center">{renderHoroscopeChart(horoscope)}</div>
                       <div className="grid grid-cols-2 gap-3 text-sm">
                         {[
-                          { label: "Rasi (Moon Sign)", value: horoscope.rasi },
-                          { label: "Nakshatram (Star)", value: horoscope.nakshatram },
-                          { label: "Lagnam (Ascendant)", value: horoscope.lagnam },
+                          { label: "Rasi", value: horoscope.rasi },
+                          { label: "Nakshatram", value: horoscope.nakshatram },
+                          { label: "Lagnam", value: horoscope.lagnam },
                           { label: "Dosham", value: horoscope.dosham },
-                          { label: "Dasa (Current)", value: horoscope.dasa },
-                        ].map((item) => (
+                          { label: "Dasa", value: horoscope.dasa },
+                        ].map(item => (
                           <div key={item.label} className="p-3 rounded-lg border bg-card">
                             <p className="text-xs text-muted-foreground">{item.label}</p>
                             <p className="font-semibold mt-0.5">{item.value}</p>
                           </div>
                         ))}
-                        <div className="p-3 rounded-lg border bg-card">
-                          <p className="text-xs text-muted-foreground">Dosham Status</p>
-                          <Badge className={horoscope.dosham === "No Dosham" ? "bg-success/10 text-success mt-1" : "bg-warning/10 text-warning mt-1"}>
-                            {horoscope.dosham}
-                          </Badge>
-                        </div>
                       </div>
                     </div>
                   );

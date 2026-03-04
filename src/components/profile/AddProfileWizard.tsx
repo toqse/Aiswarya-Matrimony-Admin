@@ -363,10 +363,6 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete }: Add
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="bg-warning/10 border border-warning/30 rounded-lg p-3 flex items-center gap-2">
-                      <AlertTriangle className="h-4 w-4 text-warning shrink-0" />
-                      <span className="text-sm text-warning">Sub-Caste field removed as per requirements</span>
-                    </div>
                     <div>
                       <Label className="text-xs font-bold uppercase tracking-wide text-destructive">Mother Tongue *</Label>
                       <Select value={form.motherTongue} onValueChange={(v) => update("motherTongue", v)}>

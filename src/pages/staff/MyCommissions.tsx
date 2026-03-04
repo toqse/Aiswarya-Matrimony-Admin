@@ -5,11 +5,10 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { commissions as initialCommissions, revenueData } from "@/data/mockData";
+import { commissions as initialCommissions } from "@/data/mockData";
 import {
   Search, Download, Wallet, Clock, CheckCircle2, XCircle, Eye
 } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { useToast } from "@/hooks/use-toast";
 
 const statusColors: Record<string, string> = {
@@ -38,11 +37,6 @@ export default function MyCommissions() {
   const totalApproved = myComms.filter(c => c.status === "approved").reduce((s, c) => s + c.commission, 0);
   const totalPaid = myComms.filter(c => c.status === "paid").reduce((s, c) => s + c.commission, 0);
   const totalAll = myComms.reduce((s, c) => s + c.commission, 0);
-
-  const commissionByMonth = revenueData.map((d) => ({
-    month: d.month,
-    commission: Math.round(d.revenue * 0.08),
-  }));
 
   const uniquePlans = [...new Set(myComms.map(c => c.plan))];
 
@@ -89,24 +83,6 @@ export default function MyCommissions() {
           </Card>
         ))}
       </div>
-
-      {/* Monthly Commission Chart */}
-      <Card className="shadow-elegant border-0">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base font-semibold">Monthly Commission (Last 12 Months)</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={commissionByMonth}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(333, 15%, 90%)" />
-              <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="hsl(333, 10%, 46%)" />
-              <YAxis tick={{ fontSize: 12 }} stroke="hsl(333, 10%, 46%)" tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}K`} />
-              <Tooltip formatter={(v: number) => [`₹${v.toLocaleString()}`, "Commission"]} />
-              <Bar dataKey="commission" fill="hsl(40, 100%, 58%)" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
 
       {/* Commission Table with Filters */}
       <Card className="shadow-elegant border-0">

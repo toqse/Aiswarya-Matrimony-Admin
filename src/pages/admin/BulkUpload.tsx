@@ -56,11 +56,39 @@ export default function BulkUpload() {
   };
 
   const downloadTemplate = () => {
-    const csv = "Name,Age,Gender,Religion,Caste,Phone,Email\n";
+    // All fields from the Add New Profile wizard (Basic Info through About Me)
+    const headers = [
+      // Basic Info
+      "Name", "Age", "Gender", "Date of Birth", "Mobile Number", "Email",
+      // Location
+      "Country", "State", "District", "City",
+      // Religion
+      "Religion", "Caste", "Mother Tongue", "Gothram",
+      // Personal Details
+      "Marital Status", "Height (cm)", "Weight (kg)", "Complexion",
+      "No. of Children", "Children Living With",
+      // Education & Career
+      "Education", "Education Detail", "Occupation", "Company Name",
+      "Annual Income", "Working Location",
+      // About Me
+      "About Me / Bio",
+      // Family
+      "Father Name", "Father Occupation", "Mother Name", "Mother Occupation",
+      "No. of Brothers", "No. of Sisters", "Family Type", "Family Status",
+      // Horoscope
+      "Rasi", "Nakshatram", "Lagnam", "Dosham", "Birth Time", "Birth Place",
+      // Photos
+      "Photo URL",
+    ];
+
+    const csv = headers.join(",") + "\n";
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = "profile_template.csv"; a.click();
-    toast({ title: "Template downloaded" });
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "profile_template.csv";
+    a.click();
+    toast({ title: "Template downloaded", description: `Template with ${headers.length} fields ready` });
   };
 
   const validCount = parsed?.filter((r) => r.status === "valid").length ?? 0;

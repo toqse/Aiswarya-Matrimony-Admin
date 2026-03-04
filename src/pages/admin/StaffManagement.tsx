@@ -8,40 +8,120 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
 import { staffMembers as initialStaff, branches } from "@/data/mockData";
-import { Plus, Edit, Search } from "lucide-react";
+import { Plus, Edit, Search, User, Briefcase, MapPin, Landmark, Upload } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+
+interface StaffForm {
+  name: string;
+  empCode: string;
+  mobile: string;
+  email: string;
+  profilePhoto: string;
+  branch: string;
+  designation: string;
+  department: string;
+  joiningDate: string;
+  salary: number;
+  commissionRate: number;
+  target: number;
+  username: string;
+  password: string;
+  role: string;
+  status: string;
+  address: string;
+  city: string;
+  state: string;
+  pincode: string;
+  bankName: string;
+  accountNumber: string;
+  ifsc: string;
+  upiId: string;
+}
+
+const emptyForm: StaffForm = {
+  name: "", empCode: "", mobile: "", email: "", profilePhoto: "",
+  branch: "", designation: "", department: "", joiningDate: "",
+  salary: 0, commissionRate: 0, target: 0,
+  username: "", password: "", role: "staff", status: "active",
+  address: "", city: "", state: "", pincode: "",
+  bankName: "", accountNumber: "", ifsc: "", upiId: "",
+};
+
+function FormField({ label, children, required }: { label: string; children: React.ReactNode; required?: boolean }) {
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        {label} {required && <span className="text-destructive">*</span>}
+      </Label>
+      {children}
+    </div>
+  );
+}
 
 export default function StaffManagement() {
   const [staff, setStaff] = useState(initialStaff);
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<typeof initialStaff[0] | null>(null);
+  const [activeTab, setActiveTab] = useState("personal");
   const { toast } = useToast();
 
-  const [form, setForm] = useState({ name: "", empCode: "", branch: "", designation: "", salary: 0, commissionRate: 0, target: 0 });
+  const [form, setForm] = useState<StaffForm>(emptyForm);
 
   const filtered = staff.filter((s) =>
     s.name.toLowerCase().includes(search.toLowerCase()) || s.branch.toLowerCase().includes(search.toLowerCase())
   );
 
-  const openAdd = () => { setEditing(null); setForm({ name: "", empCode: "", branch: "", designation: "", salary: 0, commissionRate: 0, target: 0 }); setDialogOpen(true); };
-  const openEdit = (s: typeof initialStaff[0]) => { setEditing(s); setForm({ name: s.name, empCode: s.empCode, branch: s.branch, designation: s.designation, salary: s.salary, commissionRate: s.commissionRate, target: s.target }); setDialogOpen(true); };
+  const openAdd = () => {
+    setEditing(null);
+    setForm(emptyForm);
+    setActiveTab("personal");
+    setDialogOpen(true);
+  };
+
+  const openEdit = (s: typeof initialStaff[0]) => {
+    setEditing(s);
+    setForm({
+      ...emptyForm,
+      name: s.name, empCode: s.empCode, branch: s.branch,
+      designation: s.designation, salary: s.salary,
+      commissionRate: s.commissionRate, target: s.target,
+      status: s.status,
+    });
+    setActiveTab("personal");
+    setDialogOpen(true);
+  };
 
   const handleSave = () => {
-    if (!form.name || !form.empCode || !form.branch) {
-      toast({ title: "Validation Error", description: "Fill all required fields", variant: "destructive" });
+    if (!form.name || !form.empCode || !form.branch || !form.mobile) {
+      toast({ title: "Validation Error", description: "Fill all required fields (Name, Emp Code, Branch, Mobile)", variant: "destructive" });
       return;
     }
     if (editing) {
-      setStaff((prev) => prev.map((s) => s.id === editing.id ? { ...s, ...form } : s));
-      toast({ title: "Staff Updated", description: `${form.name} updated` });
+      setStaff((prev) => prev.map((s) => s.id === editing.id ? {
+        ...s, name: form.name, empCode: form.empCode, branch: form.branch,
+        designation: form.designation, salary: form.salary,
+        commissionRate: form.commissionRate, target: form.target,
+        status: form.status as "active" | "inactive",
+      } : s));
+      toast({ title: "Staff Updated", description: `${form.name} updated successfully` });
     } else {
-      setStaff((prev) => [...prev, { ...form, id: Date.now(), achieved: 0, status: "active" as const }]);
-      toast({ title: "Staff Added", description: `${form.name} has been added` });
+      setStaff((prev) => [...prev, {
+        name: form.name, empCode: form.empCode, branch: form.branch,
+        designation: form.designation, salary: form.salary,
+        commissionRate: form.commissionRate, target: form.target,
+        id: Date.now(), achieved: 0, status: "active" as const,
+      }]);
+      toast({ title: "Staff Added", description: `${form.name} has been added successfully` });
     }
     setDialogOpen(false);
   };
+
+  const update = (field: keyof StaffForm, value: string | number) => setForm(prev => ({ ...prev, [field]: value }));
 
   return (
     <div className="space-y-6">
@@ -106,46 +186,194 @@ export default function StaffManagement() {
       </Card>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>{editing ? "Edit Staff" : "Add Staff"}</DialogTitle></DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right">Name</Label>
-              <Input className="col-span-3" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+        <DialogContent className="max-w-3xl max-h-[90vh] p-0 gap-0 overflow-hidden">
+          <DialogHeader className="px-6 pt-6 pb-2">
+            <DialogTitle className="text-xl font-bold">{editing ? "Edit Staff Member" : "Add New Staff Member"}</DialogTitle>
+          </DialogHeader>
+
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1">
+            <div className="px-6">
+              <TabsList className="grid w-full grid-cols-4 h-11">
+                <TabsTrigger value="personal" className="gap-1.5 text-xs"><User className="h-3.5 w-3.5" /> Personal</TabsTrigger>
+                <TabsTrigger value="employment" className="gap-1.5 text-xs"><Briefcase className="h-3.5 w-3.5" /> Employment</TabsTrigger>
+                <TabsTrigger value="address" className="gap-1.5 text-xs"><MapPin className="h-3.5 w-3.5" /> Address</TabsTrigger>
+                <TabsTrigger value="bank" className="gap-1.5 text-xs"><Landmark className="h-3.5 w-3.5" /> Bank & Login</TabsTrigger>
+              </TabsList>
             </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right">Emp Code</Label>
-              <Input className="col-span-3" value={form.empCode} onChange={(e) => setForm({ ...form, empCode: e.target.value })} />
+
+            <ScrollArea className="h-[52vh] px-6 py-4">
+              {/* ── Personal Info ── */}
+              <TabsContent value="personal" className="mt-0 space-y-5">
+                <div className="flex items-center gap-6 pb-2">
+                  <div className="relative group">
+                    <div className="h-20 w-20 rounded-full bg-muted flex items-center justify-center border-2 border-dashed border-muted-foreground/30 overflow-hidden">
+                      {form.profilePhoto ? (
+                        <img src={form.profilePhoto} alt="Profile" className="h-full w-full object-cover" />
+                      ) : (
+                        <Upload className="h-6 w-6 text-muted-foreground/50" />
+                      )}
+                    </div>
+                    <p className="text-[10px] text-muted-foreground text-center mt-1">Profile Photo</p>
+                  </div>
+                  <div className="flex-1 grid grid-cols-2 gap-4">
+                    <FormField label="Full Name" required>
+                      <Input value={form.name} onChange={(e) => update("name", e.target.value)} placeholder="Enter full name" />
+                    </FormField>
+                    <FormField label="Employee Code" required>
+                      <Input value={form.empCode} onChange={(e) => update("empCode", e.target.value)} placeholder="e.g. EMP007" />
+                    </FormField>
+                  </div>
+                </div>
+                <Separator />
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField label="Mobile Number" required>
+                    <Input value={form.mobile} onChange={(e) => update("mobile", e.target.value)} placeholder="+91 9876543210" />
+                  </FormField>
+                  <FormField label="Email Address">
+                    <Input type="email" value={form.email} onChange={(e) => update("email", e.target.value)} placeholder="staff@aiswarya.com" />
+                  </FormField>
+                </div>
+              </TabsContent>
+
+              {/* ── Employment Details ── */}
+              <TabsContent value="employment" className="mt-0 space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField label="Branch" required>
+                    <Select value={form.branch} onValueChange={(v) => update("branch", v)}>
+                      <SelectTrigger><SelectValue placeholder="Select branch" /></SelectTrigger>
+                      <SelectContent>
+                        {branches.map((b) => <SelectItem key={b.id} value={b.name}>{b.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </FormField>
+                  <FormField label="Designation">
+                    <Select value={form.designation} onValueChange={(v) => update("designation", v)}>
+                      <SelectTrigger><SelectValue placeholder="Select designation" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Senior Consultant">Senior Consultant</SelectItem>
+                        <SelectItem value="Consultant">Consultant</SelectItem>
+                        <SelectItem value="Junior Consultant">Junior Consultant</SelectItem>
+                        <SelectItem value="Branch Manager">Branch Manager</SelectItem>
+                        <SelectItem value="Telecaller">Telecaller</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </FormField>
+                  <FormField label="Department">
+                    <Select value={form.department} onValueChange={(v) => update("department", v)}>
+                      <SelectTrigger><SelectValue placeholder="Select department" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Sales">Sales</SelectItem>
+                        <SelectItem value="Operations">Operations</SelectItem>
+                        <SelectItem value="Support">Support</SelectItem>
+                        <SelectItem value="Marketing">Marketing</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </FormField>
+                  <FormField label="Joining Date">
+                    <Input type="date" value={form.joiningDate} onChange={(e) => update("joiningDate", e.target.value)} />
+                  </FormField>
+                </div>
+                <Separator />
+                <div className="grid grid-cols-3 gap-4">
+                  <FormField label="Salary (₹)">
+                    <Input type="number" value={form.salary || ""} onChange={(e) => update("salary", +e.target.value)} placeholder="0" />
+                  </FormField>
+                  <FormField label="Commission %">
+                    <Input type="number" value={form.commissionRate || ""} onChange={(e) => update("commissionRate", +e.target.value)} placeholder="0" />
+                  </FormField>
+                  <FormField label="Monthly Target">
+                    <Input type="number" value={form.target || ""} onChange={(e) => update("target", +e.target.value)} placeholder="0" />
+                  </FormField>
+                </div>
+                <Separator />
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField label="Role">
+                    <Select value={form.role} onValueChange={(v) => update("role", v)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="staff">Staff</SelectItem>
+                        <SelectItem value="branch-manager">Branch Manager</SelectItem>
+                        <SelectItem value="admin">Admin</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </FormField>
+                  <FormField label="Status">
+                    <Select value={form.status} onValueChange={(v) => update("status", v)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="inactive">Inactive</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </FormField>
+                </div>
+              </TabsContent>
+
+              {/* ── Address ── */}
+              <TabsContent value="address" className="mt-0 space-y-4">
+                <FormField label="Street Address">
+                  <Input value={form.address} onChange={(e) => update("address", e.target.value)} placeholder="Door No, Street, Area" />
+                </FormField>
+                <div className="grid grid-cols-3 gap-4">
+                  <FormField label="City">
+                    <Input value={form.city} onChange={(e) => update("city", e.target.value)} placeholder="City" />
+                  </FormField>
+                  <FormField label="State">
+                    <Input value={form.state} onChange={(e) => update("state", e.target.value)} placeholder="State" />
+                  </FormField>
+                  <FormField label="Pincode">
+                    <Input value={form.pincode} onChange={(e) => update("pincode", e.target.value)} placeholder="600001" maxLength={6} />
+                  </FormField>
+                </div>
+              </TabsContent>
+
+              {/* ── Bank & Login ── */}
+              <TabsContent value="bank" className="mt-0 space-y-5">
+                <div>
+                  <h3 className="text-sm font-semibold mb-3 flex items-center gap-2"><Landmark className="h-4 w-4 text-primary" /> Bank Details</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField label="Bank Name">
+                      <Input value={form.bankName} onChange={(e) => update("bankName", e.target.value)} placeholder="e.g. State Bank of India" />
+                    </FormField>
+                    <FormField label="Account Number">
+                      <Input value={form.accountNumber} onChange={(e) => update("accountNumber", e.target.value)} placeholder="Account number" />
+                    </FormField>
+                    <FormField label="IFSC Code">
+                      <Input value={form.ifsc} onChange={(e) => update("ifsc", e.target.value)} placeholder="e.g. SBIN0001234" />
+                    </FormField>
+                    <FormField label="UPI ID">
+                      <Input value={form.upiId} onChange={(e) => update("upiId", e.target.value)} placeholder="name@upi" />
+                    </FormField>
+                  </div>
+                </div>
+                <Separator />
+                <div>
+                  <h3 className="text-sm font-semibold mb-3 flex items-center gap-2"><User className="h-4 w-4 text-primary" /> Login Credentials</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField label="Username" required>
+                      <Input value={form.username} onChange={(e) => update("username", e.target.value)} placeholder="Login username" />
+                    </FormField>
+                    <FormField label="Password" required>
+                      <Input type="password" value={form.password} onChange={(e) => update("password", e.target.value)} placeholder="••••••••" />
+                    </FormField>
+                  </div>
+                </div>
+              </TabsContent>
+            </ScrollArea>
+          </Tabs>
+
+          <DialogFooter className="px-6 py-4 border-t bg-muted/30">
+            <div className="flex items-center justify-between w-full">
+              <div className="flex gap-1">
+                {["personal", "employment", "address", "bank"].map((tab) => (
+                  <div key={tab} className={`h-1.5 w-8 rounded-full transition-colors ${activeTab === tab ? "bg-primary" : "bg-muted-foreground/20"}`} />
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+                <Button onClick={handleSave}>{editing ? "Update Staff" : "Create Staff"}</Button>
+              </div>
             </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right">Branch</Label>
-              <Select value={form.branch} onValueChange={(v) => setForm({ ...form, branch: v })}>
-                <SelectTrigger className="col-span-3"><SelectValue placeholder="Select branch" /></SelectTrigger>
-                <SelectContent>
-                  {branches.map((b) => <SelectItem key={b.id} value={b.name}>{b.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right">Designation</Label>
-              <Input className="col-span-3" value={form.designation} onChange={(e) => setForm({ ...form, designation: e.target.value })} />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right">Salary</Label>
-              <Input className="col-span-3" type="number" value={form.salary} onChange={(e) => setForm({ ...form, salary: +e.target.value })} />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right">Commission %</Label>
-              <Input className="col-span-3" type="number" value={form.commissionRate} onChange={(e) => setForm({ ...form, commissionRate: +e.target.value })} />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right">Target</Label>
-              <Input className="col-span-3" type="number" value={form.target} onChange={(e) => setForm({ ...form, target: +e.target.value })} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSave}>{editing ? "Update" : "Create"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -40,22 +40,10 @@ export function AppHeader() {
 
       <div className="flex-1" />
 
-      {/* Role Switcher */}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm" className="gap-2 border-primary/20 text-primary font-medium">
-            {currentRole.label}
-            <ChevronDown className="h-3.5 w-3.5" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          {roleOptions.map((r) => (
-            <DropdownMenuItem key={r.value} onClick={() => setRole(r.value)} className={role === r.value ? "bg-secondary font-medium" : ""}>
-              {r.label}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
+      {/* Role Display (read-only) */}
+      <div className="px-3 py-1.5 rounded-md border border-primary/20 text-primary text-sm font-medium">
+        {currentRole.label}
+      </div>
 
       {/* Dark Mode */}
       <Button variant="ghost" size="icon" onClick={toggleDark} className="h-9 w-9">

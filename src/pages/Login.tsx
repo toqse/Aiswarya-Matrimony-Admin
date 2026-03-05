@@ -128,11 +128,12 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-gradient-to-br from-primary/5 via-background to-accent/10">
-      {/* Floating shapes */}
-      <div className="absolute top-10 left-10 w-72 h-72 rounded-full bg-primary/5 blur-3xl animate-pulse" />
-      <div className="absolute bottom-10 right-10 w-96 h-96 rounded-full bg-accent/10 blur-3xl animate-pulse" />
-      <div className="absolute top-1/2 left-1/3 w-48 h-48 rounded-full bg-secondary/30 blur-2xl" />
+    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden" style={{ background: "linear-gradient(135deg, hsl(15 80% 92%) 0%, hsl(30 90% 90%) 30%, hsl(8 100% 94%) 60%, hsl(340 40% 90%) 100%)" }}>
+      {/* Floating circles matching reference */}
+      <div className="absolute -top-20 -left-20 w-[400px] h-[400px] rounded-full" style={{ background: "radial-gradient(circle, hsl(20 90% 75% / 0.5), hsl(30 100% 80% / 0.2))" }} />
+      <div className="absolute -bottom-32 -right-32 w-[500px] h-[500px] rounded-full" style={{ background: "radial-gradient(circle, hsl(35 100% 70% / 0.35), hsl(40 100% 80% / 0.1))" }} />
+      <div className="absolute top-1/4 right-10 w-[250px] h-[250px] rounded-full" style={{ background: "radial-gradient(circle, hsl(340 50% 80% / 0.4), hsl(350 40% 85% / 0.1))" }} />
+      <div className="absolute bottom-1/4 left-1/4 w-[180px] h-[180px] rounded-full" style={{ background: "radial-gradient(circle, hsl(25 80% 80% / 0.3), transparent)" }} />
 
       <div className="w-full max-w-md relative z-10 space-y-6">
         {/* Logo & Title */}
@@ -142,8 +143,10 @@ export default function Login() {
           <p className="text-muted-foreground text-sm">Sign in to your dashboard</p>
         </div>
 
-        <Card className="border-0 shadow-elegant backdrop-blur-sm bg-card/95">
-          <CardContent className="p-6 space-y-6">
+        <Card className="border-0 shadow-elegant backdrop-blur-sm bg-card/95 overflow-hidden">
+          {/* Golden accent bar */}
+          <div className="h-1.5 w-full" style={{ background: "linear-gradient(90deg, hsl(333 60% 34%), hsl(40 100% 58%), hsl(25 90% 60%))" }} />
+          <CardContent className="p-6 space-y-6 pt-6">
             {step === "mobile" ? (
               <>
                 {/* Role Selection */}

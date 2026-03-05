@@ -24,6 +24,7 @@ const adminItems = [
   { title: "Bulk Upload", url: "/bulk-upload", icon: Upload },
   { title: "Enquiries", url: "/enquiries", icon: MessageSquare },
   { title: "Cash Payments", url: "/cash-payments", icon: Banknote },
+  { title: "Success Stories", url: "/success-stories", icon: FileText },
   { title: "Reports", url: "/reports", icon: BarChart3 },
   { title: "Email Templates", url: "/email-templates", icon: Mail },
   { title: "Settings", url: "/settings", icon: Settings },
@@ -69,13 +70,11 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" className="border-r-0">
       <SidebarContent className="bg-sidebar text-sidebar-foreground">
         {/* Logo */}
-        <div className={`flex items-center gap-3 px-4 py-5 border-b border-sidebar-border ${collapsed ? "justify-center" : ""}`}>
-          <div className="w-9 h-9 rounded-lg bg-sidebar-primary flex items-center justify-center font-bold text-sidebar-primary-foreground text-sm shrink-0">
-            AM
-          </div>
+        <div className={`flex items-center gap-3 px-4 py-4 border-b border-sidebar-border ${collapsed ? "justify-center" : ""}`}>
+          <img src="/avb-logo.png" alt="AVB Logo" className={`${collapsed ? "w-9 h-9" : "w-10 h-10"} rounded-lg object-contain shrink-0`} />
           {!collapsed && (
             <div>
-              <h2 className="font-bold text-base leading-tight">AIswarya</h2>
+              <h2 className="font-bold text-base leading-tight">AVB</h2>
               <p className="text-[11px] opacity-70">{roleLabels[role]}</p>
             </div>
           )}

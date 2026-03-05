@@ -4,7 +4,7 @@ import { useRole, UserRole } from "@/contexts/RoleContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Crown, Building2, UserRound, Phone, ShieldCheck, ArrowLeft, Loader2, CheckCircle2 } from "lucide-react";
+import { Phone, ShieldCheck, ArrowLeft, Loader2, CheckCircle2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
 const DEMO_ACCOUNTS: Record<UserRole, { mobile: string; otp: string; label: string }> = {
@@ -13,10 +13,10 @@ const DEMO_ACCOUNTS: Record<UserRole, { mobile: string; otp: string; label: stri
   staff: { mobile: "9876543212", otp: "9012", label: "Staff" },
 };
 
-const ROLES: { value: UserRole; label: string; desc: string; icon: typeof Crown }[] = [
-  { value: "admin", label: "Admin", desc: "Full system access", icon: Crown },
-  { value: "branch-manager", label: "Branch Manager", desc: "Branch-level management", icon: Building2 },
-  { value: "staff", label: "Staff", desc: "Staff operations", icon: UserRound },
+const ROLES: { value: UserRole; label: string; desc: string; emoji: string }[] = [
+  { value: "admin", label: "Admin", desc: "Full system access", emoji: "👑" },
+  { value: "branch-manager", label: "Branch\nManager", desc: "Branch-level management", emoji: "🏢" },
+  { value: "staff", label: "Staff", desc: "Staff operations", emoji: "👨‍💼" },
 ];
 
 const OTP_LENGTH = 4;
@@ -137,43 +137,39 @@ export default function Login() {
 
       <div className="w-full max-w-md relative z-10 space-y-6">
         {/* Logo & Title */}
-        <div className="text-center space-y-2">
-          <img src="/avb-logo.png" alt="AVB Matrimony" className="h-20 mx-auto drop-shadow-md" />
-          <h1 className="text-2xl font-bold text-foreground">Welcome to AVB Matrimony</h1>
-          <p className="text-muted-foreground text-sm">Sign in to your dashboard</p>
+        <div className="text-center space-y-3">
+          <div className="w-16 h-16 mx-auto rounded-2xl flex items-center justify-center shadow-lg" style={{ background: "linear-gradient(135deg, hsl(333 60% 34%), hsl(333 50% 40%))" }}>
+            <span className="text-3xl">💍</span>
+          </div>
+          <h1 className="text-2xl font-bold text-foreground">AIswarya Matrimony</h1>
+          <p className="text-muted-foreground text-sm">Staff & Management Login</p>
         </div>
 
-        <Card className="border-0 shadow-elegant backdrop-blur-sm bg-card/95 overflow-hidden">
-          {/* Golden accent bar */}
-          <div className="h-1.5 w-full" style={{ background: "linear-gradient(90deg, hsl(333 60% 34%), hsl(40 100% 58%), hsl(25 90% 60%))" }} />
+        <Card className="border-0 shadow-elegant backdrop-blur-sm bg-card/95 overflow-hidden rounded-2xl">
           <CardContent className="p-6 space-y-6 pt-6">
             {step === "mobile" ? (
               <>
                 {/* Role Selection */}
                 <div className="space-y-3">
-                  <label className="text-sm font-semibold text-foreground">Select Your Role</label>
+                  <label className="text-sm font-bold text-foreground">Select Your Role</label>
                   <div className="grid grid-cols-3 gap-3">
                     {ROLES.map((r) => {
                       const active = selectedRole === r.value;
-                      const Icon = r.icon;
                       return (
                         <button
                           key={r.value}
                           onClick={() => setSelectedRole(r.value)}
                           className={`relative flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-200 cursor-pointer group
                             ${active
-                              ? "border-primary bg-primary/10 shadow-md scale-[1.02]"
+                              ? "border-primary bg-primary/5 shadow-md scale-[1.02]"
                               : "border-border hover:border-primary/40 hover:bg-muted/50"
                             }`}
                         >
                           {active && (
                             <CheckCircle2 className="absolute top-1.5 right-1.5 h-4 w-4 text-primary" />
                           )}
-                          <div className={`p-2.5 rounded-lg transition-colors ${active ? "gradient-primary text-primary-foreground" : "bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary"}`}>
-                            <Icon className="h-5 w-5" />
-                          </div>
-                          <span className={`text-xs font-semibold ${active ? "text-primary" : "text-foreground"}`}>{r.label}</span>
-                          <span className="text-[10px] text-muted-foreground leading-tight text-center">{r.desc}</span>
+                          <span className="text-3xl">{r.emoji}</span>
+                          <span className={`text-xs font-semibold text-center whitespace-pre-line ${active ? "text-primary" : "text-foreground"}`}>{r.label}</span>
                         </button>
                       );
                     })}
@@ -204,12 +200,15 @@ export default function Login() {
                 <Button
                   onClick={handleSendOtp}
                   disabled={!selectedRole || mobile.length !== 10 || sending}
-                  className="w-full h-12 text-base font-semibold gap-2"
+                  className="w-full h-12 text-base font-semibold gap-2 rounded-xl"
                   size="lg"
+                  style={{ background: "linear-gradient(135deg, hsl(333 60% 34%), hsl(333 40% 55%))" }}
                 >
-                  {sending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Phone className="h-5 w-5" />}
+                  {sending ? <Loader2 className="h-5 w-5 animate-spin" /> : <span>📱</span>}
                   {sending ? "Sending OTP..." : "Send OTP"}
                 </Button>
+
+                <p className="text-center text-xs text-muted-foreground">Secure login with OTP verification</p>
 
                 {/* Demo accounts hint */}
                 <div className="rounded-lg bg-muted/60 p-3 space-y-1.5">
@@ -218,7 +217,7 @@ export default function Login() {
                     const d = DEMO_ACCOUNTS[r.value];
                     return (
                       <p key={r.value} className="text-xs text-muted-foreground font-mono">
-                        {r.label}: {d.mobile} → OTP: {d.otp}
+                        {r.label.replace('\n', ' ')}: {d.mobile} → OTP: {d.otp}
                       </p>
                     );
                   })}
@@ -291,7 +290,7 @@ export default function Login() {
           </CardContent>
         </Card>
 
-        <p className="text-center text-xs text-muted-foreground">© 2026 AVB Matrimony. All rights reserved.</p>
+        <p className="text-center text-xs text-muted-foreground">© 2026 AIswarya Matrimony. All rights reserved.</p>
       </div>
     </div>
   );

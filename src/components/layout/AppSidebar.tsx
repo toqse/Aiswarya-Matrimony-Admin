@@ -70,13 +70,12 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" className="border-r-0">
       <SidebarContent className="bg-sidebar text-sidebar-foreground">
         {/* Logo */}
-        <div className={`flex items-center gap-3 px-4 py-4 border-b border-sidebar-border ${collapsed ? "justify-center" : ""}`}>
-          <img src="/avb-logo.png" alt="AVB Logo" className={`${collapsed ? "w-9 h-9" : "w-10 h-10"} rounded-lg object-contain shrink-0`} />
+        <div className={`flex px-4 py-4 border-b border-sidebar-border ${collapsed ? "flex-col items-center justify-center" : "flex-col items-center gap-2"}`}>
+          <div className={`${collapsed ? "w-16 h-16" : "w-32 h-32"} rounded-lg bg-[#fbe2e6] flex items-center justify-center shrink-0 p-1`}>
+            <img src="/WhatsApp_Image_2026-03-04_at_10.28.26_AM-removebg-preview.png" alt="AVB Logo" className="w-full h-full object-contain" />
+          </div>
           {!collapsed && (
-            <div>
-              <h2 className="font-bold text-base leading-tight">AVB</h2>
-              <p className="text-[11px] opacity-70">{roleLabels[role]}</p>
-            </div>
+            <p className="text-sm font-medium text-sidebar-foreground/90 text-center">{roleLabels[role]}</p>
           )}
         </div>
 

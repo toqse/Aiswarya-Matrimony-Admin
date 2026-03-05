@@ -22,6 +22,7 @@ import EmailTemplates from "@/pages/admin/EmailTemplates";
 import SystemSettings from "@/pages/admin/SystemSettings";
 import AuditLog from "@/pages/admin/AuditLog";
 import HoroscopeManagement from "@/pages/admin/HoroscopeManagement";
+import SuccessStories from "@/pages/admin/SuccessStories";
 import MyProfiles from "@/pages/staff/MyProfiles";
 import StaffEnquiries from "@/pages/staff/StaffEnquiries";
 import StaffSubscriptions from "@/pages/staff/StaffSubscriptions";
@@ -52,6 +53,7 @@ const Index = () => {
         <Route path="/bulk-upload" element={<BulkUpload />} />
         <Route path="/enquiries" element={<EnquiryOverview />} />
         <Route path="/cash-payments" element={<CashPayments />} />
+        <Route path="/success-stories" element={<SuccessStories />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/email-templates" element={<EmailTemplates />} />
         <Route path="/settings" element={<SystemSettings />} />

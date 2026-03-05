@@ -1,4 +1,4 @@
-import { Bell, Search, Moon, Sun, ChevronDown, User } from "lucide-react";
+import { Bell, Search, Moon, Sun, ChevronDown, User, UserCircle, Settings, LogOut } from "lucide-react";
 import { useRole, UserRole } from "@/contexts/RoleContext";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 const roleOptions: { value: UserRole; label: string }[] = [
   { value: "admin", label: "Admin" },
@@ -17,6 +18,7 @@ const roleOptions: { value: UserRole; label: string }[] = [
 
 export function AppHeader() {
   const { role, setRole } = useRole();
+  const navigate = useNavigate();
   const [dark, setDark] = useState(false);
 
   const toggleDark = () => {
@@ -76,10 +78,19 @@ export function AppHeader() {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem>My Profile</DropdownMenuItem>
-          <DropdownMenuItem>Preferences</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => navigate("/profile")} className="cursor-pointer gap-2">
+            <UserCircle className="h-4 w-4" />
+            My Profile
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => navigate("/settings")} className="cursor-pointer gap-2">
+            <Settings className="h-4 w-4" />
+            Preferences
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem>Logout</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => navigate("/login")} className="cursor-pointer gap-2 text-destructive focus:text-destructive">
+            <LogOut className="h-4 w-4" />
+            Logout
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </header>

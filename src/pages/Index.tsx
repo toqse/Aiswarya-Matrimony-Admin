@@ -30,6 +30,7 @@ import MySalary from "@/pages/staff/MySalary";
 import MyCommissions from "@/pages/staff/MyCommissions";
 import CashPaymentDashboard from "@/pages/staff/CashPaymentDashboard";
 import BranchCashPayments from "@/pages/branch/BranchCashPayments";
+import MyProfile from "@/pages/MyProfile";
 
 function DashboardHome() {
   const { role } = useRole();
@@ -57,6 +58,7 @@ const Index = () => {
         <Route path="/reports" element={<Reports />} />
         <Route path="/email-templates" element={<EmailTemplates />} />
         <Route path="/settings" element={<SystemSettings />} />
+        <Route path="/profile" element={<MyProfile />} />
         <Route path="/audit-log" element={<AuditLog />} />
         <Route path="/horoscope" element={<HoroscopeManagement />} />
         {/* Staff & Branch Manager dedicated routes */}

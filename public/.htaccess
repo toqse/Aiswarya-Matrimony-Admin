@@ -1,0 +1,20 @@
+# Matrimony Admin - SPA fallback for Apache
+# Ensures all routes serve index.html so React Router can handle client-side routing and 404s.
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # Don't rewrite requests for actual files or directories
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+
+  # Send all other requests to index.html (SPA entry)
+  RewriteRule ^ index.html [L]
+</IfModule>
+
+# Optional: security and caching headers
+<IfModule mod_headers.c>
+  # Prevent MIME type sniffing
+  Header set X-Content-Type-Options "nosniff"
+</IfModule>

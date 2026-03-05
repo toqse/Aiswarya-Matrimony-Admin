@@ -5,14 +5,28 @@ export type UserRole = "admin" | "staff" | "branch-manager";
 interface RoleContextType {
   role: UserRole;
   setRole: (role: UserRole) => void;
+  isLoggedIn: boolean;
+  login: (role: UserRole) => void;
+  logout: () => void;
 }
 
 const RoleContext = createContext<RoleContextType | undefined>(undefined);
 
 export function RoleProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<UserRole>("admin");
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  const login = (newRole: UserRole) => {
+    setRole(newRole);
+    setIsLoggedIn(true);
+  };
+
+  const logout = () => {
+    setIsLoggedIn(false);
+  };
+
   return (
-    <RoleContext.Provider value={{ role, setRole }}>
+    <RoleContext.Provider value={{ role, setRole, isLoggedIn, login, logout }}>
       {children}
     </RoleContext.Provider>
   );

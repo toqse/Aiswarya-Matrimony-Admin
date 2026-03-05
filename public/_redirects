@@ -1,0 +1,5 @@
+# Matrimony Admin - Netlify redirects for SPA
+# Serve index.html for all routes so React Router handles client-side routing and 404s.
+# Format: from to status
+
+/*    /index.html   200

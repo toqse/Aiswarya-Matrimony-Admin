@@ -17,7 +17,7 @@ const roleOptions: { value: UserRole; label: string }[] = [
 ];
 
 export function AppHeader() {
-  const { role, setRole } = useRole();
+  const { role, logout } = useRole();
   const navigate = useNavigate();
   const [dark, setDark] = useState(false);
 
@@ -75,7 +75,13 @@ export function AppHeader() {
             Preferences
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => navigate("/login")} className="cursor-pointer gap-2 text-destructive focus:text-destructive">
+          <DropdownMenuItem
+            onClick={() => {
+              logout();
+              navigate("/login", { replace: true });
+            }}
+            className="cursor-pointer gap-2 text-destructive focus:text-destructive"
+          >
             <LogOut className="h-4 w-4" />
             Logout
           </DropdownMenuItem>

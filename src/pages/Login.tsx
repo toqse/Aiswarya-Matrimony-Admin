@@ -24,7 +24,7 @@ const OTP_VALIDITY = 120; // seconds
 
 export default function Login() {
   const navigate = useNavigate();
-  const { setRole } = useRole();
+  const { login } = useRole();
 
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
   const [mobile, setMobile] = useState("");
@@ -112,7 +112,7 @@ export default function Login() {
     if (entered !== demo.otp) return toast({ title: "Invalid OTP", variant: "destructive" });
 
     toast({ title: `✅ LOGIN SUCCESSFUL!\nWelcome ${demo.label}` });
-    setRole(selectedRole);
+    login(selectedRole);
     navigate("/", { replace: true });
   };
 

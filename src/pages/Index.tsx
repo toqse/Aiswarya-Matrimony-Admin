@@ -31,6 +31,7 @@ import MyCommissions from "@/pages/staff/MyCommissions";
 import CashPaymentDashboard from "@/pages/staff/CashPaymentDashboard";
 import BranchCashPayments from "@/pages/branch/BranchCashPayments";
 import MyProfile from "@/pages/MyProfile";
+import NotFound from "@/pages/NotFound";
 
 function DashboardHome() {
   const { role } = useRole();
@@ -74,6 +75,7 @@ const Index = () => {
         <Route path="/branch-salary" element={<BranchSalary />} />
         <Route path="/branch-enquiries" element={<BranchEnquiryOverview />} />
         <Route path="/day-close" element={<BranchCashPayments />} />
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </DashboardLayout>
   );

@@ -12,8 +12,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { staffMembers as initialStaff, branches } from "@/data/mockData";
-import { Plus, Edit, Search, User, Briefcase, MapPin, Landmark, Upload, Trash2, Eye, FileText, BarChart3, MapPinned } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { Plus, Edit, Search, User, Briefcase, MapPin, Landmark, Upload, Trash2, Eye, FileText } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import { useToast } from "@/hooks/use-toast";
 
 interface StaffForm {

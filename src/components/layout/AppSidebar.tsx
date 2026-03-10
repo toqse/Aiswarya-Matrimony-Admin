@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Building2, Users, CreditCard, Receipt, Wallet, IndianRupee,
   UserCircle, Upload, MessageSquare, Banknote, BarChart3, Mail, Settings,
-  ClipboardList, Target, CheckSquare, CalendarClock, Activity, FileText, Sparkles
+  ClipboardList, Target, CheckSquare, CalendarClock, Activity, FileText, Sparkles, MapPinned
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";

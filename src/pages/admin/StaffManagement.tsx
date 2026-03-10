@@ -146,6 +146,11 @@ export default function StaffManagement() {
     setDialogOpen(false);
   };
 
+  const handleDelete = (s: typeof initialStaff[0]) => {
+    setStaff((prev) => prev.filter((item) => item.id !== s.id));
+    toast({ title: "Staff Deleted", description: `${s.name} has been removed` });
+  };
+
   const update = (field: keyof StaffForm, value: string | number) => setForm(prev => ({ ...prev, [field]: value }));
 
   return (

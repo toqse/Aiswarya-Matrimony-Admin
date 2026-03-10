@@ -51,6 +51,7 @@ const emptyForm: StaffForm = {
   username: "", password: "", role: "staff", status: "active",
   address: "", city: "", state: "", pincode: "",
   bankName: "", accountNumber: "", ifsc: "", upiId: "",
+  pfNumber: "", esiNumber: "",
 };
 
 function FormField({ label, children, required }: { label: string; children: React.ReactNode; required?: boolean }) {

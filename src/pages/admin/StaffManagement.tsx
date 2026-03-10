@@ -197,11 +197,6 @@ export default function StaffManagement() {
                     <TableCell className="font-medium">{s.name}</TableCell>
                     <TableCell>{s.branch}</TableCell>
                     <TableCell>{s.designation}</TableCell>
-                    <TableCell>
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setReportStaff(s)} title="View Report">
-                        <FileText className="h-4 w-4 text-primary" />
-                      </Button>
-                    </TableCell>
                     <TableCell>₹{s.salary.toLocaleString()}</TableCell>
                     <TableCell>{s.commissionRate}%</TableCell>
                     <TableCell>

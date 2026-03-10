@@ -487,7 +487,7 @@ export default function StaffManagement() {
                 <div className="grid grid-cols-1 gap-3">
                   <div className="flex justify-between items-center p-3 rounded-lg bg-muted/50">
                     <span className="text-sm text-muted-foreground">Staff Identifier</span>
-                    <span className="font-mono font-semibold text-sm">{report.staffId}</span>
+                    <span className="font-mono font-semibold text-sm">{reportStaff?.empCode}</span>
                   </div>
                   <div className="flex justify-between items-center p-3 rounded-lg bg-muted/50">
                     <span className="text-sm text-muted-foreground">Entry Date/Time</span>

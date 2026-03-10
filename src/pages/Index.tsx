@@ -63,6 +63,7 @@ const Index = () => {
         <Route path="/profile" element={<MyProfile />} />
         <Route path="/audit-log" element={<AuditLog />} />
         <Route path="/horoscope" element={<HoroscopeManagement />} />
+        <Route path="/district-analysis" element={<DistrictAnalysis />} />
         {/* Staff & Branch Manager dedicated routes */}
         <Route path="/my-commissions" element={<MyCommissions />} />
         <Route path="/my-salary" element={<MySalary />} />

@@ -464,6 +464,47 @@ export default function StaffManagement() {
         </DialogContent>
       </Dialog>
 
+      {/* Report Modal */}
+      <Dialog open={!!reportStaff} onOpenChange={() => setReportStaff(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold flex items-center gap-2">
+              <FileText className="h-5 w-5 text-primary" /> Staff Activity Report
+            </DialogTitle>
+          </DialogHeader>
+          {reportStaff && (() => {
+            const report = staffReports[reportStaff.id] || { entryDate: "N/A", entries: 0, staffId: `STF-${String(reportStaff.id).padStart(3, "0")}` };
+            return (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 pb-3 border-b border-border">
+                  <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                    <User className="h-6 w-6 text-primary" />
+                  </div>
+                  <div>
+                    <p className="font-bold">{reportStaff.name}</p>
+                    <p className="text-xs text-muted-foreground">{reportStaff.empCode} · {reportStaff.branch}</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 gap-3">
+                  <div className="flex justify-between items-center p-3 rounded-lg bg-muted/50">
+                    <span className="text-sm text-muted-foreground">Staff Identifier</span>
+                    <span className="font-mono font-semibold text-sm">{report.staffId}</span>
+                  </div>
+                  <div className="flex justify-between items-center p-3 rounded-lg bg-muted/50">
+                    <span className="text-sm text-muted-foreground">Entry Date/Time</span>
+                    <span className="font-medium text-sm">{report.entryDate}</span>
+                  </div>
+                  <div className="flex justify-between items-center p-3 rounded-lg bg-muted/50">
+                    <span className="text-sm text-muted-foreground">Number of Entries</span>
+                    <span className="font-bold text-lg text-primary">{report.entries}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+
       {/* District-wise Analytics Dashboard */}
       <Card className="shadow-elegant border-0">
         <CardHeader className="pb-3">

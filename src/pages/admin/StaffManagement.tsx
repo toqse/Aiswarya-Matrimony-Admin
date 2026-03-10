@@ -178,6 +178,7 @@ export default function StaffManagement() {
                 <TableHead>Name</TableHead>
                 <TableHead>Branch</TableHead>
                 <TableHead>Designation</TableHead>
+                <TableHead>Report</TableHead>
                 <TableHead>Salary</TableHead>
                 <TableHead>Commission %</TableHead>
                 <TableHead>Target Progress</TableHead>
@@ -186,30 +187,50 @@ export default function StaffManagement() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((s) => (
-                <TableRow key={s.id}>
-                  <TableCell className="font-mono text-xs">{s.empCode}</TableCell>
-                  <TableCell className="font-medium">{s.name}</TableCell>
-                  <TableCell>{s.branch}</TableCell>
-                  <TableCell>{s.designation}</TableCell>
-                  <TableCell>₹{s.salary.toLocaleString()}</TableCell>
-                  <TableCell>{s.commissionRate}%</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Progress value={(s.achieved / s.target) * 100} className="h-2 w-20" />
-                      <span className="text-xs text-muted-foreground">{s.achieved}/{s.target}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={s.status === "active" ? "default" : "secondary"} className={s.status === "active" ? "bg-success text-success-foreground" : ""}>
-                      {s.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Button variant="ghost" size="icon" onClick={() => openEdit(s)}><Edit className="h-4 w-4" /></Button>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {filtered.map((s) => {
+                const report = staffReports[s.id] || { entryDate: "N/A", entries: 0, staffId: `STF-${String(s.id).padStart(3, "0")}` };
+                return (
+                  <TableRow key={s.id}>
+                    <TableCell className="font-mono text-xs">{s.empCode}</TableCell>
+                    <TableCell className="font-medium">{s.name}</TableCell>
+                    <TableCell>{s.branch}</TableCell>
+                    <TableCell>{s.designation}</TableCell>
+                    <TableCell>
+                      <div className="space-y-0.5">
+                        <p className="text-xs text-muted-foreground">{report.entryDate}</p>
+                        <p className="text-xs font-medium">{report.entries} entries</p>
+                        <p className="text-[10px] font-mono text-muted-foreground">{report.staffId}</p>
+                      </div>
+                    </TableCell>
+                    <TableCell>₹{s.salary.toLocaleString()}</TableCell>
+                    <TableCell>{s.commissionRate}%</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Progress value={(s.achieved / s.target) * 100} className="h-2 w-20" />
+                        <span className="text-xs text-muted-foreground">{s.achieved}/{s.target}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={s.status === "active" ? "default" : "secondary"} className={s.status === "active" ? "bg-success text-success-foreground" : ""}>
+                        {s.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setViewStaff(s)} title="View">
+                          <Eye className="h-4 w-4 text-blue-600" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(s)} title="Edit">
+                          <Edit className="h-4 w-4 text-amber-600" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDelete(s)} title="Delete">
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </CardContent>

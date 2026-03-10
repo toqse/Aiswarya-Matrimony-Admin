@@ -179,7 +179,7 @@ export default function StaffManagement() {
                 <TableHead>Name</TableHead>
                 <TableHead>Branch</TableHead>
                 <TableHead>Designation</TableHead>
-                <TableHead>Report</TableHead>
+                
                 <TableHead>Salary</TableHead>
                 <TableHead>Commission %</TableHead>
                 <TableHead>Target Progress</TableHead>

@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Building2, Users, CreditCard, Receipt, Wallet, IndianRupee,
   UserCircle, Upload, MessageSquare, Banknote, BarChart3, Mail, Settings,
-  ClipboardList, Target, CheckSquare, CalendarClock, Activity, FileText, Sparkles
+  ClipboardList, Target, CheckSquare, CalendarClock, Activity, FileText, Sparkles, MapPinned
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -26,6 +26,7 @@ const adminItems = [
   { title: "Cash Payments", url: "/cash-payments", icon: Banknote },
   { title: "Success Stories", url: "/success-stories", icon: FileText },
   { title: "Reports", url: "/reports", icon: BarChart3 },
+  { title: "District Analysis", url: "/district-analysis", icon: MapPinned },
   { title: "Email Templates", url: "/email-templates", icon: Mail },
   { title: "Settings", url: "/settings", icon: Settings },
   { title: "Audit Log", url: "/audit-log", icon: ClipboardList },

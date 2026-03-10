@@ -23,6 +23,7 @@ import SystemSettings from "@/pages/admin/SystemSettings";
 import AuditLog from "@/pages/admin/AuditLog";
 import HoroscopeManagement from "@/pages/admin/HoroscopeManagement";
 import SuccessStories from "@/pages/admin/SuccessStories";
+import DistrictAnalysis from "@/pages/admin/DistrictAnalysis";
 import MyProfiles from "@/pages/staff/MyProfiles";
 import StaffEnquiries from "@/pages/staff/StaffEnquiries";
 import StaffSubscriptions from "@/pages/staff/StaffSubscriptions";
@@ -62,6 +63,7 @@ const Index = () => {
         <Route path="/profile" element={<MyProfile />} />
         <Route path="/audit-log" element={<AuditLog />} />
         <Route path="/horoscope" element={<HoroscopeManagement />} />
+        <Route path="/district-analysis" element={<DistrictAnalysis />} />
         {/* Staff & Branch Manager dedicated routes */}
         <Route path="/my-commissions" element={<MyCommissions />} />
         <Route path="/my-salary" element={<MySalary />} />

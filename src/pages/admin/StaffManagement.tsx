@@ -211,6 +211,11 @@ export default function StaffManagement() {
                       </Badge>
                     </TableCell>
                     <TableCell>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setReportStaff(s)} title="View Report">
+                        <FileText className="h-4 w-4 text-primary" />
+                      </Button>
+                    </TableCell>
+                    <TableCell>
                       <div className="flex items-center gap-1">
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setViewStaff(s)} title="View">
                           <Eye className="h-4 w-4 text-blue-600" />

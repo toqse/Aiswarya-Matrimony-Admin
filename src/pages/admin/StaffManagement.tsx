@@ -183,7 +183,8 @@ export default function StaffManagement() {
                 <TableHead>Salary</TableHead>
                 <TableHead>Commission %</TableHead>
                 <TableHead>Target Progress</TableHead>
-                <TableHead>Status</TableHead>
+                 <TableHead>Status</TableHead>
+                 <TableHead>Report</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>

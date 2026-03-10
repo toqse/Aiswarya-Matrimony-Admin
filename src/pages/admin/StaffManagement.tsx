@@ -40,6 +40,8 @@ interface StaffForm {
   accountNumber: string;
   ifsc: string;
   upiId: string;
+  pfNumber: string;
+  esiNumber: string;
 }
 
 const emptyForm: StaffForm = {

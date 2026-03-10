@@ -493,60 +493,6 @@ export default function StaffManagement() {
         </DialogContent>
       </Dialog>
 
-      {/* District-wise Analytics Dashboard */}
-      <Card className="shadow-elegant border-0">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base font-semibold flex items-center gap-2">
-            <MapPinned className="h-4 w-4 text-primary" />
-            District-wise Analytics Dashboard
-          </CardTitle>
-          <p className="text-xs text-muted-foreground">Front-view data organized by district — registrations, payments & activity metrics</p>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Chart */}
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={districtChartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(333, 15%, 90%)" />
-              <XAxis dataKey="name" tick={{ fontSize: 11 }} stroke="hsl(333, 10%, 46%)" />
-              <YAxis tick={{ fontSize: 11 }} stroke="hsl(333, 10%, 46%)" />
-              <Tooltip />
-              <Bar dataKey="registrations" name="Registrations" fill="hsl(333, 60%, 34%)" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="payments" name="Payments (₹K)" fill="hsl(40, 100%, 58%)" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-
-          {/* Table */}
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>District</TableHead>
-                <TableHead className="text-right">Registrations</TableHead>
-                <TableHead className="text-right">Payments (₹)</TableHead>
-                <TableHead className="text-right">Active Profiles</TableHead>
-                <TableHead className="text-right">Pending Enquiries</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {districtData.map((d) => (
-                <TableRow key={d.district}>
-                  <TableCell className="font-medium">{d.district}</TableCell>
-                  <TableCell className="text-right">{d.registrations}</TableCell>
-                  <TableCell className="text-right">₹{d.payments.toLocaleString()}</TableCell>
-                  <TableCell className="text-right">{d.activeProfiles}</TableCell>
-                  <TableCell className="text-right">{d.pendingEnquiries}</TableCell>
-                </TableRow>
-              ))}
-              <TableRow className="bg-muted/50 font-semibold">
-                <TableCell>Total</TableCell>
-                <TableCell className="text-right">{districtData.reduce((a, d) => a + d.registrations, 0)}</TableCell>
-                <TableCell className="text-right">₹{districtData.reduce((a, d) => a + d.payments, 0).toLocaleString()}</TableCell>
-                <TableCell className="text-right">{districtData.reduce((a, d) => a + d.activeProfiles, 0)}</TableCell>
-                <TableCell className="text-right">{districtData.reduce((a, d) => a + d.pendingEnquiries, 0)}</TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
     </div>
   );
 }

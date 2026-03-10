@@ -63,8 +63,32 @@ function FormField({ label, children, required }: { label: string; children: Rea
   );
 }
 
+// Staff report mock data
+const staffReports: Record<number, { entryDate: string; entries: number; staffId: string }> = {
+  1: { entryDate: "2026-03-10 09:15 AM", entries: 42, staffId: "STF-001" },
+  2: { entryDate: "2026-03-10 10:30 AM", entries: 38, staffId: "STF-002" },
+  3: { entryDate: "2026-03-09 11:00 AM", entries: 55, staffId: "STF-003" },
+  4: { entryDate: "2026-03-09 02:45 PM", entries: 29, staffId: "STF-004" },
+  5: { entryDate: "2026-03-08 08:30 AM", entries: 61, staffId: "STF-005" },
+};
+
+// District analytics data
+const districtData = [
+  { district: "Malappuram", registrations: 245, payments: 189000, activeProfiles: 198, pendingEnquiries: 32 },
+  { district: "Kozhikode", registrations: 198, payments: 156000, activeProfiles: 165, pendingEnquiries: 24 },
+  { district: "Thrissur", registrations: 176, payments: 142000, activeProfiles: 148, pendingEnquiries: 19 },
+  { district: "Ernakulam", registrations: 210, payments: 178000, activeProfiles: 185, pendingEnquiries: 28 },
+  { district: "Palakkad", registrations: 132, payments: 98000, activeProfiles: 110, pendingEnquiries: 15 },
+  { district: "Kannur", registrations: 145, payments: 112000, activeProfiles: 120, pendingEnquiries: 18 },
+  { district: "Thiruvananthapuram", registrations: 188, payments: 165000, activeProfiles: 160, pendingEnquiries: 22 },
+  { district: "Kollam", registrations: 95, payments: 72000, activeProfiles: 78, pendingEnquiries: 11 },
+];
+
+const districtChartData = districtData.map(d => ({ name: d.district, registrations: d.registrations, payments: Math.round(d.payments / 1000) }));
+
 export default function StaffManagement() {
   const [staff, setStaff] = useState(initialStaff);
+  const [viewStaff, setViewStaff] = useState<typeof initialStaff[0] | null>(null);
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<typeof initialStaff[0] | null>(null);

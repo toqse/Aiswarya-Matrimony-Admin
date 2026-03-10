@@ -327,6 +327,15 @@ export default function StaffManagement() {
                 </div>
                 <Separator />
                 <div className="grid grid-cols-2 gap-4">
+                  <FormField label="PF Number">
+                    <Input value={form.pfNumber} onChange={(e) => update("pfNumber", e.target.value)} placeholder="e.g. KL/MLP/12345/000" />
+                  </FormField>
+                  <FormField label="ESI Number">
+                    <Input value={form.esiNumber} onChange={(e) => update("esiNumber", e.target.value)} placeholder="e.g. 1234567890" />
+                  </FormField>
+                </div>
+                <Separator />
+                <div className="grid grid-cols-2 gap-4">
                   <FormField label="Role">
                     <Select value={form.role} onValueChange={(v) => update("role", v)}>
                       <SelectTrigger><SelectValue /></SelectTrigger>

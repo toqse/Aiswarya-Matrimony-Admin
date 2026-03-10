@@ -40,6 +40,8 @@ interface StaffForm {
   accountNumber: string;
   ifsc: string;
   upiId: string;
+  pfNumber: string;
+  esiNumber: string;
 }
 
 const emptyForm: StaffForm = {
@@ -49,6 +51,7 @@ const emptyForm: StaffForm = {
   username: "", password: "", role: "staff", status: "active",
   address: "", city: "", state: "", pincode: "",
   bankName: "", accountNumber: "", ifsc: "", upiId: "",
+  pfNumber: "", esiNumber: "",
 };
 
 function FormField({ label, children, required }: { label: string; children: React.ReactNode; required?: boolean }) {
@@ -320,6 +323,15 @@ export default function StaffManagement() {
                   </FormField>
                   <FormField label="Monthly Target">
                     <Input type="number" value={form.target || ""} onChange={(e) => update("target", +e.target.value)} placeholder="0" />
+                  </FormField>
+                </div>
+                <Separator />
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField label="PF Number">
+                    <Input value={form.pfNumber} onChange={(e) => update("pfNumber", e.target.value)} placeholder="e.g. KL/MLP/12345/000" />
+                  </FormField>
+                  <FormField label="ESI Number">
+                    <Input value={form.esiNumber} onChange={(e) => update("esiNumber", e.target.value)} placeholder="e.g. 1234567890" />
                   </FormField>
                 </div>
                 <Separator />

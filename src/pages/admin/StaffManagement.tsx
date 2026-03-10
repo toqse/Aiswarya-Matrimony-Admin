@@ -179,11 +179,12 @@ export default function StaffManagement() {
                 <TableHead>Name</TableHead>
                 <TableHead>Branch</TableHead>
                 <TableHead>Designation</TableHead>
-                <TableHead>Report</TableHead>
+                
                 <TableHead>Salary</TableHead>
                 <TableHead>Commission %</TableHead>
                 <TableHead>Target Progress</TableHead>
-                <TableHead>Status</TableHead>
+                 <TableHead>Status</TableHead>
+                 <TableHead>Report</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -196,11 +197,6 @@ export default function StaffManagement() {
                     <TableCell className="font-medium">{s.name}</TableCell>
                     <TableCell>{s.branch}</TableCell>
                     <TableCell>{s.designation}</TableCell>
-                    <TableCell>
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setReportStaff(s)} title="View Report">
-                        <FileText className="h-4 w-4 text-primary" />
-                      </Button>
-                    </TableCell>
                     <TableCell>₹{s.salary.toLocaleString()}</TableCell>
                     <TableCell>{s.commissionRate}%</TableCell>
                     <TableCell>
@@ -213,6 +209,11 @@ export default function StaffManagement() {
                       <Badge variant={s.status === "active" ? "default" : "secondary"} className={s.status === "active" ? "bg-success text-success-foreground" : ""}>
                         {s.status}
                       </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setReportStaff(s)} title="View Report">
+                        <FileText className="h-4 w-4 text-primary" />
+                      </Button>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">

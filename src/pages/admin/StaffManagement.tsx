@@ -89,6 +89,7 @@ const districtChartData = districtData.map(d => ({ name: d.district, registratio
 export default function StaffManagement() {
   const [staff, setStaff] = useState(initialStaff);
   const [viewStaff, setViewStaff] = useState<typeof initialStaff[0] | null>(null);
+  const [reportStaff, setReportStaff] = useState<typeof initialStaff[0] | null>(null);
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<typeof initialStaff[0] | null>(null);

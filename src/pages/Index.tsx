@@ -23,6 +23,7 @@ import SystemSettings from "@/pages/admin/SystemSettings";
 import AuditLog from "@/pages/admin/AuditLog";
 import HoroscopeManagement from "@/pages/admin/HoroscopeManagement";
 import SuccessStories from "@/pages/admin/SuccessStories";
+import DistrictAnalysis from "@/pages/admin/DistrictAnalysis";
 import MyProfiles from "@/pages/staff/MyProfiles";
 import StaffEnquiries from "@/pages/staff/StaffEnquiries";
 import StaffSubscriptions from "@/pages/staff/StaffSubscriptions";

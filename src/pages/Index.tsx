@@ -24,6 +24,9 @@ import AuditLog from "@/pages/admin/AuditLog";
 import HoroscopeManagement from "@/pages/admin/HoroscopeManagement";
 import SuccessStories from "@/pages/admin/SuccessStories";
 import DistrictAnalysis from "@/pages/admin/DistrictAnalysis";
+import CasteManagement from "@/pages/admin/CasteManagement";
+import ReligionManagement from "@/pages/admin/ReligionManagement";
+import MotherTongueManagement from "@/pages/admin/MotherTongueManagement";
 import MyProfiles from "@/pages/staff/MyProfiles";
 import StaffEnquiries from "@/pages/staff/StaffEnquiries";
 import StaffSubscriptions from "@/pages/staff/StaffSubscriptions";
@@ -64,6 +67,9 @@ const Index = () => {
         <Route path="/audit-log" element={<AuditLog />} />
         <Route path="/horoscope" element={<HoroscopeManagement />} />
         <Route path="/district-analysis" element={<DistrictAnalysis />} />
+        <Route path="/caste" element={<CasteManagement />} />
+        <Route path="/religion" element={<ReligionManagement />} />
+        <Route path="/mother-tongue" element={<MotherTongueManagement />} />
         {/* Staff & Branch Manager dedicated routes */}
         <Route path="/my-commissions" element={<MyCommissions />} />
         <Route path="/my-salary" element={<MySalary />} />

@@ -31,6 +31,9 @@ const adminItems = [
   { title: "Email Templates", url: "/email-templates", icon: Mail },
   { title: "Settings", url: "/settings", icon: Settings },
   { title: "Audit Log", url: "/audit-log", icon: ClipboardList },
+  { title: "Caste", url: "/caste", icon: ScrollText },
+  { title: "Religion", url: "/religion", icon: Church },
+  { title: "Mother Tongue", url: "/mother-tongue", icon: Languages },
 ];
 
 const staffItems = [

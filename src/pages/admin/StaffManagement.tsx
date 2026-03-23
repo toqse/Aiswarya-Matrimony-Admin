@@ -1,18 +1,63 @@
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { staffMembers as initialStaff, branches } from "@/data/mockData";
-import { Plus, Edit, Search, User, Briefcase, MapPin, Landmark, Upload, Trash2, Eye, FileText } from "lucide-react";
+import { fetchBranchList } from "@/lib/admin-api/branches";
+import {
+  createStaff,
+  deleteStaff,
+  downloadStaffReportPdf,
+  fetchAdminStaffList,
+  fetchBranchStaffList,
+  fetchStaffDetail,
+  toggleStaffStatus,
+  updateStaff,
+  type StaffListRow,
+} from "@/lib/admin-api/staff";
+import { useRole } from "@/contexts/RoleContext";
+import {
+  Plus,
+  Edit,
+  Search,
+  User,
+  Briefcase,
+  MapPin,
+  Landmark,
+  Upload,
+  Trash2,
+  Eye,
+  FileText,
+  Loader2,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface StaffForm {
@@ -21,16 +66,14 @@ interface StaffForm {
   mobile: string;
   email: string;
   profilePhoto: string;
-  branch: string;
+  branchId: string;
   designation: string;
+  role: "staff" | "branch_manager";
   department: string;
   joiningDate: string;
   salary: number;
   commissionRate: number;
   target: number;
-  username: string;
-  password: string;
-  role: string;
   status: string;
   address: string;
   city: string;
@@ -44,17 +87,42 @@ interface StaffForm {
   esiNumber: string;
 }
 
-const emptyForm: StaffForm = {
-  name: "", empCode: "", mobile: "", email: "", profilePhoto: "",
-  branch: "", designation: "", department: "", joiningDate: "",
-  salary: 0, commissionRate: 0, target: 0,
-  username: "", password: "", role: "staff", status: "active",
-  address: "", city: "", state: "", pincode: "",
-  bankName: "", accountNumber: "", ifsc: "", upiId: "",
-  pfNumber: "", esiNumber: "",
-};
+const emptyForm = (): StaffForm => ({
+  name: "",
+  empCode: "",
+  mobile: "",
+  email: "",
+  profilePhoto: "",
+  branchId: "",
+  designation: "",
+  role: "staff",
+  department: "",
+  joiningDate: "",
+  salary: 0,
+  commissionRate: 0,
+  target: 0,
+  status: "active",
+  address: "",
+  city: "",
+  state: "",
+  pincode: "",
+  bankName: "",
+  accountNumber: "",
+  ifsc: "",
+  upiId: "",
+  pfNumber: "",
+  esiNumber: "",
+});
 
-function FormField({ label, children, required }: { label: string; children: React.ReactNode; required?: boolean }) {
+function FormField({
+  label,
+  children,
+  required,
+}: {
+  label: string;
+  children: React.ReactNode;
+  required?: boolean;
+}) {
   return (
     <div className="space-y-1.5">
       <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -65,99 +133,243 @@ function FormField({ label, children, required }: { label: string; children: Rea
   );
 }
 
-// Staff report mock data
-const staffReports: Record<number, { entryDate: string; entries: number; staffId: string }> = {
-  1: { entryDate: "2026-03-10 09:15 AM", entries: 42, staffId: "STF-001" },
-  2: { entryDate: "2026-03-10 10:30 AM", entries: 38, staffId: "STF-002" },
-  3: { entryDate: "2026-03-09 11:00 AM", entries: 55, staffId: "STF-003" },
-  4: { entryDate: "2026-03-09 02:45 PM", entries: 29, staffId: "STF-004" },
-  5: { entryDate: "2026-03-08 08:30 AM", entries: 61, staffId: "STF-005" },
-};
-
-
 export default function StaffManagement() {
-  const [staff, setStaff] = useState(initialStaff);
-  const [viewStaff, setViewStaff] = useState<typeof initialStaff[0] | null>(null);
-  const [reportStaff, setReportStaff] = useState<typeof initialStaff[0] | null>(null);
+  const { role } = useRole();
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editing, setEditing] = useState<typeof initialStaff[0] | null>(null);
-  const [activeTab, setActiveTab] = useState("personal");
-  const { toast } = useToast();
-
-  const [form, setForm] = useState<StaffForm>(emptyForm);
-
-  const filtered = staff.filter((s) =>
-    s.name.toLowerCase().includes(search.toLowerCase()) || s.branch.toLowerCase().includes(search.toLowerCase())
+  const [editing, setEditing] = useState<StaffListRow | null>(null);
+  const [viewStaff, setViewStaff] = useState<StaffListRow | null>(null);
+  const [viewDetail, setViewDetail] = useState<Record<string, unknown> | null>(
+    null,
   );
+  const [activeTab, setActiveTab] = useState("personal");
+  const [form, setForm] = useState<StaffForm>(emptyForm());
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
+  const branchesQuery = useQuery({
+    queryKey: ["admin", "branches", "dropdown"],
+    queryFn: () => fetchBranchList({ page_size: 200 }),
+  });
+  const branchOptions = branchesQuery.data?.results ?? [];
+
+  const listQuery = useQuery({
+    queryKey: ["staff", "list", role, search],
+    queryFn: () =>
+      role === "admin"
+        ? fetchAdminStaffList({ search: search.trim() || undefined })
+        : fetchBranchStaffList({ search: search.trim() || undefined }),
+  });
+
+  const staffRows = listQuery.data?.results ?? [];
+
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["staff", "list"] });
+  };
+
+  const saveMut = useMutation({
+    mutationFn: async () => {
+      if (!form.name || !form.mobile || !form.branchId || !form.designation) {
+        throw new Error("Name, mobile, branch, and designation are required");
+      }
+      const branch = Number(form.branchId);
+      if (editing) {
+        const body: Record<string, unknown> = {
+          name: form.name,
+          mobile: form.mobile.replace(/\D/g, "").slice(0, 10),
+          email: form.email || undefined,
+          branch,
+          designation: form.designation,
+          department: form.department || undefined,
+          joining_date: form.joiningDate || undefined,
+          basic_salary: form.salary,
+          commission_rate: form.commissionRate,
+          monthly_target: form.target,
+          pf_number: form.pfNumber || undefined,
+          esi_number: form.esiNumber || undefined,
+          street_address: form.address || undefined,
+          city: form.city || undefined,
+          state: form.state || undefined,
+          pincode: form.pincode || undefined,
+          bank_name: form.bankName || undefined,
+          account_number: form.accountNumber || undefined,
+          ifsc_code: form.ifsc || undefined,
+          upi_id: form.upiId || undefined,
+        };
+        return updateStaff(editing.id, body);
+      }
+      const createRole: "staff" | "branch_manager" =
+        role === "admin" ? form.role : "staff";
+      return createStaff({
+        name: form.name,
+        mobile: form.mobile.replace(/\D/g, "").slice(0, 10),
+        email: form.email || undefined,
+        role: createRole,
+        branch,
+        designation: form.designation,
+        department: form.department || undefined,
+        joining_date: form.joiningDate || undefined,
+        basic_salary: form.salary,
+        commission_rate: form.commissionRate,
+        monthly_target: form.target,
+        pf_number: form.pfNumber || undefined,
+        esi_number: form.esiNumber || undefined,
+        street_address: form.address || undefined,
+        city: form.city || undefined,
+        state: form.state || undefined,
+        pincode: form.pincode || undefined,
+        bank_name: form.bankName || undefined,
+        account_number: form.accountNumber || undefined,
+        ifsc_code: form.ifsc || undefined,
+        upi_id: form.upiId || undefined,
+      });
+    },
+    onSuccess: () => {
+      toast({ title: editing ? "Staff updated" : "Staff created" });
+      setDialogOpen(false);
+      invalidate();
+    },
+    onError: (e: Error) =>
+      toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => deleteStaff(id),
+    onSuccess: () => {
+      toast({ title: "Staff removed" });
+      invalidate();
+    },
+    onError: (e: Error) =>
+      toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const toggleMut = useMutation({
+    mutationFn: (id: number) => toggleStaffStatus(id),
+    onSuccess: () => {
+      toast({ title: "Status updated" });
+      invalidate();
+    },
+    onError: (e: Error) =>
+      toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const reportMut = useMutation({
+    mutationFn: (id: number) => downloadStaffReportPdf(id),
+    onError: (e: Error) =>
+      toast({
+        title: "Download failed",
+        description: e.message,
+        variant: "destructive",
+      }),
+  });
 
   const openAdd = () => {
     setEditing(null);
-    setForm(emptyForm);
+    setForm(emptyForm());
     setActiveTab("personal");
     setDialogOpen(true);
   };
 
-  const openEdit = (s: typeof initialStaff[0]) => {
+  const openEdit = async (s: StaffListRow) => {
     setEditing(s);
-    setForm({
-      ...emptyForm,
-      name: s.name, empCode: s.empCode, branch: s.branch,
-      designation: s.designation, salary: s.salary,
-      commissionRate: s.commissionRate, target: s.target,
-      status: s.status,
-    });
     setActiveTab("personal");
+    try {
+      const d = (await fetchStaffDetail(s.id)) as Record<string, unknown>;
+      const mobile = String(d.mobile ?? "")
+        .replace(/\D/g, "")
+        .slice(-10);
+      setForm({
+        ...emptyForm(),
+        name: String(d.name ?? s.name),
+        empCode: String(d.emp_code ?? s.emp_code),
+        mobile,
+        email: String(d.email ?? ""),
+        branchId: String(d.branch ?? s.branch),
+        designation: String(d.designation ?? s.designation),
+        role:
+          String(d.role ?? "staff") === "branch_manager"
+            ? "branch_manager"
+            : "staff",
+        department: String(d.department ?? ""),
+        joiningDate: String(d.joining_date ?? "").slice(0, 10),
+        salary: Number(d.basic_salary ?? s.basic_salary) || 0,
+        commissionRate: Number(d.commission_rate ?? s.commission_rate) || 0,
+        target: Number(d.monthly_target ?? s.target_progress?.target) || 0,
+        status: s.status,
+        address: String(d.street_address ?? ""),
+        city: String(d.city ?? ""),
+        state: String(d.state ?? ""),
+        pincode: String(d.pincode ?? ""),
+        bankName: String(d.bank_name ?? ""),
+        accountNumber: String(d.account_number ?? ""),
+        ifsc: String(d.ifsc_code ?? ""),
+        upiId: String(d.upi_id ?? ""),
+        pfNumber: String(d.pf_number ?? ""),
+        esiNumber: String(d.esi_number ?? ""),
+      } as StaffForm);
+    } catch {
+      setForm({
+        ...emptyForm(),
+        name: s.name,
+        empCode: s.emp_code,
+        mobile: "",
+        branchId: String(s.branch),
+        designation: s.designation,
+        salary: Number(s.basic_salary) || 0,
+        commissionRate: Number(s.commission_rate) || 0,
+        target: s.target_progress?.target ?? 0,
+        status: s.status,
+      });
+    }
     setDialogOpen(true);
   };
 
-  const handleSave = () => {
-    if (!form.name || !form.empCode || !form.branch || !form.mobile) {
-      toast({ title: "Validation Error", description: "Fill all required fields (Name, Emp Code, Branch, Mobile)", variant: "destructive" });
-      return;
+  const openView = async (s: StaffListRow) => {
+    setViewStaff(s);
+    try {
+      const d = await fetchStaffDetail(s.id);
+      setViewDetail(d as Record<string, unknown>);
+    } catch {
+      setViewDetail(null);
     }
-    if (editing) {
-      setStaff((prev) => prev.map((s) => s.id === editing.id ? {
-        ...s, name: form.name, empCode: form.empCode, branch: form.branch,
-        designation: form.designation, salary: form.salary,
-        commissionRate: form.commissionRate, target: form.target,
-        status: form.status as "active" | "inactive",
-      } : s));
-      toast({ title: "Staff Updated", description: `${form.name} updated successfully` });
-    } else {
-      setStaff((prev) => [...prev, {
-        name: form.name, empCode: form.empCode, branch: form.branch,
-        designation: form.designation, salary: form.salary,
-        commissionRate: form.commissionRate, target: form.target,
-        id: Date.now(), achieved: 0, status: "active" as const,
-      }]);
-      toast({ title: "Staff Added", description: `${form.name} has been added successfully` });
-    }
-    setDialogOpen(false);
   };
 
-  const handleDelete = (s: typeof initialStaff[0]) => {
-    setStaff((prev) => prev.filter((item) => item.id !== s.id));
-    toast({ title: "Staff Deleted", description: `${s.name} has been removed` });
-  };
-
-  const update = (field: keyof StaffForm, value: string | number) => setForm(prev => ({ ...prev, [field]: value }));
+  const update = (field: keyof StaffForm, value: string | number) =>
+    setForm((prev) => ({ ...prev, [field]: value }));
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Staff Management</h1>
-          <p className="text-muted-foreground text-sm mt-1">Manage consultants and their performance</p>
+          <p className="text-muted-foreground text-sm mt-1">
+            Manage consultants and their performance
+          </p>
         </div>
-        <Button onClick={openAdd} className="gap-2"><Plus className="h-4 w-4" /> Add Staff</Button>
+        <Button onClick={openAdd} className="gap-2">
+          <Plus className="h-4 w-4" /> Add Staff
+        </Button>
       </div>
+
+      {listQuery.error && (
+        <p className="text-sm text-destructive">
+          {(listQuery.error as Error).message}
+        </p>
+      )}
 
       <Card className="shadow-elegant border-0">
         <CardHeader className="pb-3">
-          <div className="relative max-w-sm">
+          <div className="relative max-w-sm flex items-center gap-2">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search staff..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+            <Input
+              placeholder="Search staff..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9"
+            />
+            {listQuery.isLoading && (
+              <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+            )}
           </div>
         </CardHeader>
         <CardContent>
@@ -168,52 +380,104 @@ export default function StaffManagement() {
                 <TableHead>Name</TableHead>
                 <TableHead>Branch</TableHead>
                 <TableHead>Designation</TableHead>
-                
                 <TableHead>Salary</TableHead>
                 <TableHead>Commission %</TableHead>
                 <TableHead>Target Progress</TableHead>
-                 <TableHead>Status</TableHead>
-                 <TableHead>Report</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Report</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((s) => {
-                const report = staffReports[s.id] || { entryDate: "N/A", entries: 0, staffId: `STF-${String(s.id).padStart(3, "0")}` };
+              {staffRows.map((s) => {
+                const achieved = s.target_progress?.achieved ?? 0;
+                const target = s.target_progress?.target ?? 1;
                 return (
                   <TableRow key={s.id}>
-                    <TableCell className="font-mono text-xs">{s.empCode}</TableCell>
+                    <TableCell className="font-mono text-xs">
+                      {s.emp_code}
+                    </TableCell>
                     <TableCell className="font-medium">{s.name}</TableCell>
-                    <TableCell>{s.branch}</TableCell>
+                    <TableCell>{s.branch_name}</TableCell>
                     <TableCell>{s.designation}</TableCell>
-                    <TableCell>₹{s.salary.toLocaleString()}</TableCell>
-                    <TableCell>{s.commissionRate}%</TableCell>
+                    <TableCell>
+                      ₹{Number(s.basic_salary).toLocaleString()}
+                    </TableCell>
+                    <TableCell>{s.commission_rate}%</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <Progress value={(s.achieved / s.target) * 100} className="h-2 w-20" />
-                        <span className="text-xs text-muted-foreground">{s.achieved}/{s.target}</span>
+                        <Progress
+                          value={target ? (achieved / target) * 100 : 0}
+                          className="h-2 w-20"
+                        />
+                        <span className="text-xs text-muted-foreground">
+                          {achieved}/{target}
+                        </span>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={s.status === "active" ? "default" : "secondary"} className={s.status === "active" ? "bg-success text-success-foreground" : ""}>
+                      <Badge
+                        variant={
+                          s.status === "active" ? "default" : "secondary"
+                        }
+                        className={
+                          s.status === "active"
+                            ? "bg-success text-success-foreground"
+                            : ""
+                        }
+                      >
                         {s.status}
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setReportStaff(s)} title="View Report">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => reportMut.mutate(s.id)}
+                        disabled={reportMut.isPending}
+                        title="Download PDF"
+                      >
                         <FileText className="h-4 w-4 text-primary" />
                       </Button>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setViewStaff(s)} title="View">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => openView(s)}
+                          title="View"
+                        >
                           <Eye className="h-4 w-4 text-blue-600" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(s)} title="Edit">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => openEdit(s)}
+                          title="Edit"
+                        >
                           <Edit className="h-4 w-4 text-amber-600" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDelete(s)} title="Delete">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => deleteMut.mutate(s.id)}
+                          title="Delete"
+                        >
                           <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-xs"
+                          onClick={() => toggleMut.mutate(s.id)}
+                          disabled={toggleMut.isPending}
+                        >
+                          {s.status === "active" ? "Deactivate" : "Activate"}
                         </Button>
                       </div>
                     </TableCell>
@@ -228,282 +492,405 @@ export default function StaffManagement() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] p-0 gap-0 overflow-hidden">
           <DialogHeader className="px-6 pt-6 pb-2">
-            <DialogTitle className="text-xl font-bold">{editing ? "Edit Staff Member" : "Add New Staff Member"}</DialogTitle>
+            <DialogTitle className="text-xl font-bold">
+              {editing ? "Edit Staff Member" : "Add New Staff Member"}
+            </DialogTitle>
           </DialogHeader>
 
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1">
+          <Tabs
+            value={activeTab}
+            onValueChange={setActiveTab}
+            className="flex-1"
+          >
             <div className="px-6">
               <TabsList className="grid w-full grid-cols-4 h-11">
-                <TabsTrigger value="personal" className="gap-1.5 text-xs"><User className="h-3.5 w-3.5" /> Personal</TabsTrigger>
-                <TabsTrigger value="employment" className="gap-1.5 text-xs"><Briefcase className="h-3.5 w-3.5" /> Employment</TabsTrigger>
-                <TabsTrigger value="address" className="gap-1.5 text-xs"><MapPin className="h-3.5 w-3.5" /> Address</TabsTrigger>
-                <TabsTrigger value="bank" className="gap-1.5 text-xs"><Landmark className="h-3.5 w-3.5" /> Bank & Login</TabsTrigger>
+                <TabsTrigger value="personal" className="gap-1.5 text-xs">
+                  <User className="h-3.5 w-3.5" /> Personal
+                </TabsTrigger>
+                <TabsTrigger value="employment" className="gap-1.5 text-xs">
+                  <Briefcase className="h-3.5 w-3.5" /> Employment
+                </TabsTrigger>
+                <TabsTrigger value="address" className="gap-1.5 text-xs">
+                  <MapPin className="h-3.5 w-3.5" /> Address
+                </TabsTrigger>
+                <TabsTrigger value="bank" className="gap-1.5 text-xs">
+                  <Landmark className="h-3.5 w-3.5" /> Bank
+                </TabsTrigger>
               </TabsList>
             </div>
 
             <ScrollArea className="h-[52vh] px-6 py-4">
-              {/* ── Personal Info ── */}
               <TabsContent value="personal" className="mt-0 space-y-5">
                 <div className="flex items-center gap-6 pb-2">
-                  <div className="relative group">
-                    <div className="h-20 w-20 rounded-full bg-muted flex items-center justify-center border-2 border-dashed border-muted-foreground/30 overflow-hidden">
-                      {form.profilePhoto ? (
-                        <img src={form.profilePhoto} alt="Profile" className="h-full w-full object-cover" />
-                      ) : (
-                        <Upload className="h-6 w-6 text-muted-foreground/50" />
-                      )}
-                    </div>
-                    <p className="text-[10px] text-muted-foreground text-center mt-1">Profile Photo</p>
+                  <div className="h-20 w-20 rounded-full bg-muted flex items-center justify-center border-2 border-dashed border-muted-foreground/30">
+                    <Upload className="h-6 w-6 text-muted-foreground/50" />
                   </div>
                   <div className="flex-1 grid grid-cols-2 gap-4">
                     <FormField label="Full Name" required>
-                      <Input value={form.name} onChange={(e) => update("name", e.target.value)} placeholder="Enter full name" />
+                      <Input
+                        value={form.name}
+                        onChange={(e) => update("name", e.target.value)}
+                        placeholder="Enter full name"
+                      />
                     </FormField>
                     <FormField label="Employee Code" required>
-                      <Input value={form.empCode} onChange={(e) => update("empCode", e.target.value)} placeholder="e.g. EMP007" />
+                      <Input
+                        value={form.empCode}
+                        onChange={(e) => update("empCode", e.target.value)}
+                        placeholder="Auto on create"
+                        disabled={!editing}
+                      />
                     </FormField>
                   </div>
                 </div>
                 <Separator />
                 <div className="grid grid-cols-2 gap-4">
                   <FormField label="Mobile Number" required>
-                    <Input value={form.mobile} onChange={(e) => update("mobile", e.target.value)} placeholder="+91 9876543210" />
+                    <Input
+                      value={form.mobile}
+                      onChange={(e) => update("mobile", e.target.value)}
+                      placeholder="10-digit mobile"
+                    />
                   </FormField>
                   <FormField label="Email Address">
-                    <Input type="email" value={form.email} onChange={(e) => update("email", e.target.value)} placeholder="staff@aiswarya.com" />
+                    <Input
+                      type="email"
+                      value={form.email}
+                      onChange={(e) => update("email", e.target.value)}
+                    />
                   </FormField>
                 </div>
               </TabsContent>
 
-              {/* ── Employment Details ── */}
               <TabsContent value="employment" className="mt-0 space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <FormField label="Branch" required>
-                    <Select value={form.branch} onValueChange={(v) => update("branch", v)}>
-                      <SelectTrigger><SelectValue placeholder="Select branch" /></SelectTrigger>
+                    <Select
+                      value={form.branchId}
+                      onValueChange={(v) => update("branchId", v)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select branch" />
+                      </SelectTrigger>
                       <SelectContent>
-                        {branches.map((b) => <SelectItem key={b.id} value={b.name}>{b.name}</SelectItem>)}
+                        {branchOptions.map((b) => (
+                          <SelectItem key={b.id} value={String(b.id)}>
+                            {b.name}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </FormField>
-                  <FormField label="Designation">
-                    <Select value={form.designation} onValueChange={(v) => update("designation", v)}>
-                      <SelectTrigger><SelectValue placeholder="Select designation" /></SelectTrigger>
+                  <FormField label="Designation" required>
+                    <Input
+                      value={form.designation}
+                      onChange={(e) => update("designation", e.target.value)}
+                    />
+                  </FormField>
+                  <FormField label="Role">
+                    <Select
+                      value={role === "admin" ? form.role : "staff"}
+                      onValueChange={(v) =>
+                        update("role", v as StaffForm["role"])
+                      }
+                      disabled={role !== "admin"}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select role" />
+                      </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Senior Consultant">Senior Consultant</SelectItem>
-                        <SelectItem value="Consultant">Consultant</SelectItem>
-                        <SelectItem value="Junior Consultant">Junior Consultant</SelectItem>
-                        <SelectItem value="Branch Manager">Branch Manager</SelectItem>
-                        <SelectItem value="Telecaller">Telecaller</SelectItem>
+                        <SelectItem value="staff">Staff</SelectItem>
+                        <SelectItem value="branch_manager">
+                          Branch Manager
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </FormField>
                   <FormField label="Department">
-                    <Select value={form.department} onValueChange={(v) => update("department", v)}>
-                      <SelectTrigger><SelectValue placeholder="Select department" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Sales">Sales</SelectItem>
-                        <SelectItem value="Operations">Operations</SelectItem>
-                        <SelectItem value="Support">Support</SelectItem>
-                        <SelectItem value="Marketing">Marketing</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Input
+                      value={form.department}
+                      onChange={(e) => update("department", e.target.value)}
+                    />
                   </FormField>
                   <FormField label="Joining Date">
-                    <Input type="date" value={form.joiningDate} onChange={(e) => update("joiningDate", e.target.value)} />
+                    <Input
+                      type="date"
+                      value={form.joiningDate}
+                      onChange={(e) => update("joiningDate", e.target.value)}
+                    />
                   </FormField>
                 </div>
                 <Separator />
                 <div className="grid grid-cols-3 gap-4">
                   <FormField label="Salary (₹)">
-                    <Input type="number" value={form.salary || ""} onChange={(e) => update("salary", +e.target.value)} placeholder="0" />
+                    <Input
+                      type="number"
+                      value={form.salary || ""}
+                      onChange={(e) => update("salary", +e.target.value)}
+                    />
                   </FormField>
                   <FormField label="Commission %">
-                    <Input type="number" value={form.commissionRate || ""} onChange={(e) => update("commissionRate", +e.target.value)} placeholder="0" />
+                    <Input
+                      type="number"
+                      value={form.commissionRate || ""}
+                      onChange={(e) =>
+                        update("commissionRate", +e.target.value)
+                      }
+                    />
                   </FormField>
                   <FormField label="Monthly Target">
-                    <Input type="number" value={form.target || ""} onChange={(e) => update("target", +e.target.value)} placeholder="0" />
+                    <Input
+                      type="number"
+                      value={form.target || ""}
+                      onChange={(e) => update("target", +e.target.value)}
+                    />
                   </FormField>
                 </div>
                 <Separator />
                 <div className="grid grid-cols-2 gap-4">
                   <FormField label="PF Number">
-                    <Input value={form.pfNumber} onChange={(e) => update("pfNumber", e.target.value)} placeholder="e.g. KL/MLP/12345/000" />
+                    <Input
+                      value={form.pfNumber}
+                      onChange={(e) => update("pfNumber", e.target.value)}
+                    />
                   </FormField>
                   <FormField label="ESI Number">
-                    <Input value={form.esiNumber} onChange={(e) => update("esiNumber", e.target.value)} placeholder="e.g. 1234567890" />
-                  </FormField>
-                </div>
-                <Separator />
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField label="Role">
-                    <Select value={form.role} onValueChange={(v) => update("role", v)}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="staff">Staff</SelectItem>
-                        <SelectItem value="branch-manager">Branch Manager</SelectItem>
-                        <SelectItem value="admin">Admin</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </FormField>
-                  <FormField label="Status">
-                    <Select value={form.status} onValueChange={(v) => update("status", v)}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="active">Active</SelectItem>
-                        <SelectItem value="inactive">Inactive</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Input
+                      value={form.esiNumber}
+                      onChange={(e) => update("esiNumber", e.target.value)}
+                    />
                   </FormField>
                 </div>
               </TabsContent>
 
-              {/* ── Address ── */}
               <TabsContent value="address" className="mt-0 space-y-4">
                 <FormField label="Street Address">
-                  <Input value={form.address} onChange={(e) => update("address", e.target.value)} placeholder="Door No, Street, Area" />
+                  <Input
+                    value={form.address}
+                    onChange={(e) => update("address", e.target.value)}
+                  />
                 </FormField>
                 <div className="grid grid-cols-3 gap-4">
                   <FormField label="City">
-                    <Input value={form.city} onChange={(e) => update("city", e.target.value)} placeholder="City" />
+                    <Input
+                      value={form.city}
+                      onChange={(e) => update("city", e.target.value)}
+                    />
                   </FormField>
                   <FormField label="State">
-                    <Input value={form.state} onChange={(e) => update("state", e.target.value)} placeholder="State" />
+                    <Input
+                      value={form.state}
+                      onChange={(e) => update("state", e.target.value)}
+                    />
                   </FormField>
                   <FormField label="Pincode">
-                    <Input value={form.pincode} onChange={(e) => update("pincode", e.target.value)} placeholder="600001" maxLength={6} />
+                    <Input
+                      value={form.pincode}
+                      onChange={(e) => update("pincode", e.target.value)}
+                      maxLength={6}
+                    />
                   </FormField>
                 </div>
               </TabsContent>
 
-              {/* ── Bank & Login ── */}
               <TabsContent value="bank" className="mt-0 space-y-5">
-                <div>
-                  <h3 className="text-sm font-semibold mb-3 flex items-center gap-2"><Landmark className="h-4 w-4 text-primary" /> Bank Details</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField label="Bank Name">
-                      <Input value={form.bankName} onChange={(e) => update("bankName", e.target.value)} placeholder="e.g. State Bank of India" />
-                    </FormField>
-                    <FormField label="Account Number">
-                      <Input value={form.accountNumber} onChange={(e) => update("accountNumber", e.target.value)} placeholder="Account number" />
-                    </FormField>
-                    <FormField label="IFSC Code">
-                      <Input value={form.ifsc} onChange={(e) => update("ifsc", e.target.value)} placeholder="e.g. SBIN0001234" />
-                    </FormField>
-                    <FormField label="UPI ID">
-                      <Input value={form.upiId} onChange={(e) => update("upiId", e.target.value)} placeholder="name@upi" />
-                    </FormField>
-                  </div>
-                </div>
-                <Separator />
-                <div>
-                  <h3 className="text-sm font-semibold mb-3 flex items-center gap-2"><User className="h-4 w-4 text-primary" /> Login Credentials</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField label="Username" required>
-                      <Input value={form.username} onChange={(e) => update("username", e.target.value)} placeholder="Login username" />
-                    </FormField>
-                    <FormField label="Password" required>
-                      <Input type="password" value={form.password} onChange={(e) => update("password", e.target.value)} placeholder="••••••••" />
-                    </FormField>
-                  </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField label="Bank Name">
+                    <Input
+                      value={form.bankName}
+                      onChange={(e) => update("bankName", e.target.value)}
+                    />
+                  </FormField>
+                  <FormField label="Account Number">
+                    <Input
+                      value={form.accountNumber}
+                      onChange={(e) => update("accountNumber", e.target.value)}
+                    />
+                  </FormField>
+                  <FormField label="IFSC Code">
+                    <Input
+                      value={form.ifsc}
+                      onChange={(e) => update("ifsc", e.target.value)}
+                    />
+                  </FormField>
+                  <FormField label="UPI ID">
+                    <Input
+                      value={form.upiId}
+                      onChange={(e) => update("upiId", e.target.value)}
+                    />
+                  </FormField>
                 </div>
               </TabsContent>
             </ScrollArea>
           </Tabs>
 
           <DialogFooter className="px-6 py-4 border-t bg-muted/30">
-            <div className="flex items-center justify-between w-full">
-              <div className="flex gap-1">
-                {["personal", "employment", "address", "bank"].map((tab) => (
-                  <div key={tab} className={`h-1.5 w-8 rounded-full transition-colors ${activeTab === tab ? "bg-primary" : "bg-muted-foreground/20"}`} />
-                ))}
-              </div>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-                <Button onClick={handleSave}>{editing ? "Update Staff" : "Create Staff"}</Button>
-              </div>
+            <div className="flex justify-end gap-2 w-full">
+              <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={() => saveMut.mutate()}
+                disabled={saveMut.isPending}
+              >
+                {saveMut.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : editing ? (
+                  "Update Staff"
+                ) : (
+                  "Create Staff"
+                )}
+              </Button>
             </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* View Staff Dialog */}
-      <Dialog open={!!viewStaff} onOpenChange={() => setViewStaff(null)}>
-        <DialogContent className="max-w-md">
+      <Dialog
+        open={!!viewStaff}
+        onOpenChange={() => {
+          setViewStaff(null);
+          setViewDetail(null);
+        }}
+      >
+        <DialogContent className="max-w-xl">
           <DialogHeader>
-            <DialogTitle className="text-lg font-bold">Staff Details</DialogTitle>
+            <DialogTitle className="text-lg font-bold">
+              Staff Details
+            </DialogTitle>
           </DialogHeader>
           {viewStaff && (
-            <div className="space-y-3">
-              <div className="flex items-center gap-4 pb-3 border-b border-border">
-                <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center">
-                  <User className="h-7 w-7 text-primary" />
-                </div>
-                <div>
-                  <p className="font-bold text-lg">{viewStaff.name}</p>
-                  <p className="text-sm text-muted-foreground">{viewStaff.empCode} · {viewStaff.designation}</p>
-                </div>
+            <div className="space-y-4 text-sm">
+              <div>
+                <p className="font-bold text-lg">{viewStaff.name}</p>
+                <p className="text-muted-foreground">
+                  {viewStaff.emp_code} · {viewStaff.designation} ·{" "}
+                  {viewStaff.branch_name}
+                </p>
               </div>
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div><p className="text-muted-foreground text-xs">Branch</p><p className="font-medium">{viewStaff.branch}</p></div>
-                <div><p className="text-muted-foreground text-xs">Salary</p><p className="font-medium">₹{viewStaff.salary.toLocaleString()}</p></div>
-                <div><p className="text-muted-foreground text-xs">Commission</p><p className="font-medium">{viewStaff.commissionRate}%</p></div>
-                <div><p className="text-muted-foreground text-xs">Target</p><p className="font-medium">{viewStaff.achieved}/{viewStaff.target}</p></div>
-                <div><p className="text-muted-foreground text-xs">Status</p>
-                  <Badge variant={viewStaff.status === "active" ? "default" : "secondary"} className={viewStaff.status === "active" ? "bg-success text-success-foreground" : ""}>
-                    {viewStaff.status}
-                  </Badge>
+
+              {!viewDetail && (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Loading
+                  details...
                 </div>
-                <div><p className="text-muted-foreground text-xs">Report</p>
-                  <p className="font-medium text-xs">{(staffReports[viewStaff.id] || {}).entries || 0} entries</p>
-                </div>
-              </div>
+              )}
+
+              {viewDetail && (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-md border p-3">
+                      <p className="text-xs text-muted-foreground">Mobile</p>
+                      <p className="font-medium">
+                        {String(viewDetail.mobile ?? "—")}
+                      </p>
+                    </div>
+                    <div className="rounded-md border p-3">
+                      <p className="text-xs text-muted-foreground">Email</p>
+                      <p className="font-medium break-all">
+                        {String(viewDetail.email ?? "—")}
+                      </p>
+                    </div>
+                    <div className="rounded-md border p-3">
+                      <p className="text-xs text-muted-foreground">
+                        Department
+                      </p>
+                      <p className="font-medium">
+                        {String(viewDetail.department ?? "—")}
+                      </p>
+                    </div>
+                    <div className="rounded-md border p-3">
+                      <p className="text-xs text-muted-foreground">
+                        Joining Date
+                      </p>
+                      <p className="font-medium">
+                        {String(viewDetail.joining_date ?? "—").slice(0, 10) ||
+                          "—"}
+                      </p>
+                    </div>
+                    <div className="rounded-md border p-3">
+                      <p className="text-xs text-muted-foreground">
+                        Basic Salary
+                      </p>
+                      <p className="font-medium">
+                        ₹{Number(viewDetail.basic_salary ?? 0).toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="rounded-md border p-3">
+                      <p className="text-xs text-muted-foreground">
+                        Commission Rate
+                      </p>
+                      <p className="font-medium">
+                        {String(viewDetail.commission_rate ?? "0")}%
+                      </p>
+                    </div>
+                    <div className="rounded-md border p-3">
+                      <p className="text-xs text-muted-foreground">
+                        Monthly Target
+                      </p>
+                      <p className="font-medium">
+                        {String(viewDetail.monthly_target ?? "—")}
+                      </p>
+                    </div>
+                    <div className="rounded-md border p-3">
+                      <p className="text-xs text-muted-foreground">Status</p>
+                      <p className="font-medium capitalize">
+                        {String(viewDetail.status ?? viewStaff.status ?? "—")}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 rounded-md border p-3">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                      Address
+                    </p>
+                    <p className="font-medium">
+                      {[
+                        viewDetail.street_address,
+                        viewDetail.city,
+                        viewDetail.state,
+                        viewDetail.pincode,
+                      ]
+                        .filter(Boolean)
+                        .map((v) => String(v))
+                        .join(", ") || "—"}
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-md border p-3">
+                      <p className="text-xs text-muted-foreground">Bank Name</p>
+                      <p className="font-medium">
+                        {String(viewDetail.bank_name ?? "—")}
+                      </p>
+                    </div>
+                    <div className="rounded-md border p-3">
+                      <p className="text-xs text-muted-foreground">
+                        Account Number
+                      </p>
+                      <p className="font-medium">
+                        {String(viewDetail.account_number ?? "—")}
+                      </p>
+                    </div>
+                    <div className="rounded-md border p-3">
+                      <p className="text-xs text-muted-foreground">IFSC</p>
+                      <p className="font-medium">
+                        {String(viewDetail.ifsc_code ?? "—")}
+                      </p>
+                    </div>
+                    <div className="rounded-md border p-3">
+                      <p className="text-xs text-muted-foreground">UPI ID</p>
+                      <p className="font-medium">
+                        {String(viewDetail.upi_id ?? "—")}
+                      </p>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           )}
         </DialogContent>
       </Dialog>
-
-      {/* Report Modal */}
-      <Dialog open={!!reportStaff} onOpenChange={() => setReportStaff(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-bold flex items-center gap-2">
-              <FileText className="h-5 w-5 text-primary" /> Staff Activity Report
-            </DialogTitle>
-          </DialogHeader>
-          {reportStaff && (() => {
-            const report = staffReports[reportStaff.id] || { entryDate: "N/A", entries: 0, staffId: `STF-${String(reportStaff.id).padStart(3, "0")}` };
-            return (
-              <div className="space-y-4">
-                <div className="flex items-center gap-3 pb-3 border-b border-border">
-                  <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                    <User className="h-6 w-6 text-primary" />
-                  </div>
-                  <div>
-                    <p className="font-bold">{reportStaff.name}</p>
-                    <p className="text-xs text-muted-foreground">{reportStaff.empCode} · {reportStaff.branch}</p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 gap-3">
-                  <div className="flex justify-between items-center p-3 rounded-lg bg-muted/50">
-                    <span className="text-sm text-muted-foreground">Staff Identifier</span>
-                    <span className="font-mono font-semibold text-sm">{reportStaff?.empCode}</span>
-                  </div>
-                  <div className="flex justify-between items-center p-3 rounded-lg bg-muted/50">
-                    <span className="text-sm text-muted-foreground">Entry Date/Time</span>
-                    <span className="font-medium text-sm">{report.entryDate}</span>
-                  </div>
-                  <div className="flex justify-between items-center p-3 rounded-lg bg-muted/50">
-                    <span className="text-sm text-muted-foreground">Number of Entries</span>
-                    <span className="font-bold text-lg text-primary">{report.entries}</span>
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
-        </DialogContent>
-      </Dialog>
-
     </div>
   );
 }

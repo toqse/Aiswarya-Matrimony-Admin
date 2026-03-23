@@ -1,32 +1,60 @@
 import React, { createContext, useContext, useState, ReactNode } from "react";
+import { mapApiRoleToUserRole } from "@/lib/role-mapping";
+import {
+  clearMatrimonyAdminSession,
+  getMatrimonyAdminSession,
+  setMatrimonyAdminSession,
+  type AdminBranchRef,
+  type MatrimonyAdminSession,
+} from "@/lib/matrimony-admin-storage";
+import type { UserRole } from "@/types/user-role";
 
-export type UserRole = "admin" | "staff" | "branch-manager";
+export type { UserRole };
 
 interface RoleContextType {
   role: UserRole;
   setRole: (role: UserRole) => void;
   isLoggedIn: boolean;
-  login: (role: UserRole) => void;
+  userName: string | null;
+  branch: AdminBranchRef | null;
+  permissions: string[];
+  login: (session: MatrimonyAdminSession) => void;
   logout: () => void;
 }
 
 const RoleContext = createContext<RoleContextType | undefined>(undefined);
 
 export function RoleProvider({ children }: { children: ReactNode }) {
-  const [role, setRole] = useState<UserRole>("admin");
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [role, setRole] = useState<UserRole>(() => {
+    const s = getMatrimonyAdminSession();
+    return s?.access_token ? mapApiRoleToUserRole(s.role) : "admin";
+  });
+  const [isLoggedIn, setIsLoggedIn] = useState(() => !!getMatrimonyAdminSession()?.access_token);
+  const [userName, setUserName] = useState<string | null>(() => getMatrimonyAdminSession()?.name ?? null);
+  const [branch, setBranch] = useState<AdminBranchRef | null>(() => getMatrimonyAdminSession()?.branch ?? null);
+  const [permissions, setPermissions] = useState<string[]>(() => getMatrimonyAdminSession()?.permissions ?? []);
 
-  const login = (newRole: UserRole) => {
-    setRole(newRole);
+  const login = (session: MatrimonyAdminSession) => {
+    setMatrimonyAdminSession(session);
+    setRole(mapApiRoleToUserRole(session.role));
     setIsLoggedIn(true);
+    setUserName(session.name);
+    setBranch(session.branch ?? null);
+    setPermissions(session.permissions ?? []);
   };
 
   const logout = () => {
+    clearMatrimonyAdminSession();
     setIsLoggedIn(false);
+    setUserName(null);
+    setBranch(null);
+    setPermissions([]);
   };
 
   return (
-    <RoleContext.Provider value={{ role, setRole, isLoggedIn, login, logout }}>
+    <RoleContext.Provider
+      value={{ role, setRole, isLoggedIn, userName, branch, permissions, login, logout }}
+    >
       {children}
     </RoleContext.Provider>
   );

@@ -1,55 +1,84 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { staffPerformance } from "@/data/mockData";
-import { Search, Download, Target, Users, TrendingUp, Award, ArrowUpRight, ArrowDownRight } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend } from "recharts";
+import { useRole } from "@/contexts/RoleContext";
+import { fetchBranchStaffList } from "@/lib/admin-api/staff";
+import { Search, Download, Target, Users, TrendingUp, Award, ArrowUpRight, ArrowDownRight, Loader2 } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+
+function num(s: string) {
+  const n = parseFloat(String(s).replace(/[^0-9.-]/g, ""));
+  return Number.isFinite(n) ? n : 0;
+}
 
 export default function BranchStaffPerformance() {
+  const { branch } = useRole();
   const [search, setSearch] = useState("");
 
-  const filtered = staffPerformance.filter((s) =>
-    s.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["branch", "staff", "performance"],
+    queryFn: () => fetchBranchStaffList({ page_size: 200 }),
+  });
 
-  const totalProfiles = staffPerformance.reduce((s, r) => s + r.profilesCreated, 0);
-  const totalSubs = staffPerformance.reduce((s, r) => s + r.subscriptionsSold, 0);
-  const totalRevenue = staffPerformance.reduce((s, r) => s + r.revenue, 0);
-  const totalCommission = staffPerformance.reduce((s, r) => s + r.commission, 0);
-  const avgConversion = staffPerformance.length > 0
-    ? (staffPerformance.reduce((s, r) => s + (r.target > 0 ? (r.achieved / r.target) * 100 : 0), 0) / staffPerformance.length).toFixed(1)
-    : "0";
+  const rows = useMemo(() => {
+    const list = data?.results ?? [];
+    return list.map((s) => {
+      const basic = num(s.basic_salary);
+      const rate = num(s.commission_rate);
+      const { achieved, target } = s.target_progress;
+      const pct = target > 0 ? (achieved / target) * 100 : 0;
+      return {
+        id: s.id,
+        name: s.name,
+        basic,
+        commissionRate: rate,
+        achieved,
+        target,
+        pct,
+        is_active: s.is_active,
+        designation: s.designation,
+      };
+    });
+  }, [data?.results]);
+
+  const filtered = rows.filter((s) => s.name.toLowerCase().includes(search.toLowerCase()));
+
+  const totalBasic = rows.reduce((s, r) => s + r.basic, 0);
+  const totalAchieved = rows.reduce((s, r) => s + r.achieved, 0);
+  const avgConversion =
+    rows.length > 0 ? (rows.reduce((s, r) => s + (r.target > 0 ? (r.achieved / r.target) * 100 : 0), 0) / rows.length).toFixed(1) : "0";
 
   const kpis = [
-    { label: "Total Profiles Created", value: totalProfiles, icon: Users, color: "text-blue-600", bg: "bg-blue-50" },
-    { label: "Subscriptions Sold", value: totalSubs, icon: TrendingUp, color: "text-emerald-600", bg: "bg-emerald-50" },
-    { label: "Branch Revenue", value: `₹${totalRevenue.toLocaleString()}`, icon: Target, color: "text-violet-600", bg: "bg-violet-50" },
-    { label: "Avg Conversion Rate", value: `${avgConversion}%`, icon: Award, color: "text-amber-600", bg: "bg-amber-50" },
+    { label: "Staff (listed)", value: rows.length, icon: Users, color: "text-blue-600", bg: "bg-blue-50" },
+    { label: "Target units (Σ achieved)", value: totalAchieved, icon: TrendingUp, color: "text-emerald-600", bg: "bg-emerald-50" },
+    { label: "Basic salary (Σ)", value: `₹${Math.round(totalBasic).toLocaleString()}`, icon: Target, color: "text-violet-600", bg: "bg-violet-50" },
+    { label: "Avg target progress", value: `${avgConversion}%`, icon: Award, color: "text-amber-600", bg: "bg-amber-50" },
   ];
 
-  // Radar chart data for staff comparison
-  const radarData = staffPerformance.map((s) => ({
-    name: s.name.split(" ")[0],
-    profiles: s.profilesCreated,
-    subscriptions: s.subscriptionsSold * 3,
-    revenue: Math.round(s.revenue / 10000),
-    conversion: s.target > 0 ? Math.round((s.achieved / s.target) * 100) : 0,
+  const barData = filtered.map((s) => ({
+    name: s.name.length > 18 ? `${s.name.slice(0, 16)}…` : s.name,
+    basic: Math.round(s.basic),
+    rate: Math.round(s.commissionRate * 100) / 100,
   }));
 
   const exportCSV = () => {
-    const headers = "Name,Profiles Created,Subscriptions Sold,Revenue,Commission,Target,Achieved,Conversion Rate\n";
-    const rows = staffPerformance.map((s) =>
-      `${s.name},${s.profilesCreated},${s.subscriptionsSold},${s.revenue},${s.commission},${s.target},${s.achieved},${s.target > 0 ? ((s.achieved / s.target) * 100).toFixed(1) : 0}%`
-    ).join("\n");
-    const blob = new Blob([headers + rows], { type: "text/csv" });
+    const headers = "Name,Designation,BasicSalary,CommissionRate%,Target,Achieved,Progress%\n";
+    const body = rows
+      .map(
+        (s) =>
+          `"${s.name.replace(/"/g, '""')}",${s.designation},${s.basic},${s.commissionRate},${s.target},${s.achieved},${s.pct.toFixed(1)}`
+      )
+      .join("\n");
+    const blob = new Blob([headers + body], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "staff-performance.csv";
+    a.download = "branch-staff-performance.csv";
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -61,14 +90,22 @@ export default function BranchStaffPerformance() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Staff Performance</h1>
-          <p className="text-muted-foreground text-sm mt-1">Chennai Central — All staff performance metrics</p>
+          <p className="text-muted-foreground text-sm mt-1">
+            {branch?.name ?? "Branch"} — from <code className="text-xs">GET v1/branch/staff/</code>
+          </p>
         </div>
-        <Button onClick={exportCSV} variant="outline" className="gap-2">
+        <Button onClick={exportCSV} variant="outline" className="gap-2" disabled={!rows.length}>
           <Download className="h-4 w-4" /> Export CSV
         </Button>
       </div>
 
-      {/* KPI Cards */}
+      {isLoading && (
+        <div className="flex items-center gap-2 text-muted-foreground text-sm">
+          <Loader2 className="h-4 w-4 animate-spin" /> Loading staff…
+        </div>
+      )}
+      {isError && <p className="text-sm text-destructive">Could not load branch staff.</p>}
+
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {kpis.map((k) => (
           <Card key={k.label} className="shadow-elegant border-0 hover:shadow-lg transition-all">
@@ -85,22 +122,21 @@ export default function BranchStaffPerformance() {
         ))}
       </div>
 
-      {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="shadow-elegant border-0">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-semibold">Revenue & Commission by Staff</CardTitle>
+            <CardTitle className="text-base font-semibold">Basic salary & commission rate</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={staffPerformance} layout="vertical">
+              <BarChart data={barData} layout="vertical">
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}K`} />
+                <XAxis type="number" tick={{ fontSize: 11 }} />
                 <YAxis dataKey="name" type="category" width={110} tick={{ fontSize: 11 }} />
-                <Tooltip formatter={(v: number) => `₹${v.toLocaleString()}`} />
+                <Tooltip />
                 <Legend />
-                <Bar dataKey="revenue" name="Revenue" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
-                <Bar dataKey="commission" name="Commission" fill="hsl(var(--accent))" radius={[0, 4, 4, 0]} />
+                <Bar dataKey="basic" name="Basic (₹)" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
+                <Bar dataKey="rate" name="Comm. rate" fill="hsl(var(--accent))" radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -108,19 +144,21 @@ export default function BranchStaffPerformance() {
 
         <Card className="shadow-elegant border-0">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-semibold">Target vs Achieved</CardTitle>
+            <CardTitle className="text-base font-semibold">Target vs achieved</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-5 pt-2">
-              {staffPerformance.map((s) => {
+            <div className="space-y-5 pt-2 max-h-[300px] overflow-y-auto pr-1">
+              {filtered.map((s) => {
                 const pct = s.target > 0 ? (s.achieved / s.target) * 100 : 0;
                 const isAbove = pct >= 100;
                 return (
-                  <div key={s.name} className="space-y-1.5">
+                  <div key={s.id} className="space-y-1.5">
                     <div className="flex items-center justify-between text-sm">
                       <span className="font-medium">{s.name}</span>
                       <div className="flex items-center gap-1.5">
-                        <span className={`font-semibold ${isAbove ? "text-emerald-600" : "text-amber-600"}`}>{s.achieved}/{s.target}</span>
+                        <span className={`font-semibold ${isAbove ? "text-emerald-600" : "text-amber-600"}`}>
+                          {s.achieved}/{s.target}
+                        </span>
                         {isAbove ? <ArrowUpRight className="h-3.5 w-3.5 text-emerald-500" /> : <ArrowDownRight className="h-3.5 w-3.5 text-amber-500" />}
                       </div>
                     </div>
@@ -133,11 +171,10 @@ export default function BranchStaffPerformance() {
         </Card>
       </div>
 
-      {/* Full Staff Performance Table */}
       <Card className="shadow-elegant border-0">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-base font-semibold">Detailed Staff Performance</CardTitle>
+            <CardTitle className="text-base font-semibold">Branch staff</CardTitle>
             <div className="relative max-w-xs">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input placeholder="Search staff..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 h-8 text-sm" />
@@ -148,13 +185,12 @@ export default function BranchStaffPerformance() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Staff Name</TableHead>
-                <TableHead className="text-center">Profiles Created</TableHead>
-                <TableHead className="text-center">Subscriptions Sold</TableHead>
-                <TableHead className="text-right">Revenue</TableHead>
-                <TableHead className="text-right">Commission Earned</TableHead>
-                <TableHead className="text-center">Conversion Rate</TableHead>
-                <TableHead className="text-center">Target vs Actual</TableHead>
+                <TableHead>Staff</TableHead>
+                <TableHead>Designation</TableHead>
+                <TableHead className="text-right">Basic</TableHead>
+                <TableHead className="text-center">Comm. rate</TableHead>
+                <TableHead className="text-center">Target vs actual</TableHead>
+                <TableHead className="text-center">Progress</TableHead>
                 <TableHead className="text-center">Status</TableHead>
               </TableRow>
             </TableHeader>
@@ -164,32 +200,31 @@ export default function BranchStaffPerformance() {
                 const isAbove = parseFloat(convRate) >= 100;
                 const isGood = parseFloat(convRate) >= 80;
                 return (
-                  <TableRow key={s.name}>
+                  <TableRow key={s.id}>
                     <TableCell className="font-medium">{s.name}</TableCell>
-                    <TableCell className="text-center">{s.profilesCreated}</TableCell>
-                    <TableCell className="text-center font-semibold">{s.subscriptionsSold}</TableCell>
-                    <TableCell className="text-right font-medium">₹{s.revenue.toLocaleString()}</TableCell>
-                    <TableCell className="text-right text-emerald-600 font-medium">₹{s.commission.toLocaleString()}</TableCell>
+                    <TableCell className="text-muted-foreground text-sm">{s.designation}</TableCell>
+                    <TableCell className="text-right">₹{Math.round(s.basic).toLocaleString()}</TableCell>
+                    <TableCell className="text-center">{s.commissionRate}%</TableCell>
+                    <TableCell className="text-center text-sm">
+                      {s.achieved} / {s.target}
+                    </TableCell>
                     <TableCell className="text-center">
-                      <Badge variant="outline" className={isAbove ? "border-emerald-300 text-emerald-700 bg-emerald-50" : isGood ? "border-blue-300 text-blue-700 bg-blue-50" : "border-amber-300 text-amber-700 bg-amber-50"}>
+                      <Badge
+                        variant="outline"
+                        className={
+                          isAbove
+                            ? "border-emerald-300 text-emerald-700 bg-emerald-50"
+                            : isGood
+                              ? "border-blue-300 text-blue-700 bg-blue-50"
+                              : "border-amber-300 text-amber-700 bg-amber-50"
+                        }
+                      >
                         {convRate}%
                       </Badge>
                     </TableCell>
                     <TableCell className="text-center">
-                      <div className="flex items-center justify-center gap-1">
-                        <span className="text-xs text-muted-foreground">{s.achieved}</span>
-                        <span className="text-xs text-muted-foreground">/</span>
-                        <span className="text-xs font-medium">{s.target}</span>
-                        {isAbove ? (
-                          <ArrowUpRight className="h-3.5 w-3.5 text-emerald-500" />
-                        ) : (
-                          <ArrowDownRight className="h-3.5 w-3.5 text-amber-500" />
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Badge className={isAbove ? "bg-emerald-100 text-emerald-700" : isGood ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700"}>
-                        {isAbove ? "Exceeded" : isGood ? "On Track" : "Behind"}
+                      <Badge className={s.is_active ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"}>
+                        {s.is_active ? "Active" : "Inactive"}
                       </Badge>
                     </TableCell>
                   </TableRow>

@@ -1,0 +1,151 @@
+import { apiUrl } from "@/lib/api-url";
+import { getMatrimonyAdminSession } from "@/lib/matrimony-admin-storage";
+import type { AdminBranchRef } from "@/lib/matrimony-admin-storage";
+import { userRoleToApiRole } from "@/lib/role-mapping";
+import type { UserRole } from "@/types/user-role";
+
+export type { AdminBranchRef };
+
+export interface SendOtpBody {
+  role: string;
+  mobile: string;
+}
+
+export interface VerifyOtpBody {
+  role: string;
+  mobile: string;
+  otp: string;
+}
+
+export interface VerifyOtpResponseData {
+  access_token: string;
+  refresh_token: string;
+  role: string;
+  name: string;
+  branch: AdminBranchRef | null;
+  permissions: string[];
+}
+
+/** Nested shape returned when `success` is false (e.g. send-otp / verify-otp errors). */
+export interface AuthApiErrorShape {
+  code?: number;
+  message?: string;
+}
+
+export interface AuthApiEnvelope<T> {
+  success?: boolean;
+  data?: T;
+  message?: string;
+  detail?: string;
+  error?: string | AuthApiErrorShape;
+}
+
+/** Resolves user-facing text from API JSON (top-level or nested `error.message`). */
+export function getAuthApiErrorMessage(data: AuthApiEnvelope<unknown> | undefined): string {
+  if (!data) return "Request failed";
+  if (typeof data.message === "string" && data.message.trim()) return data.message;
+  if (typeof data.detail === "string" && data.detail.trim()) return data.detail;
+  const err = data.error;
+  if (typeof err === "string" && err.trim()) return err;
+  if (err && typeof err === "object" && err !== null && "message" in err) {
+    const m = (err as AuthApiErrorShape).message;
+    if (typeof m === "string" && m.trim()) return m;
+  }
+  return "Request failed";
+}
+
+export async function postSendOtp(role: UserRole, mobile: string) {
+  const url = apiUrl("v1/admin/auth/send-otp/");
+  const body: SendOtpBody = {
+    role: userRoleToApiRole(role),
+    mobile: mobile.trim(),
+  };
+  console.log("[send-otp] URL:", url);
+  console.log("[send-otp] body:", body);
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify(body),
+  });
+  let data: AuthApiEnvelope<unknown> = {};
+  try {
+    data = await res.json();
+  } catch {
+    data = {};
+  }
+  console.log("[send-otp] response status:", res.status);
+  console.log("[send-otp] response body:", data);
+  return { ok: res.ok, status: res.status, data };
+}
+
+export async function postVerifyOtp(role: UserRole, mobile: string, otp: string) {
+  const url = apiUrl("v1/admin/auth/verify-otp/");
+  const body: VerifyOtpBody = {
+    role: userRoleToApiRole(role).trim(),
+    mobile: mobile.trim(),
+    otp: otp.trim(),
+  };
+  console.log("[verify-otp] URL:", url);
+  console.log("[verify-otp] body:", body);
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify(body),
+  });
+  let data: AuthApiEnvelope<VerifyOtpResponseData> = {};
+  try {
+    data = await res.json();
+  } catch {
+    data = {};
+  }
+  console.log("[verify-otp] response status:", res.status);
+  console.log("[verify-otp] response body:", data);
+  return { ok: res.ok, status: res.status, data };
+}
+
+export async function postAdminRefreshToken(refreshToken: string) {
+  const url = apiUrl("v1/admin/auth/token/refresh/");
+  const body = { refresh_token: refreshToken };
+  console.log("[admin-token-refresh] URL:", url);
+  console.log("[admin-token-refresh] body:", { refresh_token: "[redacted]" });
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify(body),
+  });
+  let data: AuthApiEnvelope<{ access_token: string; refresh_token?: string }> = {};
+  try {
+    data = await res.json();
+  } catch {
+    data = {};
+  }
+  console.log("[admin-token-refresh] response status:", res.status);
+  console.log("[admin-token-refresh] response body:", data);
+  return { ok: res.ok, status: res.status, data };
+}
+
+export async function postAdminLogout() {
+  const s = getMatrimonyAdminSession();
+  const url = apiUrl("v1/admin/auth/logout/");
+  const body = { refresh_token: s?.refresh_token ?? "" };
+  console.log("[admin-logout] URL:", url);
+  console.log("[admin-logout] body:", { refresh_token: s?.refresh_token ? "[redacted]" : undefined });
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      ...(s?.access_token ? { Authorization: `Bearer ${s.access_token}` } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+  let data: AuthApiEnvelope<unknown> = {};
+  try {
+    data = await res.json();
+  } catch {
+    data = {};
+  }
+  console.log("[admin-logout] response status:", res.status);
+  console.log("[admin-logout] response body:", data);
+  return { ok: res.ok, status: res.status, data };
+}

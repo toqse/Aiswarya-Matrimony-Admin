@@ -1,50 +1,137 @@
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { branches as initialBranches, Branch } from "@/data/mockData";
-import { Plus, Edit, Building2, Users, IndianRupee, Search } from "lucide-react";
+import {
+  createBranch,
+  deleteBranch,
+  fetchBranchList,
+  toggleBranchStatus,
+  updateBranch,
+  type BranchRow,
+} from "@/lib/admin-api/branches";
+import { Plus, Edit, Building2, Users, IndianRupee, Search, Loader2, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
+function formatINR(n: number) {
+  return `₹${Number(n).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+}
 
 export default function BranchManagement() {
-  const [branches, setBranches] = useState<Branch[]>(initialBranches);
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editing, setEditing] = useState<Branch | null>(null);
+  const [editing, setEditing] = useState<BranchRow | null>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [toggleBranch, setToggleBranch] = useState<BranchRow | null>(null);
   const { toast } = useToast();
+  const qc = useQueryClient();
 
-  const [form, setForm] = useState({ name: "", code: "", city: "", state: "Tamil Nadu", phone: "", email: "", status: "active" as "active" | "inactive" });
+  const [form, setForm] = useState({
+    name: "",
+    code: "",
+    city: "",
+    address: "",
+    phone: "",
+    email: "",
+  });
 
-  const filtered = branches.filter((b) =>
-    b.name.toLowerCase().includes(search.toLowerCase()) || b.city.toLowerCase().includes(search.toLowerCase())
-  );
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["admin", "branches", search],
+    queryFn: () => fetchBranchList({ search: search.trim() || undefined, page: 1 }),
+  });
 
-  const openAdd = () => { setEditing(null); setForm({ name: "", code: "", city: "", state: "Tamil Nadu", phone: "", email: "", status: "active" }); setDialogOpen(true); };
-  const openEdit = (b: Branch) => { setEditing(b); setForm({ name: b.name, code: b.code, city: b.city, state: b.state, phone: b.phone, email: b.email, status: b.status }); setDialogOpen(true); };
+  const summary = data?.summary;
+  const filtered = Array.isArray(data?.results) ? data.results : [];
 
-  const handleSave = () => {
-    if (!form.name || !form.code || !form.city || !form.email) {
-      toast({ title: "Validation Error", description: "Please fill all required fields", variant: "destructive" });
-      return;
-    }
-    if (editing) {
-      setBranches((prev) => prev.map((b) => b.id === editing.id ? { ...b, ...form } : b));
-      toast({ title: "Branch Updated", description: `${form.name} has been updated` });
-    } else {
-      setBranches((prev) => [...prev, { ...form, id: Date.now(), profiles: 0, revenue: 0, staff: 0 }]);
-      toast({ title: "Branch Created", description: `${form.name} has been added` });
-    }
-    setDialogOpen(false);
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["admin", "branches"] });
+
+  const saveMut = useMutation({
+    mutationFn: async () => {
+      if (!form.name || !form.city || !form.phone || !form.email) {
+        throw new Error("Please fill name, city, phone, and email");
+      }
+      if (editing) {
+        return updateBranch(editing.id, {
+          name: form.name,
+          city: form.city,
+          phone: form.phone,
+          email: form.email,
+          address: form.address,
+        });
+      }
+      return createBranch({
+        name: form.name,
+        city: form.city,
+        phone: form.phone,
+        email: form.email,
+        address: form.address || undefined,
+      });
+    },
+    onSuccess: (branch) => {
+      toast({
+        title: editing ? "Branch updated" : "Branch created",
+        description: branch?.name
+          ? `${branch.name}${branch.code ? ` · ${branch.code}` : ""}`
+          : undefined,
+      });
+      setDialogOpen(false);
+      invalidate();
+    },
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const toggleMut = useMutation({
+    mutationFn: (id: number) => toggleBranchStatus(id),
+    onSuccess: () => {
+      toast({ title: "Status updated" });
+      setToggleBranch(null);
+      invalidate();
+    },
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => deleteBranch(id),
+    onSuccess: () => {
+      toast({ title: "Branch deleted" });
+      setDeleteId(null);
+      invalidate();
+    },
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const openAdd = () => {
+    setEditing(null);
+    setForm({ name: "", code: "", city: "", address: "", phone: "", email: "" });
+    setDialogOpen(true);
   };
 
-  const toggleStatus = (id: number) => {
-    setBranches((prev) => prev.map((b) => b.id === id ? { ...b, status: b.status === "active" ? "inactive" as const : "active" as const } : b));
-    toast({ title: "Status Updated" });
+  const openEdit = (b: BranchRow) => {
+    setEditing(b);
+    setForm({
+      name: b.name,
+      code: b.code,
+      city: b.city,
+      address: b.address ?? "",
+      phone: b.phone,
+      email: b.email,
+    });
+    setDialogOpen(true);
   };
 
   return (
@@ -54,15 +141,18 @@ export default function BranchManagement() {
           <h1 className="text-2xl font-bold">Branch Management</h1>
           <p className="text-muted-foreground text-sm mt-1">Manage all branches across the organization</p>
         </div>
-        <Button onClick={openAdd} className="gap-2"><Plus className="h-4 w-4" /> Add Branch</Button>
+        <Button onClick={openAdd} className="gap-2">
+          <Plus className="h-4 w-4" /> Add Branch
+        </Button>
       </div>
 
-      {/* Performance Cards */}
+      {error && <p className="text-sm text-destructive">{(error as Error).message}</p>}
+
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
-          { label: "Total Branches", value: branches.length, icon: Building2, color: "text-primary" },
-          { label: "Total Staff", value: branches.reduce((s, b) => s + b.staff, 0), icon: Users, color: "text-accent" },
-          { label: "Total Revenue", value: `₹${(branches.reduce((s, b) => s + b.revenue, 0) / 100000).toFixed(1)}L`, icon: IndianRupee, color: "text-success" },
+          { label: "Total Branches", value: summary?.total_branches ?? "—", icon: Building2, color: "text-primary" },
+          { label: "Total Staff", value: summary?.total_staff ?? "—", icon: Users, color: "text-accent" },
+          { label: "Total Revenue", value: summary ? formatINR(summary.total_revenue) : "—", icon: IndianRupee, color: "text-success" },
         ].map((c) => (
           <Card key={c.label} className="shadow-elegant border-0">
             <CardContent className="p-4 flex items-center gap-4">
@@ -78,14 +168,19 @@ export default function BranchManagement() {
         ))}
       </div>
 
-      {/* Search + Table */}
       <Card className="shadow-elegant border-0">
         <CardHeader className="pb-3">
           <div className="flex items-center gap-3">
             <div className="relative flex-1 max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search branches..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+              <Input
+                placeholder="Search branches..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9"
+              />
             </div>
+            {isLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
           </div>
         </CardHeader>
         <CardContent>
@@ -104,25 +199,39 @@ export default function BranchManagement() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((b) => (
-                <TableRow key={b.id}>
+              {filtered.map((b, i) => (
+                <TableRow key={b.id != null ? `branch-${b.id}` : `branch-row-${i}`}>
                   <TableCell className="font-medium">{b.name}</TableCell>
-                  <TableCell>{b.code}</TableCell>
+                  <TableCell>{b.code ?? "—"}</TableCell>
                   <TableCell>{b.city}</TableCell>
                   <TableCell>{b.phone}</TableCell>
                   <TableCell>{b.email}</TableCell>
-                  <TableCell>{b.profiles.toLocaleString()}</TableCell>
-                  <TableCell>₹{(b.revenue / 100000).toFixed(1)}L</TableCell>
+                  <TableCell>{(b.profiles_count ?? 0).toLocaleString()}</TableCell>
+                  <TableCell>{formatINR(b.revenue ?? 0)}</TableCell>
                   <TableCell>
-                    <Badge variant={b.status === "active" ? "default" : "secondary"} className={b.status === "active" ? "bg-success text-success-foreground" : ""}>
+                    <Badge
+                      variant={b.status === "active" ? "default" : "secondary"}
+                      className={b.status === "active" ? "bg-success text-success-foreground" : ""}
+                    >
                       {b.status}
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <div className="flex gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => openEdit(b)}><Edit className="h-4 w-4" /></Button>
-                      <Button variant="ghost" size="sm" onClick={() => toggleStatus(b.id)} className="text-xs">
+                    <div className="flex gap-1 flex-wrap">
+                      <Button variant="ghost" size="icon" onClick={() => openEdit(b)}>
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setToggleBranch(b)}
+                        disabled={toggleMut.isPending}
+                        className="text-xs"
+                      >
                         {b.status === "active" ? "Deactivate" : "Activate"}
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => setDeleteId(b.id)} className="text-destructive">
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
                   </TableCell>
@@ -133,33 +242,100 @@ export default function BranchManagement() {
         </CardContent>
       </Card>
 
-      {/* Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Branch" : "Add New Branch"}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            {[
-              { label: "Branch Name", key: "name" },
-              { label: "Code", key: "code" },
-              { label: "City", key: "city" },
-              { label: "State", key: "state" },
-              { label: "Phone", key: "phone" },
-              { label: "Email", key: "email" },
-            ].map((f) => (
-              <div key={f.key} className="grid grid-cols-4 items-center gap-4">
-                <Label className="text-right">{f.label}</Label>
-                <Input className="col-span-3" value={(form as any)[f.key]} onChange={(e) => setForm({ ...form, [f.key]: e.target.value })} />
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Branch Name</Label>
+              <Input
+                className="col-span-3"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+              />
+            </div>
+            {editing && (
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label className="text-right">Code</Label>
+                <Input
+                  readOnly
+                  tabIndex={-1}
+                  className="col-span-3 bg-muted cursor-not-allowed"
+                  value={form.code}
+                  aria-readonly
+                />
+              </div>
+            )}
+            {(
+              [
+                ["City", "city"],
+                ["Address", "address"],
+                ["Phone", "phone"],
+                ["Email", "email"],
+              ] as const
+            ).map(([label, key]) => (
+              <div key={key} className="grid grid-cols-4 items-center gap-4">
+                <Label className="text-right">{label}</Label>
+                <Input
+                  className="col-span-3"
+                  value={form[key]}
+                  onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+                />
               </div>
             ))}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSave}>{editing ? "Update" : "Create"}</Button>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => saveMut.mutate()} disabled={saveMut.isPending}>
+              {saveMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : editing ? "Update" : "Create"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={deleteId != null} onOpenChange={(o) => !o && setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete branch?</AlertDialogTitle>
+            <AlertDialogDescription>This may fail if the branch has active subscriptions.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteId != null && deleteMut.mutate(deleteId)}
+              className="bg-destructive text-destructive-foreground"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={toggleBranch != null} onOpenChange={(o) => !o && setToggleBranch(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{toggleBranch?.status === "active" ? "Deactivate branch?" : "Activate branch?"}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {toggleBranch?.status === "active"
+                ? `This will mark ${toggleBranch?.name ?? "this branch"} as inactive.`
+                : `This will mark ${toggleBranch?.name ?? "this branch"} as active.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => toggleBranch?.id != null && toggleMut.mutate(toggleBranch.id)}
+              disabled={toggleMut.isPending}
+            >
+              {toggleMut.isPending ? "Please wait..." : toggleBranch?.status === "active" ? "Deactivate" : "Activate"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

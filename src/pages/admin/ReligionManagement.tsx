@@ -1,54 +1,76 @@
 import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Pencil, Trash2, Users, Search } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { createReligion, deleteReligion, fetchReligions, updateReligion, type MasterItem } from "@/lib/admin-api/master";
+import { Plus, Pencil, Trash2, Search, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-interface ReligionItem {
-  id: number;
-  name: string;
-  casteCount: number;
-}
-
-const initialData: ReligionItem[] = [
-  { id: 1, name: "Hindu", casteCount: 56 },
-  { id: 2, name: "Christian", casteCount: 17 },
-  { id: 3, name: "Muslim", casteCount: 10 },
-  { id: 4, name: "Caste No Bar", casteCount: 0 },
-  { id: 5, name: "Inter-Caste", casteCount: 0 },
-];
-
 export default function ReligionManagement() {
-  const [items, setItems] = useState<ReligionItem[]>(initialData);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editItem, setEditItem] = useState<ReligionItem | null>(null);
+  const [editItem, setEditItem] = useState<MasterItem | null>(null);
+  const [deleteItem, setDeleteItem] = useState<MasterItem | null>(null);
   const [name, setName] = useState("");
   const [search, setSearch] = useState("");
+  const qc = useQueryClient();
 
-  const openAdd = () => { setEditItem(null); setName(""); setDialogOpen(true); };
-  const openEdit = (item: ReligionItem) => { setEditItem(item); setName(item.name); setDialogOpen(true); };
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["master", "religions", search],
+    queryFn: () => fetchReligions({ search: search.trim() || undefined, page: 1, page_size: 20 }),
+  });
 
-  const handleSave = () => {
-    if (!name.trim()) { toast.error("Name is required"); return; }
-    if (editItem) {
-      setItems(items.map(i => i.id === editItem.id ? { ...i, name: name.trim() } : i));
-      toast.success("Religion updated successfully");
-    } else {
-      setItems([...items, { id: Date.now(), name: name.trim(), casteCount: 0 }]);
-      toast.success("Religion added successfully");
-    }
-    setDialogOpen(false);
+  const items = data?.results ?? [];
+
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["master", "religions"] });
+
+  const saveMut = useMutation({
+    mutationFn: async () => {
+      if (!name.trim()) throw new Error("Name is required");
+      if (editItem) return updateReligion(editItem.id, { name: name.trim() });
+      return createReligion({ name: name.trim() });
+    },
+    onSuccess: () => {
+      toast.success(editItem ? "Updated" : "Added");
+      setDialogOpen(false);
+      invalidate();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const delMut = useMutation({
+    mutationFn: (id: number) => deleteReligion(id),
+    onSuccess: () => {
+      toast.success("Deleted");
+      setDeleteItem(null);
+      invalidate();
+    },
+    onError: () => toast.error("Delete failed"),
+  });
+
+  const openAdd = () => {
+    setEditItem(null);
+    setName("");
+    setDialogOpen(true);
   };
 
-  const handleDelete = (id: number) => {
-    setItems(items.filter(i => i.id !== id));
-    toast.success("Religion deleted successfully");
+  const openEdit = (item: MasterItem) => {
+    setEditItem(item);
+    setName(item.name);
+    setDialogOpen(true);
   };
-
-  const filtered = items.filter(i => i.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
     <div className="space-y-6">
@@ -57,14 +79,22 @@ export default function ReligionManagement() {
         <p className="text-muted-foreground">Manage religion categories for profiles</p>
       </div>
 
+      {error && <p className="text-destructive text-sm">{(error as Error).message}</p>}
+
       <div className="flex items-center gap-4">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search religions..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
+          <Input
+            placeholder="Search religions..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-10"
+          />
         </div>
         <Button onClick={openAdd} className="bg-primary hover:bg-primary/90">
           <Plus className="h-4 w-4 mr-1" /> Add Religion
         </Button>
+        {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
       </div>
 
       <Card>
@@ -73,60 +103,66 @@ export default function ReligionManagement() {
             <TableHeader>
               <TableRow className="bg-muted/30">
                 <TableHead className="text-primary font-semibold">RELIGION NAME</TableHead>
-                <TableHead className="text-primary font-semibold">CASTES</TableHead>
                 <TableHead className="text-right text-primary font-semibold">ACTIONS</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((item) => (
-                <TableRow key={item.id} className="h-16">
-                  <TableCell>
-                    <div className="flex items-center gap-3">
-                      <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center">
-                        <Users className="h-4 w-4 text-primary" />
-                      </div>
-                      <span className="font-medium text-foreground">{item.name}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-accent text-accent-foreground">
-                      {item.casteCount} castes
-                    </span>
-                  </TableCell>
+              {items.map((i) => (
+                <TableRow key={i.id}>
+                  <TableCell className="font-medium">{i.name}</TableCell>
                   <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <Button variant="outline" size="sm" onClick={() => openEdit(item)} className="gap-1.5">
-                        <Pencil className="h-3.5 w-3.5 text-amber-600" /> Edit
-                      </Button>
-                      <Button variant="outline" size="sm" className="gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10" onClick={() => handleDelete(item.id)}>
-                        <Trash2 className="h-3.5 w-3.5" /> Delete
-                      </Button>
-                    </div>
+                    <Button variant="ghost" size="icon" onClick={() => openEdit(i)}>
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => setDeleteItem(i)}>
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}
-              {filtered.length === 0 && (
-                <TableRow><TableCell colSpan={3} className="text-center text-muted-foreground py-8">No religions found</TableCell></TableRow>
-              )}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>{editItem ? "Edit Religion" : "Add Religion"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <Input placeholder="Enter religion name" value={name} onChange={e => setName(e.target.value)} />
+            <Input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSave}>{editItem ? "Update" : "Add"}</Button>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => saveMut.mutate()} disabled={saveMut.isPending}>
+              {saveMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deleteItem} onOpenChange={(o) => !o && setDeleteItem(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete religion?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will delete "{deleteItem?.name}". This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={delMut.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={delMut.isPending}
+              onClick={() => deleteItem && delMut.mutate(deleteItem.id)}
+            >
+              {delMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

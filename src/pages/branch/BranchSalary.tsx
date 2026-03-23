@@ -1,76 +1,62 @@
-import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { salaryRecords as initialRecords } from "@/data/mockData";
-import { Download, IndianRupee, Users, Clock, CheckSquare } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { useRole } from "@/contexts/RoleContext";
+import { fetchBranchStaffList } from "@/lib/admin-api/staff";
+import { IndianRupee, Users, Loader2 } from "lucide-react";
 
-const statusColors: Record<string, string> = {
-  draft: "bg-muted text-muted-foreground",
-  approved: "bg-blue-100 text-blue-700",
-  paid: "bg-emerald-100 text-emerald-700",
-};
+function num(s: string) {
+  const n = parseFloat(String(s).replace(/[^0-9.-]/g, ""));
+  return Number.isFinite(n) ? n : 0;
+}
 
 export default function BranchSalary() {
-  // Branch manager sees only their branch
-  const branchRecords = initialRecords.filter(r => r.branch === "Chennai Central");
-  const [records] = useState(branchRecords);
-  const { toast } = useToast();
+  const { branch } = useRole();
 
-  const totalNet = records.reduce((s, r) => s + r.net, 0);
-  const draftCount = records.filter(r => r.status === "draft").length;
-  const paidCount = records.filter(r => r.status === "paid").length;
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["branch", "staff", "salary"],
+    queryFn: () => fetchBranchStaffList({ page_size: 200 }),
+  });
 
-  const downloadSlip = (r: typeof records[0]) => {
-    const content = `
-========================================
-      SALARY SLIP - ${r.month} ${r.year}
-========================================
-Staff Name:    ${r.staff}
-Branch:        ${r.branch}
-Month/Year:    ${r.month} ${r.year}
-Status:        ${r.status.toUpperCase()}
-----------------------------------------
-EARNINGS:
-  Basic Salary:     ₹${r.basic.toLocaleString()}
-  Commission:       ₹${r.commission.toLocaleString()}
-  Allowances:       ₹${r.allowances.toLocaleString()}
-                    ─────────────
-  Gross Pay:        ₹${r.gross.toLocaleString()}
-----------------------------------------
-DEDUCTIONS:
-  Total Deductions: ₹${r.deductions.toLocaleString()}
-----------------------------------------
-NET PAY:            ₹${r.net.toLocaleString()}
-========================================
-    `.trim();
-    const blob = new Blob([content], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `salary-slip-${r.staff.replace(/\s+/g, "-").toLowerCase()}-${r.month}-${r.year}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    toast({ title: "Downloaded", description: `Salary slip for ${r.staff}` });
-  };
+  const rows = useMemo(() => {
+    return (data?.results ?? []).map((s) => ({
+      id: s.id,
+      name: s.name,
+      emp_code: s.emp_code,
+      basic: num(s.basic_salary),
+      commissionRate: num(s.commission_rate),
+      designation: s.designation,
+      is_active: s.is_active,
+    }));
+  }, [data?.results]);
+
+  const totalBasic = rows.reduce((s, r) => s + r.basic, 0);
+  const activeCount = rows.filter((r) => r.is_active).length;
 
   const kpis = [
-    { label: "Branch Net Payroll", value: `₹${totalNet.toLocaleString()}`, icon: IndianRupee, color: "text-emerald-600", bg: "bg-emerald-50" },
-    { label: "Staff Count", value: records.length, icon: Users, color: "text-blue-600", bg: "bg-blue-50" },
-    { label: "Pending Drafts", value: draftCount, icon: Clock, color: "text-amber-600", bg: "bg-amber-50" },
-    { label: "Paid", value: paidCount, icon: CheckSquare, color: "text-violet-600", bg: "bg-violet-50" },
+    { label: "Σ basic (listed)", value: `₹${Math.round(totalBasic).toLocaleString()}`, icon: IndianRupee, color: "text-emerald-600", bg: "bg-emerald-50" },
+    { label: "Staff count", value: rows.length, icon: Users, color: "text-blue-600", bg: "bg-blue-50" },
+    { label: "Active", value: activeCount, icon: Users, color: "text-violet-600", bg: "bg-violet-50" },
+    { label: "Inactive", value: rows.length - activeCount, icon: Users, color: "text-amber-600", bg: "bg-amber-50" },
   ];
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Branch Salary Management</h1>
-        <p className="text-muted-foreground text-sm mt-1">Chennai Central — Staff salary records (view only)</p>
+        <h1 className="text-2xl font-bold">Branch salary snapshot</h1>
+        <p className="text-muted-foreground text-sm mt-1">
+          {branch?.name ?? "Branch"} — master fields from <code className="text-xs">GET v1/branch/staff/</code>. Payroll runs use admin APIs only.
+        </p>
       </div>
+
+      {isLoading && (
+        <div className="flex items-center gap-2 text-muted-foreground text-sm">
+          <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+        </div>
+      )}
+      {isError && <p className="text-sm text-destructive">Could not load branch staff.</p>}
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {kpis.map((k) => (
@@ -94,33 +80,25 @@ NET PAY:            ₹${r.net.toLocaleString()}
             <TableHeader>
               <TableRow>
                 <TableHead>Staff</TableHead>
-                <TableHead>Month</TableHead>
-                <TableHead>Basic</TableHead>
-                <TableHead>Commission</TableHead>
-                <TableHead>Allowances</TableHead>
-                <TableHead>Deductions</TableHead>
-                <TableHead>Gross</TableHead>
-                <TableHead>Net</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Download</TableHead>
+                <TableHead>Code</TableHead>
+                <TableHead>Designation</TableHead>
+                <TableHead className="text-right">Basic</TableHead>
+                <TableHead className="text-center">Comm. rate %</TableHead>
+                <TableHead className="text-center">Status</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {records.map((r) => (
+              {rows.map((r) => (
                 <TableRow key={r.id}>
-                  <TableCell className="font-medium">{r.staff}</TableCell>
-                  <TableCell>{r.month} {r.year}</TableCell>
-                  <TableCell>₹{r.basic.toLocaleString()}</TableCell>
-                  <TableCell>₹{r.commission.toLocaleString()}</TableCell>
-                  <TableCell>₹{r.allowances.toLocaleString()}</TableCell>
-                  <TableCell className="text-destructive">-₹{r.deductions.toLocaleString()}</TableCell>
-                  <TableCell>₹{r.gross.toLocaleString()}</TableCell>
-                  <TableCell className="font-semibold">₹{r.net.toLocaleString()}</TableCell>
-                  <TableCell><Badge className={statusColors[r.status]}>{r.status}</Badge></TableCell>
+                  <TableCell className="font-medium">{r.name}</TableCell>
+                  <TableCell className="text-muted-foreground text-sm">{r.emp_code}</TableCell>
+                  <TableCell>{r.designation}</TableCell>
+                  <TableCell className="text-right">₹{Math.round(r.basic).toLocaleString()}</TableCell>
+                  <TableCell className="text-center">{r.commissionRate}%</TableCell>
                   <TableCell>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-blue-50" onClick={() => downloadSlip(r)}>
-                      <Download className="h-4 w-4 text-blue-500" />
-                    </Button>
+                    <Badge className={r.is_active ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"}>
+                      {r.is_active ? "Active" : "Inactive"}
+                    </Badge>
                   </TableCell>
                 </TableRow>
               ))}

@@ -4,13 +4,15 @@ import { useRole, UserRole } from "@/contexts/RoleContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Phone, ShieldCheck, ArrowLeft, Loader2, CheckCircle2 } from "lucide-react";
+import { ShieldCheck, ArrowLeft, Loader2, CheckCircle2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { postSendOtp, postVerifyOtp, getAuthApiErrorMessage } from "@/lib/auth-api";
+import type { MatrimonyAdminSession } from "@/lib/matrimony-admin-storage";
 
-const DEMO_ACCOUNTS: Record<UserRole, { mobile: string; otp: string; label: string }> = {
-  admin: { mobile: "9876543210", otp: "1234", label: "Super Admin" },
-  "branch-manager": { mobile: "9876543211", otp: "5678", label: "Branch Manager" },
-  staff: { mobile: "9876543212", otp: "9012", label: "Staff" },
+const DEMO_ACCOUNTS: Record<UserRole, { mobile: string; label: string }> = {
+  admin: { mobile: "9876543210", label: "Super Admin" },
+  "branch-manager": { mobile: "9876543211", label: "Branch Manager" },
+  staff: { mobile: "9876543212", label: "Staff" },
 };
 
 const ROLES: { value: UserRole; label: string; desc: string; emoji: string }[] = [
@@ -19,14 +21,14 @@ const ROLES: { value: UserRole; label: string; desc: string; emoji: string }[] =
   { value: "staff", label: "Staff", desc: "Staff operations", emoji: "👨‍💼" },
 ];
 
-const OTP_LENGTH = 4;
+const OTP_LENGTH = 6;
 const OTP_VALIDITY = 120; // seconds
 
 export default function Login() {
   const navigate = useNavigate();
   const { login } = useRole();
 
-  const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
+  const [selectedRole, setSelectedRole] = useState<UserRole>("admin");
   const [mobile, setMobile] = useState("");
   const [step, setStep] = useState<"mobile" | "otp">("mobile");
   const [otp, setOtp] = useState<string[]>(Array(OTP_LENGTH).fill(""));
@@ -54,23 +56,28 @@ export default function Login() {
   };
 
   const handleSendOtp = async () => {
-    if (!selectedRole) return toast({ title: "Select a role", variant: "destructive" });
     if (mobile.length !== 10) return toast({ title: "Enter valid 10-digit mobile", variant: "destructive" });
 
     setSending(true);
-    await new Promise((r) => setTimeout(r, 1200));
-    setSending(false);
+    try {
+      const { ok, data } = await postSendOtp(selectedRole, mobile);
+      if (!ok || (data && typeof data.success === "boolean" && !data.success)) {
+        toast({ title: getAuthApiErrorMessage(data), variant: "destructive" });
+        return;
+      }
 
-    const demo = DEMO_ACCOUNTS[selectedRole];
-    toast({
-      title: "🔐 OTP SENT!",
-      description: `Demo Account:\nRole: ${demo.label}\nMobile: +91 ${demo.mobile}\nOTP: ${demo.otp}`,
-    });
+      toast({
+        title: "OTP sent",
+        description: `Check SMS for +91 ${mobile}`,
+      });
 
-    setStep("otp");
-    setTimer(OTP_VALIDITY);
-    setOtp(Array(OTP_LENGTH).fill(""));
-    setTimeout(() => otpRefs.current[0]?.focus(), 100);
+      setStep("otp");
+      setTimer(OTP_VALIDITY);
+      setOtp(Array(OTP_LENGTH).fill(""));
+      setTimeout(() => otpRefs.current[0]?.focus(), 100);
+    } finally {
+      setSending(false);
+    }
   };
 
   const handleOtpChange = useCallback(
@@ -99,21 +106,41 @@ export default function Login() {
   };
 
   const handleVerify = async () => {
-    if (!selectedRole) return;
     const entered = otp.join("");
     if (entered.length !== OTP_LENGTH) return toast({ title: "Enter complete OTP", variant: "destructive" });
     if (timer <= 0) return toast({ title: "OTP expired. Resend OTP.", variant: "destructive" });
 
-    const demo = DEMO_ACCOUNTS[selectedRole];
     setVerifying(true);
-    await new Promise((r) => setTimeout(r, 1000));
-    setVerifying(false);
+    try {
+      const { ok, data } = await postVerifyOtp(selectedRole, mobile, entered);
+      if (!ok) {
+        toast({ title: getAuthApiErrorMessage(data), variant: "destructive" });
+        return;
+      }
+      if (typeof data.success === "boolean" && !data.success) {
+        toast({ title: getAuthApiErrorMessage(data), variant: "destructive" });
+        return;
+      }
+      if (!data.data?.access_token) {
+        toast({ title: getAuthApiErrorMessage(data), variant: "destructive" });
+        return;
+      }
 
-    if (entered !== demo.otp) return toast({ title: "Invalid OTP", variant: "destructive" });
-
-    toast({ title: `✅ LOGIN SUCCESSFUL!\nWelcome ${demo.label}` });
-    login(selectedRole);
-    navigate("/", { replace: true });
+      const d = data.data;
+      const session: MatrimonyAdminSession = {
+        access_token: d.access_token,
+        refresh_token: d.refresh_token,
+        role: d.role,
+        name: d.name,
+        branch: d.branch,
+        permissions: d.permissions ?? [],
+      };
+      login(session);
+      toast({ title: "Login successful", description: `Welcome, ${d.name}` });
+      navigate("/", { replace: true });
+    } finally {
+      setVerifying(false);
+    }
   };
 
   const handleResend = () => {
@@ -199,7 +226,7 @@ export default function Login() {
 
                 <Button
                   onClick={handleSendOtp}
-                  disabled={!selectedRole || mobile.length !== 10 || sending}
+                  disabled={mobile.length !== 10 || sending}
                   className="w-full h-12 text-base font-semibold gap-2 rounded-xl"
                   size="lg"
                   style={{ background: "linear-gradient(135deg, hsl(333 60% 34%), hsl(333 40% 55%))" }}
@@ -217,7 +244,7 @@ export default function Login() {
                     const d = DEMO_ACCOUNTS[r.value];
                     return (
                       <p key={r.value} className="text-xs text-muted-foreground font-mono">
-                        {r.label.replace('\n', ' ')}: {d.mobile} → OTP: {d.otp}
+                        {r.label.replace("\n", " ")}: {d.mobile} (OTP from SMS)
                       </p>
                     );
                   })}
@@ -239,7 +266,7 @@ export default function Login() {
                 </div>
 
                 {/* OTP Boxes */}
-                <div className="flex justify-center gap-3" onPaste={handleOtpPaste}>
+                <div className="flex justify-center gap-1.5 sm:gap-2 flex-wrap" onPaste={handleOtpPaste}>
                   {otp.map((digit, i) => (
                     <input
                       key={i}
@@ -250,7 +277,7 @@ export default function Login() {
                       value={digit}
                       onChange={(e) => handleOtpChange(i, e.target.value)}
                       onKeyDown={(e) => handleOtpKeyDown(i, e)}
-                      className="w-14 h-14 text-center text-2xl font-bold rounded-xl border-2 border-input bg-background text-foreground outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/20"
+                      className="w-11 h-12 sm:w-12 sm:h-14 text-center text-xl sm:text-2xl font-bold rounded-xl border-2 border-input bg-background text-foreground outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/20"
                     />
                   ))}
                 </div>

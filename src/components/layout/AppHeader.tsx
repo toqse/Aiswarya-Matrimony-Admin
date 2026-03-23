@@ -1,5 +1,6 @@
 import { Bell, Search, Moon, Sun, ChevronDown, User, UserCircle, Settings, LogOut } from "lucide-react";
 import { useRole, UserRole } from "@/contexts/RoleContext";
+import { postAdminLogout } from "@/lib/auth-api";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import {
@@ -76,7 +77,12 @@ export function AppHeader() {
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
-            onClick={() => {
+            onClick={async () => {
+              try {
+                await postAdminLogout();
+              } catch {
+                /* still clear local session */
+              }
               logout();
               navigate("/login", { replace: true });
             }}

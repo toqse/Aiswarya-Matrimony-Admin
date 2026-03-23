@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -6,10 +7,28 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { commissions as initialCommissions } from "@/data/mockData";
-import { Search, Download, CheckSquare, Wallet, Eye, XCircle, FileText } from "lucide-react";
+import {
+  approveCommission,
+  bulkApproveCommissions,
+  cancelCommission,
+  downloadCommissionSlip,
+  fetchCommissions,
+  markCommissionPaid,
+  type CommissionRow,
+} from "@/lib/admin-api/commissions";
+import { Search, CheckSquare, Wallet, Eye, XCircle, FileText, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const statusColors: Record<string, string> = {
   pending: "bg-warning text-warning-foreground",
@@ -19,39 +38,83 @@ const statusColors: Record<string, string> = {
 };
 
 export default function AllCommissions() {
-  const [comms, setComms] = useState(initialCommissions);
   const [selected, setSelected] = useState<number[]>([]);
   const [statusFilter, setStatusFilter] = useState("all");
   const [search, setSearch] = useState("");
-  const [viewSale, setViewSale] = useState<typeof initialCommissions[0] | null>(null);
+  const [viewSale, setViewSale] = useState<CommissionRow | null>(null);
+  const [pendingAction, setPendingAction] = useState<
+    | { kind: "approve" | "paid" | "cancel" | "slip"; row: CommissionRow }
+    | { kind: "bulkApprove"; count: number }
+    | null
+  >(null);
   const { toast } = useToast();
+  const qc = useQueryClient();
 
-  const filtered = comms.filter((c) => {
-    const matchSearch = c.staff.toLowerCase().includes(search.toLowerCase()) || c.customer.toLowerCase().includes(search.toLowerCase());
-    const matchStatus = statusFilter === "all" || c.status === statusFilter;
-    return matchSearch && matchStatus;
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["admin", "commissions", search, statusFilter],
+    queryFn: () =>
+      fetchCommissions({
+        search: search.trim() || undefined,
+        status: statusFilter === "all" ? undefined : statusFilter,
+      }),
   });
 
-  const toggleSelect = (id: number) => setSelected((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  const summary = data?.summary;
+  const filtered = data?.results ?? [];
+
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["admin", "commissions"] });
+
+  const bulkApproveMut = useMutation({
+    mutationFn: () => bulkApproveCommissions(selected),
+    onSuccess: (r) => {
+      toast({ title: "Bulk approve", description: `Approved ${r.approved_count}` });
+      setSelected([]);
+      setPendingAction(null);
+      invalidate();
+    },
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const approveMut = useMutation({
+    mutationFn: (id: number) => approveCommission(id),
+    onSuccess: () => {
+      toast({ title: "Approved" });
+      setPendingAction(null);
+      invalidate();
+    },
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const paidMut = useMutation({
+    mutationFn: (id: number) => markCommissionPaid(id),
+    onSuccess: () => {
+      toast({ title: "Marked paid" });
+      setPendingAction(null);
+      invalidate();
+    },
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const cancelMut = useMutation({
+    mutationFn: (id: number) => cancelCommission(id),
+    onSuccess: () => {
+      toast({ title: "Cancelled" });
+      setPendingAction(null);
+      invalidate();
+    },
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const slipMut = useMutation({
+    mutationFn: (id: number) => downloadCommissionSlip(id),
+    onSuccess: () => {
+      setPendingAction(null);
+    },
+    onError: (e: Error) => toast({ title: "Download failed", description: e.message, variant: "destructive" }),
+  });
+
+  const toggleSelect = (id: number) => setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   const selectAll = () => setSelected(selected.length === filtered.length ? [] : filtered.map((c) => c.id));
-
-  const bulkAction = (action: "approved" | "paid") => {
-    setComms((prev) => prev.map((c) => selected.includes(c.id) ? { ...c, status: action as any } : c));
-    toast({ title: `${selected.length} commissions ${action}` });
-    setSelected([]);
-  };
-
-  const singleAction = (id: number, action: "approved" | "paid" | "cancelled") => {
-    setComms(prev => prev.map(c => c.id === id ? { ...c, status: action as any } : c));
-    toast({ title: `Commission #${id} ${action}` });
-  };
-
-  const exportSingle = (c: typeof initialCommissions[0]) => {
-    const csv = `Date,Staff,Branch,Customer,Plan,Sale Amount,Rate,Commission,Status\n${c.date},${c.staff},${c.branch},${c.customer},${c.plan},${c.saleAmount},${c.rate}%,${c.commission},${c.status}`;
-    const blob = new Blob([csv], { type: "text/csv" });
-    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `commission-${c.id}.csv`; a.click();
-    toast({ title: "Exported" });
-  };
 
   return (
     <div className="space-y-6">
@@ -62,21 +125,26 @@ export default function AllCommissions() {
         </div>
         <div className="flex gap-2">
           {selected.length > 0 && (
-            <>
-              <Button variant="outline" onClick={() => bulkAction("approved")} className="gap-2"><CheckSquare className="h-4 w-4" /> Approve ({selected.length})</Button>
-              <Button onClick={() => bulkAction("paid")} className="gap-2"><Wallet className="h-4 w-4" /> Mark Paid ({selected.length})</Button>
-            </>
+            <Button
+              variant="outline"
+              onClick={() => setPendingAction({ kind: "bulkApprove", count: selected.length })}
+              disabled={bulkApproveMut.isPending}
+              className="gap-2"
+            >
+              {bulkApproveMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckSquare className="h-4 w-4" />} Approve ({selected.length})
+            </Button>
           )}
         </div>
       </div>
 
-      {/* Summary Cards */}
+      {error && <p className="text-destructive text-sm">{(error as Error).message}</p>}
+
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         {[
-          { label: "Total Pending", value: `₹${comms.filter((c) => c.status === "pending").reduce((s, c) => s + c.commission, 0).toLocaleString()}`, color: "text-warning" },
-          { label: "Approved", value: `₹${comms.filter((c) => c.status === "approved").reduce((s, c) => s + c.commission, 0).toLocaleString()}`, color: "text-info" },
-          { label: "Paid", value: `₹${comms.filter((c) => c.status === "paid").reduce((s, c) => s + c.commission, 0).toLocaleString()}`, color: "text-success" },
-          { label: "Total", value: `₹${comms.reduce((s, c) => s + c.commission, 0).toLocaleString()}`, color: "text-primary" },
+          { label: "Total Pending", value: summary ? `₹${Number(summary.total_pending).toLocaleString()}` : "—", color: "text-warning" },
+          { label: "Approved", value: summary ? `₹${Number(summary.approved).toLocaleString()}` : "—", color: "text-info" },
+          { label: "Paid", value: summary ? `₹${Number(summary.paid).toLocaleString()}` : "—", color: "text-success" },
+          { label: "Grand Total", value: summary ? `₹${Number(summary.grand_total).toLocaleString()}` : "—", color: "text-primary" },
         ].map((c) => (
           <Card key={c.label} className="shadow-elegant border-0">
             <CardContent className="p-4">
@@ -95,7 +163,9 @@ export default function AllCommissions() {
               <Input placeholder="Search..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
             </div>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
                 <SelectItem value="pending">Pending</SelectItem>
@@ -104,13 +174,19 @@ export default function AllCommissions() {
                 <SelectItem value="cancelled">Cancelled</SelectItem>
               </SelectContent>
             </Select>
+            {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
           </div>
         </div>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead><Checkbox checked={selected.length === filtered.length && filtered.length > 0} onCheckedChange={selectAll} /></TableHead>
+                <TableHead>
+                  <Checkbox
+                    checked={selected.length === filtered.length && filtered.length > 0}
+                    onCheckedChange={selectAll}
+                  />
+                </TableHead>
                 <TableHead>Date</TableHead>
                 <TableHead>Staff</TableHead>
                 <TableHead>Branch</TableHead>
@@ -126,39 +202,71 @@ export default function AllCommissions() {
             <TableBody>
               {filtered.map((c) => (
                 <TableRow key={c.id}>
-                  <TableCell><Checkbox checked={selected.includes(c.id)} onCheckedChange={() => toggleSelect(c.id)} /></TableCell>
+                  <TableCell>
+                    <Checkbox checked={selected.includes(c.id)} onCheckedChange={() => toggleSelect(c.id)} />
+                  </TableCell>
                   <TableCell>{c.date}</TableCell>
                   <TableCell className="font-medium">{c.staff}</TableCell>
-                  <TableCell><Badge variant="outline" className="text-xs">{c.branch}</Badge></TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="text-xs">
+                      {c.branch}
+                    </Badge>
+                  </TableCell>
                   <TableCell>{c.customer}</TableCell>
                   <TableCell>{c.plan}</TableCell>
-                  <TableCell>₹{c.saleAmount.toLocaleString()}</TableCell>
+                  <TableCell>₹{Number(c.amount).toLocaleString()}</TableCell>
                   <TableCell>{c.rate}%</TableCell>
-                  <TableCell className="font-semibold">₹{c.commission.toLocaleString()}</TableCell>
-                  <TableCell><Badge className={statusColors[c.status]}>{c.status}</Badge></TableCell>
+                  <TableCell className="font-semibold">₹{Number(c.commission).toLocaleString()}</TableCell>
+                  <TableCell>
+                    <Badge className={statusColors[c.status]}>{c.status}</Badge>
+                  </TableCell>
                   <TableCell>
                     <div className="flex gap-1">
-                      <Button variant="ghost" size="icon" className="h-7 w-7" title="View Sale" onClick={() => setViewSale(c)}>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" title="View" onClick={() => setViewSale(c)}>
                         <Eye className="h-3.5 w-3.5 text-primary" />
                       </Button>
                       {c.status === "pending" && (
-                        <Button variant="ghost" size="icon" className="h-7 w-7" title="Approve" onClick={() => singleAction(c.id, "approved")}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          title="Approve"
+                          onClick={() => setPendingAction({ kind: "approve", row: c })}
+                        >
                           <CheckSquare className="h-3.5 w-3.5 text-info" />
                         </Button>
                       )}
-                      {(c.status === "pending" || c.status === "approved") && (
-                        <Button variant="ghost" size="icon" className="h-7 w-7" title="Mark Paid" onClick={() => singleAction(c.id, "paid")}>
+                      {c.status === "approved" && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          title="Mark Paid"
+                          onClick={() => setPendingAction({ kind: "paid", row: c })}
+                        >
                           <Wallet className="h-3.5 w-3.5 text-success" />
                         </Button>
                       )}
-                      {c.status !== "cancelled" && c.status !== "paid" && (
-                        <Button variant="ghost" size="icon" className="h-7 w-7" title="Cancel" onClick={() => singleAction(c.id, "cancelled")}>
+                      {c.status === "pending" && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          title="Cancel"
+                          onClick={() => setPendingAction({ kind: "cancel", row: c })}
+                        >
                           <XCircle className="h-3.5 w-3.5 text-destructive" />
                         </Button>
                       )}
-                      <Button variant="ghost" size="icon" className="h-7 w-7" title="Export" onClick={() => exportSingle(c)}>
-                        <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-                      </Button>
+                      {/* <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        title="Slip PDF"
+                        onClick={() => setPendingAction({ kind: "slip", row: c })}
+                      >
+                        <FileText className="h-3.5 w-3.5" />
+                      </Button> */}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -168,35 +276,103 @@ export default function AllCommissions() {
         </CardContent>
       </Card>
 
-      {/* View Sale Dialog */}
       <Dialog open={!!viewSale} onOpenChange={() => setViewSale(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Sale Details — Commission #{viewSale?.id}</DialogTitle></DialogHeader>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Commission #{viewSale?.id}</DialogTitle>
+          </DialogHeader>
           {viewSale && (
-            <div className="grid gap-2 text-sm">
-              {[
-                { l: "Date", v: viewSale.date },
-                { l: "Staff", v: viewSale.staff },
-                { l: "Branch", v: viewSale.branch },
-                { l: "Customer", v: viewSale.customer },
-                { l: "Plan", v: viewSale.plan },
-                { l: "Sale Amount", v: `₹${viewSale.saleAmount.toLocaleString()}` },
-                { l: "Commission Rate", v: `${viewSale.rate}%` },
-                { l: "Commission", v: `₹${viewSale.commission.toLocaleString()}` },
-                { l: "Status", v: viewSale.status },
-              ].map(r => (
-                <div key={r.l} className="flex justify-between border-b border-border/50 pb-1">
-                  <span className="text-muted-foreground">{r.l}</span>
-                  <span className="font-medium">{r.v}</span>
+            <div className="space-y-4 text-sm">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-md border p-3">
+                  <p className="text-xs text-muted-foreground">Date</p>
+                  <p className="font-medium">{viewSale.date || "—"}</p>
                 </div>
-              ))}
+                <div className="rounded-md border p-3">
+                  <p className="text-xs text-muted-foreground">Status</p>
+                  <Badge className={statusColors[viewSale.status] ?? "bg-muted text-muted-foreground"}>{viewSale.status}</Badge>
+                </div>
+                <div className="rounded-md border p-3">
+                  <p className="text-xs text-muted-foreground">Staff</p>
+                  <p className="font-medium">{viewSale.staff || "—"}</p>
+                </div>
+                <div className="rounded-md border p-3">
+                  <p className="text-xs text-muted-foreground">Branch</p>
+                  <p className="font-medium">{viewSale.branch || "—"}</p>
+                </div>
+                <div className="rounded-md border p-3">
+                  <p className="text-xs text-muted-foreground">Customer</p>
+                  <p className="font-medium">{viewSale.customer || "—"}</p>
+                </div>
+                <div className="rounded-md border p-3">
+                  <p className="text-xs text-muted-foreground">Matrimony ID</p>
+                  <p className="font-medium">{viewSale.matri_id || "—"}</p>
+                </div>
+                <div className="rounded-md border p-3">
+                  <p className="text-xs text-muted-foreground">Plan</p>
+                  <p className="font-medium">{viewSale.plan || "—"}</p>
+                </div>
+                <div className="rounded-md border p-3">
+                  <p className="text-xs text-muted-foreground">Rate</p>
+                  <p className="font-medium">{viewSale.rate}%</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="rounded-md border p-3 bg-muted/30">
+                  <p className="text-xs text-muted-foreground">Sale Amount</p>
+                  <p className="font-semibold">₹{Number(viewSale.amount).toLocaleString()}</p>
+                </div>
+                <div className="rounded-md border p-3 bg-muted/30">
+                  <p className="text-xs text-muted-foreground">Commission</p>
+                  <p className="font-semibold">₹{Number(viewSale.commission).toLocaleString()}</p>
+                </div>
+                <div className="rounded-md border p-3 bg-muted/30">
+                  <p className="text-xs text-muted-foreground">Paid Date</p>
+                  <p className="font-semibold">{viewSale.paid_date || "—"}</p>
+                </div>
+              </div>
             </div>
           )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setViewSale(null)}>Close</Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={pendingAction != null} onOpenChange={(o) => !o && setPendingAction(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingAction?.kind === "bulkApprove" && "Approve selected commissions?"}
+              {pendingAction?.kind === "approve" && "Approve this commission?"}
+              {pendingAction?.kind === "paid" && "Mark this commission as paid?"}
+              {pendingAction?.kind === "cancel" && "Cancel this commission?"}
+              {pendingAction?.kind === "slip" && "Download commission slip?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingAction?.kind === "bulkApprove" &&
+                `This will approve ${pendingAction.count} selected commission${pendingAction.count > 1 ? "s" : ""}.`}
+              {pendingAction?.kind === "approve" && `Staff: ${pendingAction.row.staff} · Customer: ${pendingAction.row.customer}`}
+              {pendingAction?.kind === "paid" && `Staff: ${pendingAction.row.staff} · Commission: ₹${Number(pendingAction.row.commission).toLocaleString()}`}
+              {pendingAction?.kind === "cancel" && `This action will cancel commission #${pendingAction.row.id}.`}
+              {pendingAction?.kind === "slip" && `Download PDF slip for commission #${pendingAction.row.id}.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!pendingAction) return;
+                if (pendingAction.kind === "bulkApprove") bulkApproveMut.mutate();
+                if (pendingAction.kind === "approve") approveMut.mutate(pendingAction.row.id);
+                if (pendingAction.kind === "paid") paidMut.mutate(pendingAction.row.id);
+                if (pendingAction.kind === "cancel") cancelMut.mutate(pendingAction.row.id);
+                if (pendingAction.kind === "slip") slipMut.mutate(pendingAction.row.id);
+              }}
+            >
+              Confirm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

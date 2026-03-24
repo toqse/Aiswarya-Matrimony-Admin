@@ -4,22 +4,25 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Search, Eye, Trash2, Shield, ShieldOff, Ban, Loader2 } from "lucide-react";
+import { Search, Eye, Trash2, Shield, ShieldOff, Ban, Loader2, UserPlus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useRole } from "@/contexts/RoleContext";
 import {
   deleteAdminProfile,
   fetchAdminProfileDetail,
   fetchAdminProfiles,
+  patchProfileAssignStaff,
   fetchStaffProfiles,
   patchProfileBlock,
   patchProfileVerify,
   type ProfileListRow,
 } from "@/lib/admin-api/profiles";
+import { fetchAdminStaffList } from "@/lib/admin-api/staff";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -45,6 +48,8 @@ export default function ProfileAdmin() {
   const [viewProfile, setViewProfile] = useState<ProfileListRow | null>(null);
   const [viewDetail, setViewDetail] = useState<Record<string, unknown> | null>(null);
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
+  const [assignRow, setAssignRow] = useState<ProfileListRow | null>(null);
+  const [assignStaffId, setAssignStaffId] = useState<string>("");
 
   const listQuery = useQuery({
     queryKey: ["admin", "profiles", role, search],
@@ -55,6 +60,12 @@ export default function ProfileAdmin() {
   });
 
   const rows = listQuery.data?.results ?? [];
+  const staffQuery = useQuery({
+    enabled: !!assignRow && role === "admin",
+    queryKey: ["admin", "staff", "active-for-assignment"],
+    queryFn: () => fetchAdminStaffList({ status: "active", page: 1, page_size: 100 }),
+  });
+  const staffRows = staffQuery.data?.results ?? [];
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["admin", "profiles"] });
 
@@ -73,6 +84,18 @@ export default function ProfileAdmin() {
     onSuccess: () => {
       toast({ title: "Block status updated" });
       setPendingAction(null);
+      invalidate();
+    },
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const assignMut = useMutation({
+    mutationFn: ({ matriId, staffId }: { matriId: string; staffId: number }) =>
+      patchProfileAssignStaff(matriId, staffId),
+    onSuccess: () => {
+      toast({ title: "Staff assigned successfully" });
+      setAssignRow(null);
+      setAssignStaffId("");
       invalidate();
     },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
@@ -207,6 +230,21 @@ export default function ProfileAdmin() {
                       <Button variant="ghost" size="icon" className="h-7 w-7" title="Block / Unblock" onClick={() => setPendingAction({ kind: "block", row: p })}>
                         <Ban className={`h-3.5 w-3.5 ${p.is_blocked ? "text-success" : "text-destructive"}`} />
                       </Button>
+                      {role === "admin" && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          title="Assign Staff"
+                          onClick={() => {
+                            setAssignRow(p);
+                            const pre = staffRows.find((s) => s.name === p.assigned_staff);
+                            setAssignStaffId(pre ? String(pre.id) : "");
+                          }}
+                        >
+                          <UserPlus className="h-3.5 w-3.5 text-primary" />
+                        </Button>
+                      )}
                       {role === "admin" && (
                         <Button variant="ghost" size="icon" className="h-7 w-7" title="Delete" onClick={() => setPendingAction({ kind: "delete", row: p })}>
                           <Trash2 className="h-3.5 w-3.5 text-destructive" />
@@ -435,6 +473,55 @@ export default function ProfileAdmin() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog
+        open={!!assignRow}
+        onOpenChange={(o) => {
+          if (!o) {
+            setAssignRow(null);
+            setAssignStaffId("");
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Assign Staff</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Profile: <span className="font-medium text-foreground">{assignRow?.matri_id} · {assignRow?.name}</span>
+            </p>
+            <Select value={assignStaffId} onValueChange={setAssignStaffId}>
+              <SelectTrigger>
+                <SelectValue placeholder={staffQuery.isLoading ? "Loading staff..." : "Select staff"} />
+              </SelectTrigger>
+              <SelectContent>
+                {staffRows.map((s) => (
+                  <SelectItem key={s.id} value={String(s.id)}>
+                    {s.name} ({s.emp_code})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {staffQuery.error && <p className="text-xs text-destructive">{(staffQuery.error as Error).message}</p>}
+          </div>
+          <div className="flex justify-end gap-2 mt-2">
+            <Button variant="outline" onClick={() => setAssignRow(null)} disabled={assignMut.isPending}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() =>
+                assignRow &&
+                assignStaffId &&
+                assignMut.mutate({ matriId: assignRow.matri_id, staffId: Number(assignStaffId) })
+              }
+              disabled={!assignStaffId || assignMut.isPending}
+            >
+              {assignMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Assign"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

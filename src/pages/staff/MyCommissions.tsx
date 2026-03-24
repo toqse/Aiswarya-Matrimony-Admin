@@ -7,8 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { fetchStaffCommissions } from "@/lib/admin-api/scoped";
-import { Search, Download, Wallet, Clock, CheckCircle2, Loader2 } from "lucide-react";
+import { Search, Wallet, Clock, CheckCircle2, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useRole } from "@/contexts/RoleContext";
+import { exportMyBranchCommissions, fetchMyBranchCommissionSummary, fetchMyBranchCommissions } from "@/lib/admin-api/commissions";
 
 const statusColors: Record<string, string> = {
   pending: "bg-warning text-warning-foreground",
@@ -18,40 +20,53 @@ const statusColors: Record<string, string> = {
 };
 
 export default function MyCommissions() {
+  const { role } = useRole();
+  const isBranchManager = role === "branch-manager";
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const { toast } = useToast();
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["staff", "commissions", search, statusFilter],
+    queryKey: [isBranchManager ? "branch" : "staff", "commissions", search, statusFilter],
     queryFn: () =>
-      fetchStaffCommissions({
-        search: search.trim() || undefined,
-        status: statusFilter === "all" ? undefined : statusFilter,
-      }),
+      isBranchManager
+        ? fetchMyBranchCommissions({
+            search: search.trim() || undefined,
+            status: statusFilter === "all" ? undefined : statusFilter,
+          })
+        : fetchStaffCommissions({
+            search: search.trim() || undefined,
+            status: statusFilter === "all" ? undefined : statusFilter,
+          }),
   });
 
-  const summary = data?.summary;
-  const rows = data?.results ?? [];
+  const branchSummaryQ = useQuery({
+    queryKey: ["branch", "my-commissions", "summary"],
+    queryFn: () => fetchMyBranchCommissionSummary(),
+    enabled: isBranchManager,
+  });
 
-  const exportData = () => {
-    const header = "Date,Customer,Plan,Amount,Rate,Commission,Status\n";
-    const body = rows.map((c) =>
-      `${c.date},${c.customer},${c.plan},${c.amount},${c.rate},${c.commission},${c.status}`,
-    ).join("\n");
-    const blob = new Blob([header + body], { type: "text/csv" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "my-commissions.csv";
-    a.click();
-    toast({ title: "Exported" });
-  };
+  const summary = isBranchManager ? branchSummaryQ.data : data?.summary;
+  const rows = data?.results ?? [];
+  const getAmount = (c: Record<string, unknown>) => Number(c.amount ?? c.sale_amount ?? 0);
+  const getCommission = (c: Record<string, unknown>) => Number(c.commission ?? 0);
+  const getRate = (c: Record<string, unknown>) => Number(c.rate ?? 0);
 
   const summaryCards = [
-    { label: "Pending", value: summary ? `₹${Number(summary.total_pending).toLocaleString()}` : "—", icon: Clock, color: "text-warning" },
+    {
+      label: "Pending",
+      value: summary ? `₹${Number(isBranchManager ? (summary as { pending: number }).pending : (summary as { total_pending: number }).total_pending).toLocaleString()}` : "—",
+      icon: Clock,
+      color: "text-warning",
+    },
     { label: "Approved", value: summary ? `₹${Number(summary.approved).toLocaleString()}` : "—", icon: CheckCircle2, color: "text-info" },
     { label: "Paid", value: summary ? `₹${Number(summary.paid).toLocaleString()}` : "—", icon: Wallet, color: "text-success" },
-    { label: "Total", value: summary ? `₹${Number(summary.grand_total).toLocaleString()}` : "—", icon: Wallet, color: "text-primary" },
+    {
+      label: "Total",
+      value: summary ? `₹${Number(isBranchManager ? (summary as { total: number }).total : (summary as { grand_total: number }).grand_total).toLocaleString()}` : "—",
+      icon: Wallet,
+      color: "text-primary",
+    },
   ];
 
   return (
@@ -61,9 +76,6 @@ export default function MyCommissions() {
           <h1 className="text-2xl font-bold">My Commissions</h1>
           <p className="text-muted-foreground text-sm mt-1">Your commission ledger</p>
         </div>
-        <Button variant="outline" onClick={exportData} className="gap-2">
-          <Download className="h-4 w-4" /> Export
-        </Button>
       </div>
 
       {error && <p className="text-destructive text-sm">{(error as Error).message}</p>}
@@ -121,8 +133,8 @@ export default function MyCommissions() {
                   <TableCell>{c.date}</TableCell>
                   <TableCell>{c.customer}</TableCell>
                   <TableCell>{c.plan}</TableCell>
-                  <TableCell>₹{Number(c.amount).toLocaleString()}</TableCell>
-                  <TableCell>₹{Number(c.commission).toLocaleString()}</TableCell>
+                  <TableCell>₹{getAmount(c as Record<string, unknown>).toLocaleString()}</TableCell>
+                  <TableCell>₹{getCommission(c as Record<string, unknown>).toLocaleString()}</TableCell>
                   <TableCell>
                     <Badge className={statusColors[c.status]}>{c.status}</Badge>
                   </TableCell>

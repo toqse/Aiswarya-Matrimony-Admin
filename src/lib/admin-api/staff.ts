@@ -63,7 +63,7 @@ export interface StaffCreateBody {
   name: string;
   mobile: string;
   email?: string;
-  role?: "staff" | "branch_manager";
+  role: "staff" | "branch_manager";
   branch: number;
   designation: string;
   department?: string;

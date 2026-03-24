@@ -1,88 +1,169 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useRole } from "@/contexts/RoleContext";
-import { fetchBranchStaffList } from "@/lib/admin-api/staff";
-import { Search, Download, Target, Users, TrendingUp, Award, ArrowUpRight, ArrowDownRight, Loader2 } from "lucide-react";
+import { fetchBranchList } from "@/lib/admin-api/branches";
+import {
+  exportBranchStaffPerformance,
+  fetchBranchStaffPerformanceChart,
+  fetchBranchStaffPerformanceList,
+  fetchBranchStaffPerformanceSummary,
+  fetchBranchStaffPerformanceTargets,
+} from "@/lib/admin-api/reports";
+import { createStaff } from "@/lib/admin-api/staff";
+import { Search, Download, Target, Users, TrendingUp, Award, ArrowUpRight, ArrowDownRight, Loader2, Plus } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { useToast } from "@/hooks/use-toast";
 
-function num(s: string) {
-  const n = parseFloat(String(s).replace(/[^0-9.-]/g, ""));
+function toFiniteNumber(value: unknown): number {
+  const n = Number(value);
   return Number.isFinite(n) ? n : 0;
 }
 
 export default function BranchStaffPerformance() {
-  const { branch } = useRole();
+  const { branch, role } = useRole();
   const [search, setSearch] = useState("");
+  const [month] = useState(() => new Date().toISOString().slice(0, 7));
+  const [addOpen, setAddOpen] = useState(false);
+  const [addForm, setAddForm] = useState({
+    name: "",
+    mobile: "",
+    email: "",
+    role: "staff" as "staff" | "branch_manager",
+    branchId: branch?.id ? String(branch.id) : "",
+    designation: "",
+    department: "",
+    joiningDate: "",
+    basicSalary: "",
+    commissionRate: "",
+    monthlyTarget: "",
+    loginUsername: "",
+    password: "",
+  });
+  const { toast } = useToast();
+  const qc = useQueryClient();
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ["branch", "staff", "performance"],
-    queryFn: () => fetchBranchStaffList({ page_size: 200 }),
+  const summaryQ = useQuery({
+    queryKey: ["branch", "staff-performance", "summary", month],
+    queryFn: () => fetchBranchStaffPerformanceSummary({ month }),
+  });
+  const chartQ = useQuery({
+    queryKey: ["branch", "staff-performance", "chart", month],
+    queryFn: () => fetchBranchStaffPerformanceChart({ month }),
+  });
+  const targetsQ = useQuery({
+    queryKey: ["branch", "staff-performance", "targets", month],
+    queryFn: () => fetchBranchStaffPerformanceTargets({ month }),
+  });
+  const listQ = useQuery({
+    queryKey: ["branch", "staff-performance", "list", month, search],
+    queryFn: () => fetchBranchStaffPerformanceList({ month, page_size: 200, search: search.trim() || undefined }),
+  });
+  const branchesQ = useQuery({
+    queryKey: ["admin", "branches", "dropdown"],
+    queryFn: () => fetchBranchList({ page_size: 200 }),
+    enabled: role === "admin",
+  });
+
+  const addMut = useMutation({
+    mutationFn: async () => {
+      const branchId = Number(addForm.branchId || branch?.id);
+      if (!addForm.name || !addForm.mobile || !branchId || !addForm.designation) {
+        throw new Error("Name, mobile, branch, and designation are required");
+      }
+      return createStaff({
+        name: addForm.name.trim(),
+        mobile: addForm.mobile.replace(/\D/g, "").slice(0, 10),
+        email: addForm.email.trim() || undefined,
+        role: role === "admin" ? addForm.role : "staff",
+        branch: branchId,
+        designation: addForm.designation.trim(),
+        department: addForm.department.trim() || undefined,
+        joining_date: addForm.joiningDate || undefined,
+        basic_salary: Number(addForm.basicSalary || 0),
+        commission_rate: Number(addForm.commissionRate || 0),
+        monthly_target: Number(addForm.monthlyTarget || 0),
+        login_username: addForm.loginUsername.trim() || undefined,
+        password: addForm.password || undefined,
+      });
+    },
+    onSuccess: () => {
+      toast({ title: "Staff created" });
+      setAddOpen(false);
+      setAddForm({
+        name: "",
+        mobile: "",
+        email: "",
+        role: "staff",
+        branchId: branch?.id ? String(branch.id) : "",
+        designation: "",
+        department: "",
+        joiningDate: "",
+        basicSalary: "",
+        commissionRate: "",
+        monthlyTarget: "",
+        loginUsername: "",
+        password: "",
+      });
+      qc.invalidateQueries({ queryKey: ["branch", "staff-performance"] });
+    },
+    onError: (e: Error) => {
+      toast({ title: "Create staff failed", description: e.message, variant: "destructive" });
+    },
   });
 
   const rows = useMemo(() => {
-    const list = data?.results ?? [];
-    return list.map((s) => {
-      const basic = num(s.basic_salary);
-      const rate = num(s.commission_rate);
-      const { achieved, target } = s.target_progress;
-      const pct = target > 0 ? (achieved / target) * 100 : 0;
+    const list = listQ.data?.results ?? [];
+    return list.map((s, idx) => {
       return {
-        id: s.id,
-        name: s.name,
-        basic,
-        commissionRate: rate,
-        achieved,
-        target,
-        pct,
-        is_active: s.is_active,
+        id: s.staff_id ?? `row-${idx}`,
+        name: s.staff_name,
+        basic: toFiniteNumber(s.revenue),
+        commissionRate: toFiniteNumber(s.commission_earned),
+        achieved: toFiniteNumber(s.achieved_target),
+        target: toFiniteNumber(s.monthly_target),
+        pct: toFiniteNumber(s.target_progress),
+        is_active: true,
         designation: s.designation,
       };
     });
-  }, [data?.results]);
+  }, [listQ.data?.results]);
 
-  const filtered = rows.filter((s) => s.name.toLowerCase().includes(search.toLowerCase()));
-
-  const totalBasic = rows.reduce((s, r) => s + r.basic, 0);
-  const totalAchieved = rows.reduce((s, r) => s + r.achieved, 0);
-  const avgConversion =
-    rows.length > 0 ? (rows.reduce((s, r) => s + (r.target > 0 ? (r.achieved / r.target) * 100 : 0), 0) / rows.length).toFixed(1) : "0";
+  const totalBasic = rows.reduce((s, r) => s + toFiniteNumber(r.basic), 0);
+  const totalAchieved = rows.reduce((s, r) => s + toFiniteNumber(r.achieved), 0);
+  const avgConversion = toFiniteNumber(summaryQ.data?.avg_target_progress).toFixed(1);
 
   const kpis = [
-    { label: "Staff (listed)", value: rows.length, icon: Users, color: "text-blue-600", bg: "bg-blue-50" },
+    { label: "Staff (listed)", value: summaryQ.data?.total_staff ?? rows.length, icon: Users, color: "text-blue-600", bg: "bg-blue-50" },
     { label: "Target units (Σ achieved)", value: totalAchieved, icon: TrendingUp, color: "text-emerald-600", bg: "bg-emerald-50" },
-    { label: "Basic salary (Σ)", value: `₹${Math.round(totalBasic).toLocaleString()}`, icon: Target, color: "text-violet-600", bg: "bg-violet-50" },
+    {
+      label: "Revenue (Σ)",
+      value: `₹${Math.round(toFiniteNumber(summaryQ.data?.total_revenue) || totalBasic).toLocaleString()}`,
+      icon: Target,
+      color: "text-violet-600",
+      bg: "bg-violet-50",
+    },
     { label: "Avg target progress", value: `${avgConversion}%`, icon: Award, color: "text-amber-600", bg: "bg-amber-50" },
   ];
 
-  const barData = filtered.map((s) => ({
-    name: s.name.length > 18 ? `${s.name.slice(0, 16)}…` : s.name,
-    basic: Math.round(s.basic),
-    rate: Math.round(s.commissionRate * 100) / 100,
+  const barData = (chartQ.data?.staff ?? []).map((s) => ({
+    name: s.staff_name.length > 18 ? `${s.staff_name.slice(0, 16)}…` : s.staff_name,
+    basic: Math.round(toFiniteNumber(s.revenue)),
+    rate: Math.round(toFiniteNumber(s.commission) * 100) / 100,
   }));
 
   const exportCSV = () => {
-    const headers = "Name,Designation,BasicSalary,CommissionRate%,Target,Achieved,Progress%\n";
-    const body = rows
-      .map(
-        (s) =>
-          `"${s.name.replace(/"/g, '""')}",${s.designation},${s.basic},${s.commissionRate},${s.target},${s.achieved},${s.pct.toFixed(1)}`
-      )
-      .join("\n");
-    const blob = new Blob([headers + body], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "branch-staff-performance.csv";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    exportBranchStaffPerformance({ month, format: "csv" }).catch((e: Error) =>
+      toast({ title: "Export failed", description: e.message, variant: "destructive" }),
+    );
   };
 
   return (
@@ -90,21 +171,26 @@ export default function BranchStaffPerformance() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Staff Performance</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            {branch?.name ?? "Branch"} — from <code className="text-xs">GET v1/branch/staff/</code>
-          </p>
+          <p className="text-muted-foreground text-sm mt-1">{branch?.name ?? "Branch"} — branch staff-performance endpoints</p>
         </div>
-        <Button onClick={exportCSV} variant="outline" className="gap-2" disabled={!rows.length}>
-          <Download className="h-4 w-4" /> Export CSV
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button onClick={() => setAddOpen(true)} className="gap-2">
+            <Plus className="h-4 w-4" /> Add Staff
+          </Button>
+          <Button onClick={exportCSV} variant="outline" className="gap-2" disabled={!rows.length}>
+            <Download className="h-4 w-4" /> Export CSV
+          </Button>
+        </div>
       </div>
 
-      {isLoading && (
+      {(summaryQ.isLoading || chartQ.isLoading || targetsQ.isLoading || listQ.isLoading) && (
         <div className="flex items-center gap-2 text-muted-foreground text-sm">
           <Loader2 className="h-4 w-4 animate-spin" /> Loading staff…
         </div>
       )}
-      {isError && <p className="text-sm text-destructive">Could not load branch staff.</p>}
+      {(summaryQ.isError || chartQ.isError || targetsQ.isError || listQ.isError) && (
+        <p className="text-sm text-destructive">Could not load branch staff performance.</p>
+      )}
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {kpis.map((k) => (
@@ -148,16 +234,18 @@ export default function BranchStaffPerformance() {
           </CardHeader>
           <CardContent>
             <div className="space-y-5 pt-2 max-h-[300px] overflow-y-auto pr-1">
-              {filtered.map((s) => {
-                const pct = s.target > 0 ? (s.achieved / s.target) * 100 : 0;
+              {(targetsQ.data?.staff ?? []).map((s, idx) => {
+                const achieved = toFiniteNumber(s.achieved_target);
+                const target = toFiniteNumber(s.monthly_target);
+                const pct = target > 0 ? (achieved / target) * 100 : 0;
                 const isAbove = pct >= 100;
                 return (
-                  <div key={s.id} className="space-y-1.5">
+                  <div key={`target-${s.staff_id ?? s.staff_name ?? idx}`} className="space-y-1.5">
                     <div className="flex items-center justify-between text-sm">
-                      <span className="font-medium">{s.name}</span>
+                      <span className="font-medium">{s.staff_name}</span>
                       <div className="flex items-center gap-1.5">
                         <span className={`font-semibold ${isAbove ? "text-emerald-600" : "text-amber-600"}`}>
-                          {s.achieved}/{s.target}
+                          {achieved}/{target}
                         </span>
                         {isAbove ? <ArrowUpRight className="h-3.5 w-3.5 text-emerald-500" /> : <ArrowDownRight className="h-3.5 w-3.5 text-amber-500" />}
                       </div>
@@ -195,16 +283,16 @@ export default function BranchStaffPerformance() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((s) => {
+              {rows.map((s, idx) => {
                 const convRate = s.target > 0 ? ((s.achieved / s.target) * 100).toFixed(1) : "0.0";
                 const isAbove = parseFloat(convRate) >= 100;
                 const isGood = parseFloat(convRate) >= 80;
                 return (
-                  <TableRow key={s.id}>
+                  <TableRow key={`staff-row-${String(s.id)}-${idx}`}>
                     <TableCell className="font-medium">{s.name}</TableCell>
                     <TableCell className="text-muted-foreground text-sm">{s.designation}</TableCell>
                     <TableCell className="text-right">₹{Math.round(s.basic).toLocaleString()}</TableCell>
-                    <TableCell className="text-center">{s.commissionRate}%</TableCell>
+                    <TableCell className="text-center">₹{Math.round(s.commissionRate).toLocaleString()}</TableCell>
                     <TableCell className="text-center text-sm">
                       {s.achieved} / {s.target}
                     </TableCell>
@@ -234,6 +322,106 @@ export default function BranchStaffPerformance() {
           </Table>
         </CardContent>
       </Card>
+
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Add Staff</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2">
+            <div className="space-y-1.5">
+              <Label>Name *</Label>
+              <Input value={addForm.name} onChange={(e) => setAddForm((p) => ({ ...p, name: e.target.value }))} placeholder="Staff name" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Mobile *</Label>
+              <Input value={addForm.mobile} onChange={(e) => setAddForm((p) => ({ ...p, mobile: e.target.value }))} placeholder="10-digit mobile" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Email</Label>
+              <Input type="email" value={addForm.email} onChange={(e) => setAddForm((p) => ({ ...p, email: e.target.value }))} placeholder="staff@aiswarya.com" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Role *</Label>
+              <Select
+                value={role === "admin" ? addForm.role : "staff"}
+                onValueChange={(value) => setAddForm((p) => ({ ...p, role: value as "staff" | "branch_manager" }))}
+                disabled={role !== "admin"}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="staff">Staff</SelectItem>
+                  <SelectItem value="branch_manager">Branch Manager</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Branch *</Label>
+              <Select
+                value={addForm.branchId}
+                onValueChange={(value) => setAddForm((p) => ({ ...p, branchId: value }))}
+                disabled={role !== "admin"}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select branch" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(branchesQ.data?.results ?? []).map((b) => (
+                    <SelectItem key={b.id} value={String(b.id)}>
+                      {b.name}
+                    </SelectItem>
+                  ))}
+                  {role !== "admin" && branch?.id != null && (
+                    <SelectItem value={String(branch.id)}>{branch.name}</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Designation *</Label>
+              <Input value={addForm.designation} onChange={(e) => setAddForm((p) => ({ ...p, designation: e.target.value }))} placeholder="Senior Consultant" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Department</Label>
+              <Input value={addForm.department} onChange={(e) => setAddForm((p) => ({ ...p, department: e.target.value }))} placeholder="Sales" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Joining Date</Label>
+              <Input type="date" value={addForm.joiningDate} onChange={(e) => setAddForm((p) => ({ ...p, joiningDate: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Basic Salary</Label>
+              <Input type="number" value={addForm.basicSalary} onChange={(e) => setAddForm((p) => ({ ...p, basicSalary: e.target.value }))} placeholder="35000" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Commission Rate</Label>
+              <Input type="number" value={addForm.commissionRate} onChange={(e) => setAddForm((p) => ({ ...p, commissionRate: e.target.value }))} placeholder="10" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Monthly Target</Label>
+              <Input type="number" value={addForm.monthlyTarget} onChange={(e) => setAddForm((p) => ({ ...p, monthlyTarget: e.target.value }))} placeholder="20" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Login Username</Label>
+              <Input value={addForm.loginUsername} onChange={(e) => setAddForm((p) => ({ ...p, loginUsername: e.target.value }))} placeholder="anitha.staff" />
+            </div>
+            <div className="space-y-1.5 md:col-span-2">
+              <Label>Password</Label>
+              <Input type="password" value={addForm.password} onChange={(e) => setAddForm((p) => ({ ...p, password: e.target.value }))} placeholder="StrongPassword@123" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => addMut.mutate()} disabled={addMut.isPending}>
+              {addMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create Staff"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

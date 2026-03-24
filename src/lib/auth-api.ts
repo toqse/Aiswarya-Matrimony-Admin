@@ -40,6 +40,14 @@ export interface AuthApiEnvelope<T> {
   error?: string | AuthApiErrorShape;
 }
 
+const DEBUG_AUTH_LOGS = Boolean(import.meta.env.DEV);
+
+function authLog(...args: unknown[]) {
+  if (DEBUG_AUTH_LOGS) {
+    console.log(...args);
+  }
+}
+
 /** Resolves user-facing text from API JSON (top-level or nested `error.message`). */
 export function getAuthApiErrorMessage(data: AuthApiEnvelope<unknown> | undefined): string {
   if (!data) return "Request failed";
@@ -60,8 +68,8 @@ export async function postSendOtp(role: UserRole, mobile: string) {
     role: userRoleToApiRole(role),
     mobile: mobile.trim(),
   };
-  console.log("[send-otp] URL:", url);
-  console.log("[send-otp] body:", body);
+  authLog("[send-otp] URL:", url);
+  authLog("[send-otp] body:", body);
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
@@ -73,8 +81,8 @@ export async function postSendOtp(role: UserRole, mobile: string) {
   } catch {
     data = {};
   }
-  console.log("[send-otp] response status:", res.status);
-  console.log("[send-otp] response body:", data);
+  authLog("[send-otp] response status:", res.status);
+  authLog("[send-otp] response body:", data);
   return { ok: res.ok, status: res.status, data };
 }
 
@@ -85,8 +93,8 @@ export async function postVerifyOtp(role: UserRole, mobile: string, otp: string)
     mobile: mobile.trim(),
     otp: otp.trim(),
   };
-  console.log("[verify-otp] URL:", url);
-  console.log("[verify-otp] body:", body);
+  authLog("[verify-otp] URL:", url);
+  authLog("[verify-otp] body:", body);
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
@@ -98,16 +106,16 @@ export async function postVerifyOtp(role: UserRole, mobile: string, otp: string)
   } catch {
     data = {};
   }
-  console.log("[verify-otp] response status:", res.status);
-  console.log("[verify-otp] response body:", data);
+  authLog("[verify-otp] response status:", res.status);
+  authLog("[verify-otp] response body:", data);
   return { ok: res.ok, status: res.status, data };
 }
 
 export async function postAdminRefreshToken(refreshToken: string) {
   const url = apiUrl("v1/admin/auth/token/refresh/");
   const body = { refresh_token: refreshToken };
-  console.log("[admin-token-refresh] URL:", url);
-  console.log("[admin-token-refresh] body:", { refresh_token: "[redacted]" });
+  authLog("[admin-token-refresh] URL:", url);
+  authLog("[admin-token-refresh] body:", { refresh_token: "[redacted]" });
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
@@ -119,8 +127,8 @@ export async function postAdminRefreshToken(refreshToken: string) {
   } catch {
     data = {};
   }
-  console.log("[admin-token-refresh] response status:", res.status);
-  console.log("[admin-token-refresh] response body:", data);
+  authLog("[admin-token-refresh] response status:", res.status);
+  authLog("[admin-token-refresh] response body:", data);
   return { ok: res.ok, status: res.status, data };
 }
 
@@ -128,8 +136,8 @@ export async function postAdminLogout() {
   const s = getMatrimonyAdminSession();
   const url = apiUrl("v1/admin/auth/logout/");
   const body = { refresh_token: s?.refresh_token ?? "" };
-  console.log("[admin-logout] URL:", url);
-  console.log("[admin-logout] body:", { refresh_token: s?.refresh_token ? "[redacted]" : undefined });
+  authLog("[admin-logout] URL:", url);
+  authLog("[admin-logout] body:", { refresh_token: s?.refresh_token ? "[redacted]" : undefined });
   const res = await fetch(url, {
     method: "POST",
     headers: {
@@ -145,7 +153,7 @@ export async function postAdminLogout() {
   } catch {
     data = {};
   }
-  console.log("[admin-logout] response status:", res.status);
-  console.log("[admin-logout] response body:", data);
+  authLog("[admin-logout] response status:", res.status);
+  authLog("[admin-logout] response body:", data);
   return { ok: res.ok, status: res.status, data };
 }

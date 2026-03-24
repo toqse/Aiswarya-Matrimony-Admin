@@ -9,10 +9,17 @@ export interface ProfileListRow {
   religion: string;
   caste: string;
   marital_status: string;
-  plan: string;
+  plan?: string;
+  subscription_plan?: string;
   assigned_staff: string;
-  verified: boolean;
-  completion_percent: number;
+  verified?: boolean;
+  is_verified?: boolean;
+  completion_percent?: number;
+  completeness?: number;
+  profile_status?: "complete" | "incomplete";
+  is_wishlisted?: boolean;
+  profile_photo?: string | null;
+  quick_actions?: Record<string, string>;
   horoscope_available: boolean;
   is_active: boolean;
   is_blocked: boolean;
@@ -25,8 +32,18 @@ export interface ProfileListData {
   results: ProfileListRow[];
 }
 
+export interface BranchMyProfilesSummary {
+  total_profiles: number;
+  verified: number;
+  unverified: number;
+  subscribed: number;
+  incomplete_count?: number;
+  incomplete_message?: string;
+}
+
 export type ProfilesQuery = {
   search?: string;
+  filter?: "all" | "incomplete" | "complete" | "subscribed" | "unsubscribed" | "verified" | "unverified";
   gender?: "M" | "F" | "O";
   religion_id?: number;
   plan?: string;
@@ -40,6 +57,7 @@ function buildProfilesQuery(params?: ProfilesQuery): string {
   const q = new URLSearchParams();
   if (!params) return "";
   if (params.search) q.set("search", params.search);
+  if (params.filter) q.set("filter", params.filter);
   if (params.gender) q.set("gender", params.gender);
   if (params.religion_id != null) q.set("religion_id", String(params.religion_id));
   if (params.plan) q.set("plan", params.plan);
@@ -103,6 +121,79 @@ export async function patchProfileBlock(matriId: string, blocked?: boolean) {
 export async function deleteAdminProfile(matriId: string) {
   const res = await adminRequest<Record<string, unknown>>(`v1/admin/profiles/${encodeURIComponent(matriId)}/`, {
     method: "DELETE",
+  });
+  return unwrap(res);
+}
+
+export async function fetchBranchMyProfilesSummary() {
+  const res = await adminRequest<BranchMyProfilesSummary>("v1/branch/my-profiles/summary/");
+  return unwrap(res);
+}
+
+export async function fetchBranchMyProfiles(params?: ProfilesQuery) {
+  const res = await adminRequest<ProfileListData>(`v1/branch/my-profiles/${buildProfilesQuery(params)}`);
+  return unwrap(res);
+}
+
+export async function fetchBranchMyProfileDetail(matriId: string) {
+  const res = await adminRequest<Record<string, unknown>>(`v1/branch/my-profiles/${encodeURIComponent(matriId)}/`);
+  return unwrap(res);
+}
+
+export async function patchBranchMyProfile(matriId: string, body: Record<string, unknown>) {
+  const res = await adminRequest<Record<string, unknown>>(`v1/branch/my-profiles/${encodeURIComponent(matriId)}/`, {
+    method: "PATCH",
+    body,
+  });
+  return unwrap(res);
+}
+
+export async function patchBranchMyProfileVerify(matriId: string, verified?: boolean) {
+  const body = verified == null ? {} : { verified };
+  const res = await adminRequest<Record<string, unknown>>(`v1/branch/my-profiles/${encodeURIComponent(matriId)}/verify/`, {
+    method: "PATCH",
+    body,
+  });
+  return unwrap(res);
+}
+
+export async function createBranchMyProfile(body: {
+  name: string;
+  phone_number: string;
+  gender: "M" | "F" | "O";
+  dob: string;
+  email?: string;
+}) {
+  const res = await adminRequest<Record<string, unknown>>("v1/branch/my-profiles/create/", {
+    method: "POST",
+    body,
+  });
+  return unwrap(res);
+}
+
+export async function refreshBranchMyProfile(matriId: string) {
+  const res = await adminRequest<Record<string, unknown>>(`v1/branch/my-profiles/${encodeURIComponent(matriId)}/refresh/`, {
+    method: "PATCH",
+  });
+  return unwrap(res);
+}
+
+export async function toggleBranchMyProfileWishlist(matriId: string) {
+  const res = await adminRequest<Record<string, unknown>>(`v1/branch/my-profiles/${encodeURIComponent(matriId)}/wishlist/`, {
+    method: "POST",
+  });
+  return unwrap(res);
+}
+
+export async function fetchBranchMyProfileDocuments(matriId: string) {
+  const res = await adminRequest<Record<string, unknown>>(`v1/branch/my-profiles/${encodeURIComponent(matriId)}/documents/`);
+  return unwrap(res);
+}
+
+export async function sendBranchMyProfileEmail(matriId: string, body: { template_id: number }) {
+  const res = await adminRequest<Record<string, unknown>>(`v1/branch/my-profiles/${encodeURIComponent(matriId)}/send-email/`, {
+    method: "POST",
+    body,
   });
   return unwrap(res);
 }

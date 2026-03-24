@@ -54,7 +54,7 @@ const branchManagerItems = [
   { title: "Enquiry Overview", url: "/branch-enquiries", icon: MessageSquare },
   { title: "Commission Approval", url: "/commission-approval", icon: CheckSquare },
   { title: "Salary Management", url: "/branch-salary", icon: IndianRupee },
-  { title: "Day-Close", url: "/day-close", icon: CalendarClock },
+  //{ title: "Day-Close", url: "/day-close", icon: CalendarClock },
   { title: "My Commissions", url: "/my-commissions", icon: Wallet },
   { title: "My Salary", url: "/my-salary", icon: IndianRupee },
   { title: "My Profiles", url: "/my-profiles", icon: UserCircle },

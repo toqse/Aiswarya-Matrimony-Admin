@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { fetchStaffPayroll } from "@/lib/admin-api/scoped";
 import { IndianRupee, TrendingUp, Wallet, Calendar, Loader2 } from "lucide-react";
@@ -12,9 +14,14 @@ const statusColors: Record<string, string> = {
 };
 
 export default function MySalary() {
+  const [month, setMonth] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  });
+
   const { data, isLoading, error } = useQuery({
-    queryKey: ["staff", "payroll"],
-    queryFn: () => fetchStaffPayroll({}),
+    queryKey: ["staff", "payroll", month],
+    queryFn: () => fetchStaffPayroll({ month }),
   });
 
   const rows = data?.results ?? [];
@@ -33,6 +40,14 @@ export default function MySalary() {
       <div>
         <h1 className="text-2xl font-bold text-foreground">My Salary</h1>
         <p className="text-muted-foreground text-sm mt-1">Salary records from payroll</p>
+      </div>
+      <div className="flex items-center gap-2">
+        <Input
+          type="month"
+          value={month}
+          onChange={(e) => setMonth(e.target.value)}
+          className="w-[180px]"
+        />
       </div>
 
       {error && <p className="text-destructive text-sm">{(error as Error).message}</p>}
@@ -57,30 +72,38 @@ export default function MySalary() {
           <CardTitle className="text-base">History</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Month</TableHead>
-                <TableHead>Branch</TableHead>
-                <TableHead>Gross</TableHead>
-                <TableHead>Net</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((r) => (
-                <TableRow key={r.id}>
-                  <TableCell>{r.month}</TableCell>
-                  <TableCell>{r.branch}</TableCell>
-                  <TableCell>₹{Number(r.gross).toLocaleString()}</TableCell>
-                  <TableCell>₹{Number(r.net).toLocaleString()}</TableCell>
-                  <TableCell>
-                    <Badge className={statusColors[r.status] ?? ""}>{r.status}</Badge>
-                  </TableCell>
+          {rows.length === 0 && !isLoading ? (
+            <div className="py-10 text-center">
+              <p className="text-sm font-medium text-muted-foreground">
+                No data found for the selected month.
+              </p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Month</TableHead>
+                  <TableHead>Branch</TableHead>
+                  <TableHead>Gross</TableHead>
+                  <TableHead>Net</TableHead>
+                  <TableHead>Status</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {rows.map((r) => (
+                  <TableRow key={r.id}>
+                    <TableCell>{r.month}</TableCell>
+                    <TableCell>{r.branch}</TableCell>
+                    <TableCell>₹{Number(r.gross).toLocaleString()}</TableCell>
+                    <TableCell>₹{Number(r.net).toLocaleString()}</TableCell>
+                    <TableCell>
+                      <Badge className={statusColors[r.status] ?? ""}>{r.status}</Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
     </div>

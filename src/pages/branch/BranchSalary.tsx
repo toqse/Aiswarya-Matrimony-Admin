@@ -1,45 +1,58 @@
-import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useRole } from "@/contexts/RoleContext";
-import { fetchBranchStaffList } from "@/lib/admin-api/staff";
-import { IndianRupee, Users, Loader2 } from "lucide-react";
-
-function num(s: string) {
-  const n = parseFloat(String(s).replace(/[^0-9.-]/g, ""));
-  return Number.isFinite(n) ? n : 0;
-}
+import { approveBranchPayroll, downloadBranchSalarySlip, fetchBranchPayrollList, fetchBranchPayrollSummary } from "@/lib/admin-api/payroll";
+import { IndianRupee, Users, Loader2, Clock } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 export default function BranchSalary() {
   const { branch } = useRole();
-
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ["branch", "staff", "salary"],
-    queryFn: () => fetchBranchStaffList({ page_size: 200 }),
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const summaryQ = useQuery({
+    queryKey: ["branch", "payroll", "summary"],
+    queryFn: () => fetchBranchPayrollSummary(),
   });
 
-  const rows = useMemo(() => {
-    return (data?.results ?? []).map((s) => ({
-      id: s.id,
-      name: s.name,
-      emp_code: s.emp_code,
-      basic: num(s.basic_salary),
-      commissionRate: num(s.commission_rate),
-      designation: s.designation,
-      is_active: s.is_active,
-    }));
-  }, [data?.results]);
+  const listQ = useQuery({
+    queryKey: ["branch", "payroll", "list"],
+    queryFn: () => fetchBranchPayrollList(),
+  });
 
-  const totalBasic = rows.reduce((s, r) => s + r.basic, 0);
-  const activeCount = rows.filter((r) => r.is_active).length;
+  const approveMut = useMutation({
+    mutationFn: (id: number) => approveBranchPayroll(id),
+    onSuccess: () => {
+      toast({ title: "Payroll approved" });
+      qc.invalidateQueries({ queryKey: ["branch", "payroll"] });
+    },
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const downloadMut = useMutation({
+    mutationFn: (id: number) => downloadBranchSalarySlip(id),
+    onError: (e: Error) => toast({ title: "Download failed", description: e.message, variant: "destructive" }),
+  });
+
+  const rows = (listQ.data?.results ?? []) as Array<Record<string, unknown>>;
+  const summary = summaryQ.data;
+  const excludedField = (key: string) => key.toLowerCase().includes("download") || key.toLowerCase().includes("url");
+  const allColumns = Array.from(
+    rows.reduce((acc, row) => {
+      Object.keys(row).forEach((k) => {
+        if (!excludedField(k)) acc.add(k);
+      });
+      return acc;
+    }, new Set<string>()),
+  );
 
   const kpis = [
-    { label: "Σ basic (listed)", value: `₹${Math.round(totalBasic).toLocaleString()}`, icon: IndianRupee, color: "text-emerald-600", bg: "bg-emerald-50" },
-    { label: "Staff count", value: rows.length, icon: Users, color: "text-blue-600", bg: "bg-blue-50" },
-    { label: "Active", value: activeCount, icon: Users, color: "text-violet-600", bg: "bg-violet-50" },
-    { label: "Inactive", value: rows.length - activeCount, icon: Users, color: "text-amber-600", bg: "bg-amber-50" },
+    { label: "Branch Net Payroll", value: summary ? `₹${Number(summary.branch_net_payroll).toLocaleString()}` : "—", icon: IndianRupee, color: "text-emerald-600", bg: "bg-emerald-50" },
+    { label: "Total Staff", value: summary?.total_staff ?? "—", icon: Users, color: "text-blue-600", bg: "bg-blue-50" },
+    { label: "Approved", value: summary?.approved_count ?? "—", icon: Users, color: "text-violet-600", bg: "bg-violet-50" },
+    { label: "Draft", value: summary?.draft_count ?? "—", icon: Clock, color: "text-amber-600", bg: "bg-amber-50" },
   ];
 
   return (
@@ -47,16 +60,15 @@ export default function BranchSalary() {
       <div>
         <h1 className="text-2xl font-bold">Branch salary snapshot</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          {branch?.name ?? "Branch"} — master fields from <code className="text-xs">GET v1/branch/staff/</code>. Payroll runs use admin APIs only.
+          {branch?.name ?? "Branch"} — salary management from <code className="text-xs">GET v1/branch/payroll/</code>
         </p>
       </div>
-
-      {isLoading && (
+      {(listQ.isLoading || summaryQ.isLoading) && (
         <div className="flex items-center gap-2 text-muted-foreground text-sm">
-          <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+          <Loader2 className="h-4 w-4 animate-spin" /> Loading payroll…
         </div>
       )}
-      {isError && <p className="text-sm text-destructive">Could not load branch staff.</p>}
+      {(listQ.isError || summaryQ.isError) && <p className="text-sm text-destructive">Could not load branch payroll.</p>}
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {kpis.map((k) => (
@@ -79,26 +91,56 @@ export default function BranchSalary() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Staff</TableHead>
-                <TableHead>Code</TableHead>
-                <TableHead>Designation</TableHead>
-                <TableHead className="text-right">Basic</TableHead>
-                <TableHead className="text-center">Comm. rate %</TableHead>
-                <TableHead className="text-center">Status</TableHead>
+                {allColumns.map((col) => (
+                  <TableHead key={col}>{col.replace(/_/g, " ")}</TableHead>
+                ))}
+                <TableHead className="text-center">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((r) => (
-                <TableRow key={r.id}>
-                  <TableCell className="font-medium">{r.name}</TableCell>
-                  <TableCell className="text-muted-foreground text-sm">{r.emp_code}</TableCell>
-                  <TableCell>{r.designation}</TableCell>
-                  <TableCell className="text-right">₹{Math.round(r.basic).toLocaleString()}</TableCell>
-                  <TableCell className="text-center">{r.commissionRate}%</TableCell>
-                  <TableCell>
-                    <Badge className={r.is_active ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"}>
-                      {r.is_active ? "Active" : "Inactive"}
-                    </Badge>
+              {rows.map((r, rowIdx) => (
+                <TableRow key={String(r.id ?? rowIdx)}>
+                  {allColumns.map((col) => {
+                    const value = r[col];
+                    if (col === "status") {
+                      const status = String(value ?? "");
+                      return (
+                        <TableCell key={`${rowIdx}-${col}`}>
+                          <Badge className={status === "paid" ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"}>
+                            {status || "—"}
+                          </Badge>
+                        </TableCell>
+                      );
+                    }
+                    return <TableCell key={`${rowIdx}-${col}`}>{value == null ? "—" : String(value)}</TableCell>;
+                  })}
+                  <TableCell className="text-center">
+                    <div className="flex gap-1 justify-center">
+                      {String(r.status ?? "").toLowerCase() === "draft" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            const id = Number(r.id);
+                            if (Number.isFinite(id)) approveMut.mutate(id);
+                          }}
+                          disabled={approveMut.isPending}
+                        >
+                          Approve
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          const id = Number(r.id);
+                          if (Number.isFinite(id)) downloadMut.mutate(id);
+                        }}
+                        disabled={downloadMut.isPending}
+                      >
+                        Slip
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

@@ -34,6 +34,8 @@ import MySalary from "@/pages/staff/MySalary";
 import MyCommissions from "@/pages/staff/MyCommissions";
 import CashPaymentDashboard from "@/pages/staff/CashPaymentDashboard";
 import BranchCashPayments from "@/pages/branch/BranchCashPayments";
+import BranchCommissionApproval from "@/pages/branch/BranchCommissionApproval";
+import BranchMyProfiles from "@/pages/branch/BranchMyProfiles";
 import MyProfile from "@/pages/MyProfile";
 import NotFound from "@/pages/NotFound";
 
@@ -45,6 +47,7 @@ function DashboardHome() {
 }
 
 const Index = () => {
+  const { role } = useRole();
   return (
     <DashboardLayout>
       <Routes>
@@ -73,13 +76,13 @@ const Index = () => {
         {/* Staff & Branch Manager dedicated routes */}
         <Route path="/my-commissions" element={<MyCommissions />} />
         <Route path="/my-salary" element={<MySalary />} />
-        <Route path="/my-profiles" element={<MyProfiles />} />
+        <Route path="/my-profiles" element={role === "branch-manager" ? <BranchMyProfiles /> : <MyProfiles />} />
         <Route path="/my-enquiries" element={<StaffEnquiries />} />
         <Route path="/my-subscriptions" element={<StaffSubscriptions />} />
         <Route path="/cash-entry" element={<CashPaymentDashboard />} />
         <Route path="/activity-log" element={<AuditLog />} />
         <Route path="/staff-performance" element={<BranchStaffPerformance />} />
-        <Route path="/commission-approval" element={<AllCommissions />} />
+        <Route path="/commission-approval" element={<BranchCommissionApproval />} />
         <Route path="/branch-salary" element={<BranchSalary />} />
         <Route path="/branch-enquiries" element={<BranchEnquiryOverview />} />
         <Route path="/day-close" element={<BranchCashPayments />} />

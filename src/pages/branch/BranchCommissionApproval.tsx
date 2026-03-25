@@ -16,9 +16,8 @@ import {
   fetchBranchCommissionDetail,
   fetchBranchCommissionSummary,
   fetchBranchCommissions,
-  markBranchCommissionPaid,
 } from "@/lib/admin-api/commissions";
-import { Loader2 } from "lucide-react";
+import { Check, Eye, FileText, Loader2, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function BranchCommissionApproval() {
@@ -80,15 +79,6 @@ export default function BranchCommissionApproval() {
       qc.invalidateQueries({ queryKey: ["branch", "commissions"] });
     },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
-  });
-
-  const markPaidMut = useMutation({
-    mutationFn: (id: number) => markBranchCommissionPaid(id),
-    onSuccess: () => {
-      toast({ title: "Marked as paid" });
-      qc.invalidateQueries({ queryKey: ["branch", "commissions"] });
-    },
-    onError: (e: Error) => toast({ title: "Mark paid not allowed", description: e.message, variant: "destructive" }),
   });
 
   const slipMut = useMutation({
@@ -155,11 +145,50 @@ export default function BranchCommissionApproval() {
                   <TableCell>₹{Number(r.commission).toLocaleString()}</TableCell>
                   <TableCell><Badge variant="outline">{r.status}</Badge></TableCell>
                   <TableCell className="flex gap-1">
-                    {r.status === "pending" && <Button size="sm" variant="outline" onClick={() => approveMut.mutate(r.id)}>Approve</Button>}
-                    {r.status === "pending" && <Button size="sm" variant="outline" onClick={() => cancelMut.mutate(r.id)}>Cancel</Button>}
-                    <Button size="sm" variant="outline" onClick={() => setDetailId(r.id)}>View</Button>
-                    <Button size="sm" variant="outline" onClick={() => slipMut.mutate(r.id)}>Slip</Button>
-                    <Button size="sm" variant="outline" onClick={() => markPaidMut.mutate(r.id)}>Mark paid</Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      title="View"
+                      aria-label="View"
+                      className="h-8 w-8 rounded-full bg-purple-100 text-purple-600 hover:bg-purple-200 hover:text-purple-700"
+                      onClick={() => setDetailId(r.id)}
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                    {r.status.toLowerCase() === "pending" && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        title="Approve"
+                        aria-label="Approve"
+                        className="h-8 w-8 rounded-full bg-emerald-100 text-emerald-600 hover:bg-emerald-200 hover:text-emerald-700"
+                        onClick={() => approveMut.mutate(r.id)}
+                      >
+                        <Check className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {r.status.toLowerCase() === "pending" && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        title="Cancel"
+                        aria-label="Cancel"
+                        className="h-8 w-8 rounded-full bg-red-100 text-red-600 hover:bg-red-200 hover:text-red-700"
+                        onClick={() => cancelMut.mutate(r.id)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      title="Slip"
+                      aria-label="Slip"
+                      className="h-8 w-8 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-700"
+                      onClick={() => slipMut.mutate(r.id)}
+                    >
+                      <FileText className="h-4 w-4" />
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}

@@ -41,6 +41,15 @@ export interface BranchMyProfilesSummary {
   incomplete_message?: string;
 }
 
+export interface StaffMyProfilesSummary {
+  total_profiles: number;
+  verified: number;
+  unverified: number;
+  subscribed: number;
+  incomplete_count: number;
+  incomplete_message: string | null;
+}
+
 export type ProfilesQuery = {
   search?: string;
   filter?: "all" | "incomplete" | "complete" | "subscribed" | "unsubscribed" | "verified" | "unverified";
@@ -79,13 +88,31 @@ export async function fetchStaffProfiles(params?: ProfilesQuery) {
   return unwrap(res);
 }
 
+export async function fetchStaffMyProfilesSummary() {
+  const res = await adminRequest<StaffMyProfilesSummary>("v1/staff/profiles/summary/");
+  return unwrap(res);
+}
+
 export async function fetchAdminProfileDetail(matriId: string) {
   const res = await adminRequest<Record<string, unknown>>(`v1/admin/profiles/${encodeURIComponent(matriId)}/`);
   return unwrap(res);
 }
 
+export async function fetchStaffProfileDetail(matriId: string) {
+  const res = await adminRequest<Record<string, unknown>>(`v1/staff/profiles/${encodeURIComponent(matriId)}/`);
+  return unwrap(res);
+}
+
 export async function patchAdminProfile(matriId: string, body: Record<string, unknown>) {
   const res = await adminRequest<Record<string, unknown>>(`v1/admin/profiles/${encodeURIComponent(matriId)}/`, {
+    method: "PATCH",
+    body,
+  });
+  return unwrap(res);
+}
+
+export async function patchStaffProfile(matriId: string, body: Record<string, unknown>) {
+  const res = await adminRequest<Record<string, unknown>>(`v1/staff/profiles/${encodeURIComponent(matriId)}/`, {
     method: "PATCH",
     body,
   });
@@ -192,6 +219,41 @@ export async function fetchBranchMyProfileDocuments(matriId: string) {
 
 export async function sendBranchMyProfileEmail(matriId: string, body: { template_id: number }) {
   const res = await adminRequest<Record<string, unknown>>(`v1/branch/my-profiles/${encodeURIComponent(matriId)}/send-email/`, {
+    method: "POST",
+    body,
+  });
+  return unwrap(res);
+}
+
+export async function refreshStaffProfile(matriId: string) {
+  const res = await adminRequest<Record<string, unknown>>(`v1/staff/profiles/${encodeURIComponent(matriId)}/refresh/`, {
+    method: "PATCH",
+  });
+  return unwrap(res);
+}
+
+export async function toggleStaffProfileWishlist(matriId: string) {
+  const res = await adminRequest<Record<string, unknown>>(`v1/staff/profiles/${encodeURIComponent(matriId)}/wishlist/`, {
+    method: "POST",
+  });
+  return unwrap(res);
+}
+
+export async function sendStaffProfileEmail(matriId: string, body: { template_id: number }) {
+  const res = await adminRequest<Record<string, unknown>>(`v1/staff/profiles/${encodeURIComponent(matriId)}/send-email/`, {
+    method: "POST",
+    body,
+  });
+  return unwrap(res);
+}
+
+export async function fetchStaffProfileDocuments(matriId: string) {
+  const res = await adminRequest<Record<string, unknown>>(`v1/staff/profiles/${encodeURIComponent(matriId)}/documents/`);
+  return unwrap(res);
+}
+
+export async function createStaffProfile(body: Record<string, unknown> | FormData) {
+  const res = await adminRequest<Record<string, unknown>>("v1/staff/profiles/create/", {
     method: "POST",
     body,
   });

@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,16 +9,24 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
-import { subscriptionPlans, profiles } from "@/data/mockData";
+import { subscriptionPlans } from "@/data/mockData";
 import {
   Banknote, Smartphone, QrCode, IndianRupee, CheckCircle2, Clock, AlertTriangle,
   Plus, Receipt, Search, Download, Eye, ArrowRight, ArrowLeft, User, CreditCard,
   FileText, ShieldCheck, PartyPopper, Send, Timer
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { fetchStaffProfiles } from "@/lib/admin-api/profiles";
+import {
+  createStaffPayment,
+  downloadStaffPaymentReceiptPdf,
+  fetchStaffPayments,
+  fetchStaffPaymentsSummary,
+  type StaffPaymentMode,
+  type StaffPaymentStatus,
+} from "@/lib/admin-api/staff-payments";
 
 interface PaymentRecord {
-  id: number;
   receiptNo: string;
   customerName: string;
   profileId: string;
@@ -34,25 +43,60 @@ interface PaymentRecord {
   notes: string;
 }
 
-const initialPayments: PaymentRecord[] = [
-  { id: 1, receiptNo: "RCP-2026-001", customerName: "Priya Sharma", profileId: "AMP001", plan: "Gold", amount: 9000, discount: 0, finalAmount: 9000, paymentMode: "Cash", upiRefNo: "", physicalReceiptNo: "PH-001", cashierReceiptNo: "CSH-001", date: "2026-03-04 10:30 AM", status: "verified", notes: "" },
-  { id: 2, receiptNo: "RCP-2026-002", customerName: "Rajesh Kumar", profileId: "AMP002", plan: "Platinum", amount: 15000, discount: 500, finalAmount: 14500, paymentMode: "GPay/UPI", upiRefNo: "UPI-38472910384", physicalReceiptNo: "", cashierReceiptNo: "", date: "2026-03-04 11:15 AM", status: "completed", notes: "" },
-  { id: 3, receiptNo: "RCP-2026-003", customerName: "Deepa Rajan", profileId: "AMP003", plan: "Silver", amount: 5000, discount: 0, finalAmount: 5000, paymentMode: "Cash", upiRefNo: "", physicalReceiptNo: "PH-003", cashierReceiptNo: "CSH-003", date: "2026-03-03 02:45 PM", status: "pending", notes: "" },
-  { id: 4, receiptNo: "RCP-2026-004", customerName: "Karthik M", profileId: "AMP004", plan: "Diamond", amount: 25000, discount: 1000, finalAmount: 24000, paymentMode: "GPay/UPI", upiRefNo: "UPI-58291037462", physicalReceiptNo: "", cashierReceiptNo: "", date: "2026-03-03 04:10 PM", status: "verified", notes: "" },
-  { id: 5, receiptNo: "RCP-2026-005", customerName: "Arun S", profileId: "AMP005", plan: "Gold", amount: 9000, discount: 0, finalAmount: 9000, paymentMode: "Cash", upiRefNo: "", physicalReceiptNo: "PH-005", cashierReceiptNo: "CSH-005", date: "2026-03-02 09:20 AM", status: "completed", notes: "" },
-];
-
 const STEPS_CASH = ["Customer Details", "Plan Selection", "Receipt & Cashier", "OTP Verification", "Confirmation"];
 const STEPS_UPI = ["Customer Details", "Plan Selection", "UPI Payment", "Verification", "Confirmation"];
 
 export default function CashPaymentDashboard() {
-  const [payments, setPayments] = useState<PaymentRecord[]>(initialPayments);
   const [showNewPayment, setShowNewPayment] = useState(false);
   const [showViewReceipt, setShowViewReceipt] = useState(false);
   const [viewPayment, setViewPayment] = useState<PaymentRecord | null>(null);
   const [search, setSearch] = useState("");
   const [filterMode, setFilterMode] = useState("All");
   const { toast } = useToast();
+  const qc = useQueryClient();
+
+  const summaryQ = useQuery({
+    queryKey: ["staff", "payments", "summary"],
+    queryFn: () => fetchStaffPaymentsSummary(),
+  });
+
+  const modeParam: StaffPaymentMode | undefined =
+    filterMode === "Cash" ? "cash" : filterMode === "GPay/UPI" ? "gpay_upi" : undefined;
+
+  const listQ = useQuery({
+    queryKey: ["staff", "payments", "list", search, filterMode],
+    queryFn: () =>
+      fetchStaffPayments({
+        search: search.trim() || undefined,
+        mode: modeParam,
+        page_size: 100,
+      }),
+  });
+
+  const staffProfilesQ = useQuery({
+    queryKey: ["staff", "profiles", "list", "payments-picker"],
+    queryFn: () => fetchStaffProfiles({ page_size: 100 }),
+  });
+
+  const payments: PaymentRecord[] = useMemo(() => {
+    const rows = listQ.data?.results ?? [];
+    return rows.map((r) => ({
+      receiptNo: r.receipt_id,
+      customerName: r.customer.name,
+      profileId: r.customer.matri_id,
+      plan: r.plan.name,
+      amount: Number(r.amount),
+      discount: 0,
+      finalAmount: Number(r.amount),
+      paymentMode: r.mode === "cash" ? "Cash" : "GPay/UPI",
+      upiRefNo: r.reference_no ?? "",
+      physicalReceiptNo: "",
+      cashierReceiptNo: "",
+      date: new Date(r.created_at).toLocaleString("en-IN"),
+      status: r.status,
+      notes: r.notes ?? "",
+    }));
+  }, [listQ.data?.results]);
 
   // Wizard state
   const [paymentMode, setPaymentMode] = useState<"Cash" | "GPay/UPI" | "">("");
@@ -113,28 +157,50 @@ export default function CashPaymentDashboard() {
     }, 2500);
   };
 
+  const createMut = useMutation({
+    mutationFn: (body: {
+      mode: StaffPaymentMode;
+      customer_matri_id: string;
+      plan_id: number;
+      amount: number;
+      reference_no?: string;
+      notes?: string;
+    }) => createStaffPayment(body),
+    onSuccess: async (created) => {
+      toast({ title: "Payment Recorded", description: `Receipt ${created.receipt_id}` });
+      setShowNewPayment(false);
+      resetWizard();
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["staff", "payments", "summary"] }),
+        qc.invalidateQueries({ queryKey: ["staff", "payments", "list"] }),
+      ]);
+    },
+    onError: (e) => toast({ title: "Failed", description: (e as Error).message, variant: "destructive" }),
+  });
+
   const completePayment = () => {
-    const record: PaymentRecord = {
-      id: payments.length + 1,
-      receiptNo: `RCP-2026-${String(payments.length + 1).padStart(3, "0")}`,
-      customerName: form.customerName,
-      profileId: form.profileId || "N/A",
-      plan: form.plan,
-      amount: form.amount,
-      discount: form.discount,
-      finalAmount,
-      paymentMode: paymentMode as "Cash" | "GPay/UPI",
-      upiRefNo: form.upiRefNo,
-      physicalReceiptNo: form.physicalReceiptNo,
-      cashierReceiptNo: form.cashierReceiptNo,
-      date: new Date().toLocaleString("en-IN"),
-      status: "verified",
+    const plan = subscriptionPlans.find((p) => p.name === form.plan);
+    if (!plan) {
+      toast({ title: "Missing plan", description: "Please select a plan.", variant: "destructive" });
+      return;
+    }
+    if (form.discount > 0) {
+      toast({
+        title: "Discount not supported",
+        description: "Backend requires amount to match plan price. Remove discount to continue.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const mode: StaffPaymentMode = paymentMode === "Cash" ? "cash" : "gpay_upi";
+    createMut.mutate({
+      mode,
+      customer_matri_id: form.profileId,
+      plan_id: plan.id,
+      amount: plan.price,
+      reference_no: form.upiRefNo || undefined,
       notes: "",
-    };
-    setPayments([record, ...payments]);
-    toast({ title: "Payment Recorded!", description: `Receipt ${record.receiptNo} — ₹${record.finalAmount.toLocaleString()} from ${record.customerName}` });
-    setShowNewPayment(false);
-    resetWizard();
+    });
   };
 
   const handleOtpChange = (index: number, value: string) => {
@@ -160,30 +226,19 @@ export default function CashPaymentDashboard() {
     return true;
   };
 
-  // Dashboard stats
-  const todaysCash = payments.filter(p => p.paymentMode === "Cash" && p.date.includes("2026-03-04")).reduce((s, p) => s + p.finalAmount, 0);
-  const todaysUPI = payments.filter(p => p.paymentMode === "GPay/UPI" && p.date.includes("2026-03-04")).reduce((s, p) => s + p.finalAmount, 0);
-  const pendingCount = payments.filter(p => p.status === "pending").length;
-
-  const filtered = payments.filter(p => {
-    const matchSearch = p.customerName.toLowerCase().includes(search.toLowerCase()) || p.receiptNo.toLowerCase().includes(search.toLowerCase());
-    if (filterMode === "All") return matchSearch;
-    return matchSearch && p.paymentMode === filterMode;
-  });
+  const filtered = payments;
 
   const downloadReceipt = (p: PaymentRecord) => {
-    const text = `=== AISWARYA MATRIMONY - PAYMENT RECEIPT ===\nReceipt No: ${p.receiptNo}\nDate: ${p.date}\nCustomer: ${p.customerName}\nProfile ID: ${p.profileId}\nPlan: ${p.plan}\nAmount: ₹${p.amount.toLocaleString()}\nDiscount: ₹${p.discount.toLocaleString()}\nTotal Paid: ₹${p.finalAmount.toLocaleString()}\nPayment Mode: ${p.paymentMode}\n${p.upiRefNo ? `UPI Ref: ${p.upiRefNo}\n` : ""}Status: ${p.status}\n=============================================`;
-    const blob = new Blob([text], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = `${p.receiptNo}.txt`; a.click();
-    URL.revokeObjectURL(url);
+    downloadStaffPaymentReceiptPdf(p.receiptNo).catch((e) =>
+      toast({ title: "Download failed", description: (e as Error).message, variant: "destructive" }),
+    );
   };
 
   const kpis = [
-    { label: "Today's Cash", value: `₹${todaysCash.toLocaleString()}`, icon: Banknote, color: "text-success", bg: "bg-success/10" },
-    { label: "Today's UPI/GPay", value: `₹${todaysUPI.toLocaleString()}`, icon: Smartphone, color: "text-primary", bg: "bg-primary/10" },
-    { label: "Total Today", value: `₹${(todaysCash + todaysUPI).toLocaleString()}`, icon: IndianRupee, color: "text-accent-foreground", bg: "bg-accent/20" },
-    { label: "Pending", value: String(pendingCount), icon: Clock, color: "text-warning", bg: "bg-warning/10" },
+    { label: "Today's Cash", value: `₹${Number(summaryQ.data?.today_cash ?? 0).toLocaleString()}`, icon: Banknote, color: "text-success", bg: "bg-success/10" },
+    { label: "Today's UPI/GPay", value: `₹${Number(summaryQ.data?.today_upi_gpay ?? 0).toLocaleString()}`, icon: Smartphone, color: "text-primary", bg: "bg-primary/10" },
+    { label: "Total Today", value: `₹${Number(summaryQ.data?.total_today ?? 0).toLocaleString()}`, icon: IndianRupee, color: "text-accent-foreground", bg: "bg-accent/20" },
+    { label: "Pending", value: String(summaryQ.data?.pending_count ?? 0), icon: Clock, color: "text-warning", bg: "bg-warning/10" },
   ];
 
   // ───── Render Step Content ─────
@@ -202,13 +257,20 @@ export default function CashPaymentDashboard() {
           <div>
             <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Profile ID / Mobile Number</Label>
             <div className="grid grid-cols-2 gap-3 mt-1.5">
-              <Select value={form.profileId} onValueChange={(v) => {
-                const prof = profiles.find(p => p.id === v);
-                setForm(f => ({ ...f, profileId: v, customerName: prof?.name || f.customerName }));
-              }}>
+              <Select
+                value={form.profileId}
+                onValueChange={(v) => {
+                  const prof = staffProfilesQ.data?.results?.find((p) => p.matri_id === v);
+                  setForm((f) => ({ ...f, profileId: v, customerName: prof?.name || f.customerName }));
+                }}
+              >
                 <SelectTrigger><SelectValue placeholder="Select Profile ID" /></SelectTrigger>
                 <SelectContent>
-                  {profiles.map(p => <SelectItem key={p.id} value={p.id}>{p.id} — {p.name}</SelectItem>)}
+                  {(staffProfilesQ.data?.results ?? []).map((p) => (
+                    <SelectItem key={p.matri_id} value={p.matri_id}>
+                      {p.matri_id} — {p.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               <Input placeholder="Or enter mobile number" value={form.mobile} onChange={e => setForm(f => ({ ...f, mobile: e.target.value }))} />
@@ -424,7 +486,7 @@ export default function CashPaymentDashboard() {
         </div>
         <Card className="border-2 border-success/30 bg-gradient-to-br from-success/5 to-background">
           <CardContent className="p-4 space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-muted-foreground">Receipt No</span><span className="font-mono font-bold">RCP-2026-{String(payments.length + 1).padStart(3, "0")}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Receipt No</span><span className="font-mono font-bold">Auto-generated</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">Customer</span><span className="font-semibold">{form.customerName}</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">Plan</span><span>{form.plan}</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">Amount Paid</span><span className="font-bold text-primary">₹{finalAmount.toLocaleString()}</span></div>
@@ -492,8 +554,8 @@ export default function CashPaymentDashboard() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map(p => (
-                <TableRow key={p.id}>
+              {filtered.map((p) => (
+                <TableRow key={p.receiptNo}>
                   <TableCell className="font-mono text-xs">{p.receiptNo}</TableCell>
                   <TableCell className="font-medium">{p.customerName}</TableCell>
                   <TableCell><Badge variant="outline">{p.plan}</Badge></TableCell>

@@ -2,10 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { KPICard } from "@/components/dashboard/KPICard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useRole } from "@/contexts/RoleContext";
-import {
-  fetchStaffCommissions,
-  fetchStaffSubscriptions,
-} from "@/lib/admin-api/scoped";
+import { fetchStaffDashboardRecentActivity, fetchStaffDashboardSummary } from "@/lib/admin-api/staff-dashboard";
 import {
   BarChart,
   Bar,
@@ -20,56 +17,44 @@ import { Activity, Loader2 } from "lucide-react";
 export default function StaffDashboard() {
   const { userName } = useRole();
 
-  const subsQ = useQuery({
-    queryKey: ["staff", "subscriptions", "dash"],
-    queryFn: () => fetchStaffSubscriptions({ page_size: 1 }),
+  const summaryQ = useQuery({
+    queryKey: ["staff", "dashboard", "summary"],
+    queryFn: () => fetchStaffDashboardSummary(),
   });
 
-  const commQ = useQuery({
-    queryKey: ["staff", "commissions", "dash"],
-    queryFn: () => fetchStaffCommissions({ page_size: 100 }),
+  const activityQ = useQuery({
+    queryKey: ["staff", "dashboard", "recent-activity"],
+    queryFn: () => fetchStaffDashboardRecentActivity(),
   });
 
-  const subCount = subsQ.data?.count ?? 0;
-  const s = commQ.data?.summary;
-
-  const commissionByMonth = (() => {
-    const rows = commQ.data?.results ?? [];
-    const map = new Map<string, number>();
-    rows.forEach((r) => {
-      const m = r.date?.slice(0, 7) || "unknown";
-      map.set(m, (map.get(m) ?? 0) + Number(r.commission));
-    });
-    return Array.from(map.entries())
-      .map(([month, commission]) => ({ month, commission }))
-      .slice(-12);
-  })();
+  const d = summaryQ.data;
+  const commissionByMonth = [{ month: "This month", commission: d?.commission_earned.amount ?? 0 }];
 
   const kpis = [
     {
-      label: "Assigned subscriptions",
-      value: String(subCount),
-      change: "—",
+      label: "My Profiles",
+      value: d ? String(d.my_profiles.count) : "—",
+      change: d?.my_profiles.growth_pct ?? "—",
       trend: "neutral" as const,
       icon: "Users",
     },
     {
-      label: "Pending commission",
-      value: s ? `₹${Number(s.total_pending).toLocaleString()}` : "—",
-      change: "—",
-      trend: "neutral" as const,
-      icon: "Wallet",
-    },
-    {
-      label: "Approved",
-      value: s ? `₹${Number(s.approved).toLocaleString()}` : "—",
-      change: "—",
+      label: "Subscriptions This Month",
+      value: d ? String(d.subscriptions_this_month.count) : "—",
+      change: d?.subscriptions_this_month.growth_pct ?? "—",
       trend: "neutral" as const,
       icon: "CreditCard",
     },
     {
-      label: "Paid",
-      value: s ? `₹${Number(s.paid).toLocaleString()}` : "—",
+      label: "Commission Earned",
+      value: d ? `₹${Number(d.commission_earned.amount).toLocaleString()}` : "—",
+      change: d?.commission_earned.growth_pct ?? "—",
+      trend: "neutral" as const,
+      icon: "Wallet",
+    },
+    {
+      label: "Branch",
+      value: d?.branch ?? "—",
       change: "—",
       trend: "neutral" as const,
       icon: "IndianRupee",
@@ -85,10 +70,16 @@ export default function StaffDashboard() {
         </p>
       </div>
 
-      {(subsQ.isLoading || commQ.isLoading) && (
+      {(summaryQ.isLoading || activityQ.isLoading) && (
         <div className="flex items-center gap-2 text-muted-foreground text-sm">
           <Loader2 className="h-4 w-4 animate-spin" /> Loading…
         </div>
+      )}
+
+      {(summaryQ.error || activityQ.error) && (
+        <p className="text-destructive text-sm">
+          {((summaryQ.error || activityQ.error) as Error).message}
+        </p>
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -100,7 +91,7 @@ export default function StaffDashboard() {
       <Card className="shadow-elegant border-0">
         <CardHeader className="pb-2">
           <CardTitle className="text-base font-semibold">
-            Commission by month (from ledger)
+            Commission Earned (this month)
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -141,9 +132,24 @@ export default function StaffDashboard() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Recent activity feed is not available from the API in this build.
-          </p>
+          {(activityQ.data?.items?.length ?? 0) === 0 ? (
+            <p className="text-sm text-muted-foreground">No recent activity.</p>
+          ) : (
+            <div className="space-y-3">
+              {activityQ.data!.items.map((it) => (
+                <div key={it.id} className="flex items-start justify-between gap-4 border-b border-border/50 pb-3 last:border-0">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">{it.action_display}</p>
+                    <p className="text-xs text-muted-foreground truncate">{it.details}</p>
+                    <p className="text-[10px] text-muted-foreground mt-1 truncate">
+                      {it.resource}{it.ip_address ? ` • ${it.ip_address}` : ""}
+                    </p>
+                  </div>
+                  <p className="text-xs text-muted-foreground whitespace-nowrap">{it.timestamp}</p>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

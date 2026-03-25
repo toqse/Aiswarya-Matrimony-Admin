@@ -45,7 +45,7 @@ const staffItems = [
   { title: "Enquiries", url: "/my-enquiries", icon: MessageSquare },
   { title: "Subscriptions", url: "/my-subscriptions", icon: CreditCard },
   { title: "Cash Payment Entry", url: "/cash-entry", icon: Banknote },
-  { title: "Activity Log", url: "/activity-log", icon: Activity },
+  //{ title: "Activity Log", url: "/activity-log", icon: Activity },
 ];
 
 const branchManagerItems = [

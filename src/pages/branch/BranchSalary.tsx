@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useRole } from "@/contexts/RoleContext";
 import { approveBranchPayroll, downloadBranchSalarySlip, fetchBranchPayrollList, fetchBranchPayrollSummary } from "@/lib/admin-api/payroll";
-import { IndianRupee, Users, Loader2, Clock } from "lucide-react";
+import { Check, FileText, IndianRupee, Users, Loader2, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function BranchSalary() {
@@ -47,6 +47,9 @@ export default function BranchSalary() {
       return acc;
     }, new Set<string>()),
   );
+
+  const actionIconBtn =
+    "h-8 w-8 shrink-0 rounded-full border-0 shadow-none transition-colors focus-visible:ring-2 focus-visible:ring-offset-1";
 
   const kpis = [
     { label: "Branch Net Payroll", value: summary ? `₹${Number(summary.branch_net_payroll).toLocaleString()}` : "—", icon: IndianRupee, color: "text-emerald-600", bg: "bg-emerald-50" },
@@ -118,27 +121,35 @@ export default function BranchSalary() {
                     <div className="flex gap-1 justify-center">
                       {String(r.status ?? "").toLowerCase() === "draft" && (
                         <Button
-                          size="sm"
-                          variant="outline"
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          title="Approve"
+                          aria-label="Approve"
+                          className={`${actionIconBtn} bg-emerald-100 text-emerald-600 hover:bg-emerald-200 hover:text-emerald-700 focus-visible:ring-emerald-400`}
                           onClick={() => {
                             const id = Number(r.id);
                             if (Number.isFinite(id)) approveMut.mutate(id);
                           }}
                           disabled={approveMut.isPending}
                         >
-                          Approve
+                          <Check className="h-4 w-4" />
                         </Button>
                       )}
                       <Button
-                        size="sm"
-                        variant="outline"
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        title="Slip"
+                        aria-label="Slip"
+                        className={`${actionIconBtn} bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-700 focus-visible:ring-slate-400`}
                         onClick={() => {
                           const id = Number(r.id);
                           if (Number.isFinite(id)) downloadMut.mutate(id);
                         }}
                         disabled={downloadMut.isPending}
                       >
-                        Slip
+                        <FileText className="h-4 w-4" />
                       </Button>
                     </div>
                   </TableCell>

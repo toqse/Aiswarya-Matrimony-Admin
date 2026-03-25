@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -7,13 +8,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { enquiries as initialEnquiries, type Enquiry, type EnquiryStatus, type EnquirySource } from "@/data/mockData";
 import {
   Plus, Search, ArrowRight, Phone, Clock, AlertTriangle, MessageSquare,
-  UserPlus, Globe, Footprints, Mail, CreditCard, TrendingUp, Users, Zap, Eye, Trash2
+  Globe, Footprints, Mail, CreditCard, TrendingUp, Users, Zap, Eye, Trash2
 } from "lucide-react";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
+import type { LucideIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import type { EnquiryRow, EnquirySource, EnquiryStatus } from "@/lib/admin-api/enquiries";
+import {
+  addStaffEnquiryNote,
+  createStaffEnquiry,
+  fetchStaffEnquiries,
+  fetchStaffEnquirySummary,
+  moveStaffEnquiry,
+} from "@/lib/admin-api/staff-enquiries";
 
 const stages: { key: EnquiryStatus; label: string; color: string; bg: string; gradient: string; iconBg: string }[] = [
   { key: "new", label: "New", color: "text-blue-600", bg: "bg-blue-50 border-blue-200", gradient: "from-blue-500 to-blue-600", iconBg: "bg-blue-100" },
@@ -23,77 +31,127 @@ const stages: { key: EnquiryStatus; label: string; color: string; bg: string; gr
   { key: "lost", label: "Lost", color: "text-rose-600", bg: "bg-rose-50 border-rose-200", gradient: "from-rose-500 to-rose-600", iconBg: "bg-rose-100" },
 ];
 
-const sourceIcons: Record<string, any> = {
-  Website: Globe, "Walk-in": Footprints, Phone: Phone, WhatsApp: MessageSquare, Email: Mail,
+const sourceIcons: Record<EnquirySource, LucideIcon> = {
+  website: Globe,
+  "walk-in": Footprints,
+  phone: Phone,
+  whatsapp: MessageSquare,
+  email: Mail,
 };
 
-const COLORS = ["hsl(333, 60%, 34%)", "hsl(40, 100%, 58%)", "hsl(8, 100%, 85%)", "hsl(160, 60%, 45%)", "hsl(220, 60%, 50%)"];
-
 export default function StaffEnquiries() {
-  const [enquiries, setEnquiries] = useState<Enquiry[]>(initialEnquiries);
   const [showAddEnquiry, setShowAddEnquiry] = useState(false);
-  const [showFollowUp, setShowFollowUp] = useState<Enquiry | null>(null);
-  const [showViewLead, setShowViewLead] = useState<Enquiry | null>(null);
+  const [showFollowUp, setShowFollowUp] = useState<EnquiryRow | null>(null);
+  const [showViewLead, setShowViewLead] = useState<EnquiryRow | null>(null);
   const [followUpNote, setFollowUpNote] = useState("");
   const [search, setSearch] = useState("");
-  const [newEnquiry, setNewEnquiry] = useState<Partial<Enquiry>>({
-    name: "", phone: "", source: "Walk-in", notes: "", status: "new",
+  const [newEnquiry, setNewEnquiry] = useState<{
+    name: string;
+    phone: string;
+    email: string;
+    source: EnquirySource;
+  }>({
+    name: "",
+    phone: "",
+    email: "",
+    source: "walk-in",
   });
   const { toast } = useToast();
+  const qc = useQueryClient();
 
-  const filtered = enquiries.filter((e) =>
-    e.name.toLowerCase().includes(search.toLowerCase()) || e.phone.includes(search)
-  );
+  const summaryQ = useQuery({
+    queryKey: ["staff", "enquiries", "summary"],
+    queryFn: () => fetchStaffEnquirySummary(),
+  });
 
-  const leadSourceData = ["Website", "Walk-in", "Phone", "WhatsApp", "Email"].map((s) => ({
-    name: s, value: enquiries.filter((e) => e.source === s).length,
-  }));
+  const listQ = useQuery({
+    queryKey: ["staff", "enquiries", "list", search],
+    queryFn: () =>
+      fetchStaffEnquiries({
+        search: search.trim() || undefined,
+        page_size: 100,
+      }),
+  });
 
-  const overdueEnquiries = enquiries.filter(
-    (e) => e.status !== "converted" && e.status !== "lost" && new Date(e.date) < new Date(Date.now() - 3 * 86400000)
-  );
+  const fetchedEnquiries = listQ.data?.results;
+  const enquiries = useMemo(() => fetchedEnquiries ?? [], [fetchedEnquiries]);
 
-  const conversionRate = enquiries.length > 0
-    ? ((enquiries.filter(e => e.status === "converted").length / enquiries.length) * 100).toFixed(0)
-    : "0";
+  const overdueEnquiries = useMemo(() => {
+    const threshold = Date.now() - 3 * 86400000;
+    return enquiries.filter((e) => {
+      if (e.status === "converted" || e.status === "lost") return false;
+      const ts = Date.parse(e.updated_at || e.created_at);
+      return Number.isFinite(ts) && ts < threshold;
+    });
+  }, [enquiries]);
+
+  const conversionRate = useMemo(() => {
+    if (enquiries.length === 0) return "0";
+    return ((enquiries.filter((e) => e.status === "converted").length / enquiries.length) * 100).toFixed(0);
+  }, [enquiries]);
+
+  const moveMut = useMutation({
+    mutationFn: ({ id, status }: { id: number; status: Exclude<EnquiryStatus, "new"> }) =>
+      moveStaffEnquiry(id, status),
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["staff", "enquiries", "summary"] }),
+        qc.invalidateQueries({ queryKey: ["staff", "enquiries", "list"] }),
+      ]);
+    },
+    onError: (e) => toast({ title: "Failed", description: (e as Error).message, variant: "destructive" }),
+  });
+
+  const createMut = useMutation({
+    mutationFn: (body: { name: string; phone: string; email?: string; source: EnquirySource }) =>
+      createStaffEnquiry(body),
+    onSuccess: async (created) => {
+      toast({ title: "Enquiry Added", description: `New lead: ${created.name}` });
+      setShowAddEnquiry(false);
+      setNewEnquiry({ name: "", phone: "", email: "", source: "walk-in" });
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["staff", "enquiries", "summary"] }),
+        qc.invalidateQueries({ queryKey: ["staff", "enquiries", "list"] }),
+      ]);
+    },
+    onError: (e) => toast({ title: "Failed", description: (e as Error).message, variant: "destructive" }),
+  });
+
+  const noteMut = useMutation({
+    mutationFn: ({ id, text }: { id: number; text: string }) => addStaffEnquiryNote(id, text),
+    onSuccess: async () => {
+      toast({ title: "Follow-up Logged", description: `Note added for ${showFollowUp?.name ?? "lead"}` });
+      setShowFollowUp(null);
+      setFollowUpNote("");
+      await qc.invalidateQueries({ queryKey: ["staff", "enquiries", "list"] });
+    },
+    onError: (e) => toast({ title: "Failed", description: (e as Error).message, variant: "destructive" }),
+  });
 
   const moveStage = (id: number, newStatus: EnquiryStatus) => {
-    setEnquiries((prev) => prev.map((e) => e.id === id ? { ...e, status: newStatus } : e));
-    toast({ title: "Status Updated", description: `Lead moved to ${newStatus}` });
-  };
-
-  const convertToSubscription = (e: Enquiry) => {
-    setEnquiries((prev) => prev.map((eq) => eq.id === e.id ? { ...eq, status: "converted" as EnquiryStatus } : eq));
-    toast({ title: "Converted!", description: `${e.name} converted to subscription — redirecting to subscription creation` });
-  };
-
-  const markAsLost = (e: Enquiry) => {
-    setEnquiries((prev) => prev.map((eq) => eq.id === e.id ? { ...eq, status: "lost" as EnquiryStatus } : eq));
-    toast({ title: "Marked as Lost", description: `${e.name} moved to lost` });
+    if (newStatus === "new") return;
+    moveMut.mutate({ id, status: newStatus });
+    toast({ title: "Updating…", description: `Moving lead to ${newStatus}` });
   };
 
   const addEnquiry = () => {
-    const id = Math.max(...enquiries.map((e) => e.id)) + 1;
-    setEnquiries([...enquiries, {
-      id, name: newEnquiry.name!, phone: newEnquiry.phone!, source: newEnquiry.source as EnquirySource,
-      status: "new" as const, assignedTo: "Anitha Lakshmi", branch: "Chennai Central",
-      date: new Date().toISOString().split("T")[0], notes: newEnquiry.notes!,
-    }]);
-    setShowAddEnquiry(false);
-    setNewEnquiry({ name: "", phone: "", source: "Walk-in", notes: "", status: "new" });
-    toast({ title: "Enquiry Added", description: `New lead: ${newEnquiry.name}` });
+    createMut.mutate({
+      name: newEnquiry.name,
+      phone: newEnquiry.phone,
+      email: newEnquiry.email || undefined,
+      source: newEnquiry.source,
+    });
   };
 
   const addFollowUp = () => {
-    toast({ title: "Follow-up Logged", description: `Note added for ${showFollowUp?.name}` });
-    setShowFollowUp(null);
-    setFollowUpNote("");
+    if (!showFollowUp) return;
+    noteMut.mutate({ id: showFollowUp.id, text: followUpNote });
   };
 
   const kpis = [
-    { label: "Total Leads", value: enquiries.length, icon: Users, color: "text-blue-600", bg: "bg-blue-50", iconBg: "bg-blue-100" },
+    { label: "Total Leads", value: summaryQ.data?.total ?? enquiries.length, icon: Users, color: "text-blue-600", bg: "bg-blue-50", iconBg: "bg-blue-100" },
     { label: "Active Leads", value: enquiries.filter(e => !["converted", "lost"].includes(e.status)).length, icon: Zap, color: "text-amber-600", bg: "bg-amber-50", iconBg: "bg-amber-100" },
-    { label: "Converted", value: enquiries.filter(e => e.status === "converted").length, icon: TrendingUp, color: "text-emerald-600", bg: "bg-emerald-50", iconBg: "bg-emerald-100" },
+    { label: "Converted", value: summaryQ.data?.pipeline?.converted ?? enquiries.filter(e => e.status === "converted").length, icon: TrendingUp, color: "text-emerald-600", bg: "bg-emerald-50", iconBg: "bg-emerald-100" },
     { label: "Conversion Rate", value: `${conversionRate}%`, icon: CreditCard, color: "text-purple-600", bg: "bg-purple-50", iconBg: "bg-purple-100" },
   ];
 
@@ -151,7 +209,7 @@ export default function StaffEnquiries() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
             {stages.map((stage) => {
-              const stageEnquiries = filtered.filter((e) => e.status === stage.key);
+              const stageEnquiries = enquiries.filter((e) => e.status === stage.key);
               return (
                 <div key={stage.key} className="space-y-2">
                   <div className="flex items-center justify-between">
@@ -165,7 +223,7 @@ export default function StaffEnquiries() {
                     {stageEnquiries.map((e) => {
                       const SourceIcon = sourceIcons[e.source] || Globe;
                       const isOverdue = e.status !== "converted" && e.status !== "lost" &&
-                        new Date(e.date) < new Date(Date.now() - 3 * 86400000);
+                        Date.parse(e.updated_at || e.created_at) < Date.now() - 3 * 86400000;
                       return (
                         <Card key={e.id} className={`shadow-sm border ${stage.bg} hover:shadow-lg transition-all hover:-translate-y-0.5 cursor-pointer ${isOverdue ? "ring-2 ring-destructive/50 animate-pulse" : ""}`}>
                           <CardContent className="p-3 space-y-2">
@@ -179,7 +237,9 @@ export default function StaffEnquiries() {
                               </div>
                               {e.source}
                             </div>
-                            <p className="text-xs text-muted-foreground">Last: {e.date}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Last: {(e.updated_at || e.created_at).slice(0, 10)}
+                            </p>
                             <div className="flex gap-1 flex-wrap">
                               {/* View button for all stages */}
                               <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2 text-blue-600 hover:bg-blue-50"
@@ -192,20 +252,14 @@ export default function StaffEnquiries() {
                                     onClick={() => setShowFollowUp(e)}>
                                     <Clock className="h-3 w-3 mr-1" /> Follow-up
                                   </Button>
-                                  {stage.key === "interested" && (
-                                    <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2 text-emerald-600 hover:bg-emerald-50"
-                                      onClick={() => convertToSubscription(e)}>
-                                      <CreditCard className="h-3 w-3 mr-1" /> Convert
-                                    </Button>
-                                  )}
-                                  {stage.key !== "interested" && (
+                                  {stage.key !== "lost" && stage.key !== "converted" && (
                                     <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2 text-violet-600 hover:bg-violet-50"
                                       onClick={() => moveStage(e.id, stages[stages.findIndex(s => s.key === stage.key) + 1]?.key || stage.key)}>
                                       <ArrowRight className="h-3 w-3" />
                                     </Button>
                                   )}
                                   <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2 text-rose-500 hover:bg-rose-50"
-                                    onClick={() => markAsLost(e)}>
+                                    onClick={() => moveStage(e.id, "lost")}>
                                     <Trash2 className="h-3 w-3" />
                                   </Button>
                                 </>
@@ -222,25 +276,7 @@ export default function StaffEnquiries() {
           </div>
         </div>
 
-        {/* Lead Source Chart */}
         <div className="space-y-4">
-          <Card className="shadow-elegant border-0 hover:shadow-lg transition-shadow">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold">Lead Sources</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={220}>
-                <PieChart>
-                  <Pie data={leadSourceData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={3} dataKey="value"
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
-                    {leadSourceData.map((_, i) => <Cell key={i} fill={COLORS[i]} />)}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
           {/* Follow-up Timeline */}
           <Card className="shadow-elegant border-0 hover:shadow-lg transition-shadow">
             <CardHeader className="pb-2">
@@ -255,7 +291,9 @@ export default function StaffEnquiries() {
                     <div className="flex-1">
                       <p className="font-medium text-xs">{e.name}</p>
                       <p className="text-xs text-muted-foreground">{e.notes}</p>
-                      <p className="text-[10px] text-muted-foreground mt-0.5">{e.date}</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
+                        {(e.updated_at || e.created_at).slice(0, 10)}
+                      </p>
                     </div>
                   </div>
                 );
@@ -292,24 +330,26 @@ export default function StaffEnquiries() {
           <div className="space-y-4">
             <div><Label>Name *</Label><Input value={newEnquiry.name} onChange={(e) => setNewEnquiry({ ...newEnquiry, name: e.target.value })} placeholder="Lead name" /></div>
             <div><Label>Phone *</Label><Input value={newEnquiry.phone} onChange={(e) => setNewEnquiry({ ...newEnquiry, phone: e.target.value })} placeholder="Phone number" /></div>
+            <div><Label>Email</Label><Input value={newEnquiry.email} onChange={(e) => setNewEnquiry({ ...newEnquiry, email: e.target.value })} placeholder="Email (optional)" /></div>
             <div>
               <Label>Source *</Label>
               <Select value={newEnquiry.source} onValueChange={(v) => setNewEnquiry({ ...newEnquiry, source: v as EnquirySource })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Website">Website</SelectItem>
-                  <SelectItem value="Walk-in">Walk-in</SelectItem>
-                  <SelectItem value="Phone">Phone</SelectItem>
-                  <SelectItem value="WhatsApp">WhatsApp</SelectItem>
-                  <SelectItem value="Email">Email</SelectItem>
+                  <SelectItem value="website">Website</SelectItem>
+                  <SelectItem value="walk-in">Walk-in</SelectItem>
+                  <SelectItem value="phone">Phone</SelectItem>
+                  <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                  <SelectItem value="email">Email</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div><Label>Notes</Label><Textarea value={newEnquiry.notes} onChange={(e) => setNewEnquiry({ ...newEnquiry, notes: e.target.value })} placeholder="Initial notes..." rows={3} /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAddEnquiry(false)}>Cancel</Button>
-            <Button onClick={addEnquiry} disabled={!newEnquiry.name || !newEnquiry.phone}>Add Lead</Button>
+            <Button onClick={addEnquiry} disabled={!newEnquiry.name || !newEnquiry.phone || createMut.isPending}>
+              {createMut.isPending ? "Saving…" : "Add Lead"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

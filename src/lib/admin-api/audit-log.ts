@@ -10,7 +10,7 @@ export interface AuditLogRow {
   id: number;
   timestamp: string;
   actor_name: string;
-  actor_role: "admin" | "branch_manager" | "staff";
+  actor_role: "admin" | "branch_manager" | "staff" | string;
   action: string;
   action_display: string;
   resource: string;
@@ -35,6 +35,45 @@ export interface AuditLogFilters {
   page_size?: number;
 }
 
+function pickFirstString(...values: unknown[]) {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value;
+  }
+  return "";
+}
+
+function normalizeAuditLogRow(row: unknown, index: number): AuditLogRow {
+  const source = (row && typeof row === "object" ? row : {}) as Record<string, unknown>;
+  const actorRole = pickFirstString(source.actor_role, source.role);
+  const action = pickFirstString(source.action, source.action_type);
+  const actionDisplay = pickFirstString(source.action_display, source.action_label, action);
+  const idValue = source.id;
+  const id = typeof idValue === "number" ? idValue : index + 1;
+
+  return {
+    id,
+    timestamp: pickFirstString(source.timestamp, source.created_at, source.time),
+    actor_name: pickFirstString(
+      source.actor_name,
+      source.user,
+      source.username,
+      source.user_name,
+      source.actor,
+    ),
+    actor_role: actorRole,
+    action,
+    action_display: actionDisplay,
+    resource: pickFirstString(source.resource, source.resource_name),
+    details: pickFirstString(
+      source.details,
+      source.description,
+      source.message,
+      typeof source.details === "object" ? JSON.stringify(source.details) : "",
+    ),
+    ip_address: pickFirstString(source.ip_address, source.ip, source.client_ip),
+  };
+}
+
 function toQs(params?: Record<string, string | number | undefined>) {
   const q = new URLSearchParams();
   if (params) {
@@ -48,10 +87,29 @@ function toQs(params?: Record<string, string | number | undefined>) {
 
 export async function fetchAuditLogs(filters?: AuditLogFilters) {
   const res = await adminRequest<AuditLogListData>(`v1/admin/audit-log/${toQs(filters)}`);
-  return unwrap(res);
+  const payload = await unwrap(res);
+  const results = Array.isArray(payload?.results)
+    ? payload.results.map((row, index) => normalizeAuditLogRow(row, index))
+    : [];
+
+  return {
+    count: typeof payload?.count === "number" ? payload.count : results.length,
+    next: payload?.next ?? null,
+    previous: payload?.previous ?? null,
+    results,
+  };
 }
 
 export async function fetchAuditLogActions() {
-  const res = await adminRequest<AuditLogActionOption[]>("v1/admin/audit-log/actions/");
-  return unwrap(res);
+  const res = await adminRequest<
+    AuditLogActionOption[] | { data?: AuditLogActionOption[]; results?: AuditLogActionOption[]; actions?: AuditLogActionOption[] }
+  >("v1/admin/audit-log/actions/");
+  const payload = await unwrap(res);
+  if (Array.isArray(payload)) return payload;
+  if (payload && typeof payload === "object") {
+    if (Array.isArray(payload.data)) return payload.data;
+    if (Array.isArray(payload.results)) return payload.results;
+    if (Array.isArray(payload.actions)) return payload.actions;
+  }
+  return [];
 }

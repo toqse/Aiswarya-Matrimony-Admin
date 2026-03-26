@@ -78,7 +78,8 @@ export default function AuditLog() {
     queryFn: fetchAuditLogActions,
   });
 
-  const rows = logsData?.results ?? [];
+  const rows = Array.isArray(logsData?.results) ? logsData.results : [];
+  const actionOptions = Array.isArray(actionsData) ? actionsData : [];
   const total = logsData?.count ?? 0;
   const canPrev = page > 1;
   const canNext = Boolean(logsData?.next);
@@ -126,8 +127,8 @@ export default function AuditLog() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Actions</SelectItem>
-                {(actionsData ?? []).map((a) => (
-                  <SelectItem key={a.value} value={a.value}>
+                {actionOptions.map((a, index) => (
+                  <SelectItem key={`${a.value}-${a.label}-${index}`} value={a.value}>
                     {a.label}
                   </SelectItem>
                 ))}
@@ -221,8 +222,8 @@ export default function AuditLog() {
                   </TableCell>
                 </TableRow>
               ) : (
-                rows.map((l) => (
-                  <TableRow key={l.id}>
+                rows.map((l, index) => (
+                  <TableRow key={l.id ?? `${l.timestamp}-${l.action}-${index}`}>
                     <TableCell className="font-mono text-xs whitespace-nowrap">
                       {l.timestamp}
                     </TableCell>
@@ -231,7 +232,7 @@ export default function AuditLog() {
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline">
-                        {roleLabels[l.actor_role] ?? l.actor_role}
+                        {(roleLabels[String(l.actor_role).toLowerCase()] ?? l.actor_role) || "-"}
                       </Badge>
                     </TableCell>
                     <TableCell>{l.action_display || l.action}</TableCell>

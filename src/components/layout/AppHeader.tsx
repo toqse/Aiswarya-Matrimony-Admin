@@ -1,4 +1,4 @@
-import { Bell, Search, Moon, Sun, ChevronDown, User, UserCircle, Settings, LogOut } from "lucide-react";
+import { Search, User, UserCircle, Settings, LogOut } from "lucide-react";
 import { useRole, UserRole } from "@/contexts/RoleContext";
 import { postAdminLogout } from "@/lib/auth-api";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -6,9 +6,7 @@ import { Button } from "@/components/ui/button";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator
 } from "@/components/ui/dropdown-menu";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 const roleOptions: { value: UserRole; label: string }[] = [
@@ -20,12 +18,6 @@ const roleOptions: { value: UserRole; label: string }[] = [
 export function AppHeader() {
   const { role, logout } = useRole();
   const navigate = useNavigate();
-  const [dark, setDark] = useState(false);
-
-  const toggleDark = () => {
-    setDark(!dark);
-    document.documentElement.classList.toggle("dark");
-  };
 
   const currentRole = roleOptions.find((r) => r.value === role)!;
 
@@ -45,19 +37,6 @@ export function AppHeader() {
       <div className="px-3 py-1.5 rounded-md border border-primary/20 text-primary text-sm font-medium">
         {currentRole.label}
       </div>
-
-      {/* Dark Mode */}
-      <Button variant="ghost" size="icon" onClick={toggleDark} className="h-9 w-9">
-        {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-      </Button>
-
-      {/* Notifications */}
-      <Button variant="ghost" size="icon" className="h-9 w-9 relative">
-        <Bell className="h-4 w-4" />
-        <Badge className="absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center text-[10px] bg-accent text-accent-foreground border-0">
-          5
-        </Badge>
-      </Button>
 
       {/* Profile */}
       <DropdownMenu>

@@ -1,25 +1,13 @@
-import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   fetchGrowthReport,
   fetchPlanPopularityReport,
   fetchProductivityReport,
   fetchProfileCompletionReport,
-  fetchRevenueReport,
 } from "@/lib/admin-api/reports";
 import { useQueries } from "@tanstack/react-query";
 import {
-  AreaChart,
-  Area,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -44,72 +32,48 @@ const COLORS = [
 ];
 
 export default function Reports() {
-  const [period, setPeriod] = useState<"daily" | "monthly" | "yearly">(
-    "monthly",
-  );
-  const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
-  const [branchId, setBranchId] = useState<string>("all");
+  const reportingMonth = new Date().toISOString().slice(0, 7);
 
-  const [revenueQ, productivityQ, growthQ, profileQ, planQ] = useQueries({
+  const [productivityQ, growthQ, profileQ, planQ] = useQueries({
     queries: [
       {
-        queryKey: ["admin", "reports", "revenue", period, branchId],
-        queryFn: () =>
-          fetchRevenueReport({
-            period,
-            branch_id: branchId === "all" ? undefined : Number(branchId),
-          }),
-      },
-      {
-        queryKey: ["admin", "reports", "productivity", month, branchId],
+        queryKey: ["admin", "reports", "productivity", reportingMonth],
         queryFn: () =>
           fetchProductivityReport({
-            month,
-            branch_id: branchId === "all" ? undefined : Number(branchId),
+            month: reportingMonth,
+            branch_id: undefined,
           }),
       },
       {
-        queryKey: ["admin", "reports", "growth", branchId],
+        queryKey: ["admin", "reports", "growth"],
         queryFn: () =>
           fetchGrowthReport({
             period: "monthly",
-            branch_id: branchId === "all" ? undefined : Number(branchId),
+            branch_id: undefined,
           }),
       },
       {
-        queryKey: ["admin", "reports", "profile-completion", branchId],
-        queryFn: () =>
-          fetchProfileCompletionReport({
-            branch_id: branchId === "all" ? undefined : Number(branchId),
-          }),
+        queryKey: ["admin", "reports", "profile-completion"],
+        queryFn: () => fetchProfileCompletionReport({ branch_id: undefined }),
       },
       {
-        queryKey: ["admin", "reports", "plan-popularity", branchId],
-        queryFn: () =>
-          fetchPlanPopularityReport({
-            branch_id: branchId === "all" ? undefined : Number(branchId),
-          }),
+        queryKey: ["admin", "reports", "plan-popularity"],
+        queryFn: () => fetchPlanPopularityReport({ branch_id: undefined }),
       },
     ],
   });
 
   const loading =
-    revenueQ.isLoading ||
     productivityQ.isLoading ||
     growthQ.isLoading ||
     profileQ.isLoading ||
     planQ.isLoading;
   const err =
-    revenueQ.error ||
     productivityQ.error ||
     growthQ.error ||
     profileQ.error ||
     planQ.error;
 
-  const revenueData = (revenueQ.data?.chart ?? []).map((p) => ({
-    month: p.label,
-    revenue: p.value,
-  }));
   const staffPerformance = (productivityQ.data?.chart ?? []).map((p) => ({
     name: p.label,
     revenue: p.value,
@@ -128,6 +92,9 @@ export default function Reports() {
     subscriptions: p.new_subscriptions,
   }));
 
+  const communityPieData =
+    communityData.length > 0 ? communityData : [{ name: "No Data", value: 100 }];
+
   return (
     <div className="space-y-6">
       <div>
@@ -135,34 +102,6 @@ export default function Reports() {
         <p className="text-muted-foreground text-sm mt-1">
           Comprehensive business intelligence
         </p>
-      </div>
-      <div className="flex flex-wrap items-center gap-3">
-        <Select
-          value={period}
-          onValueChange={(v: "daily" | "monthly" | "yearly") => setPeriod(v)}
-        >
-          <SelectTrigger className="w-[140px]">
-            <SelectValue placeholder="Period" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="daily">Daily</SelectItem>
-            <SelectItem value="monthly">Monthly</SelectItem>
-            <SelectItem value="yearly">Yearly</SelectItem>
-          </SelectContent>
-        </Select>
-        <Input
-          type="month"
-          value={month}
-          onChange={(e) => setMonth(e.target.value)}
-          className="w-[180px]"
-        />
-        <Input
-          type="number"
-          value={branchId === "all" ? "" : branchId}
-          onChange={(e) => setBranchId(e.target.value ? e.target.value : "all")}
-          placeholder="Branch ID (optional)"
-          className="w-[220px]"
-        />
       </div>
       {err && (
         <Alert variant="destructive">
@@ -176,69 +115,14 @@ export default function Reports() {
         </div>
       )}
 
-      {/* Revenue Report */}
-      <Card className="shadow-elegant border-0">
-        <CardHeader>
-          <CardTitle className="text-base">Revenue Report</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <AreaChart
-              data={
-                revenueData.length ? revenueData : [{ month: "—", revenue: 0 }]
-              }
-            >
-              <defs>
-                <linearGradient id="rptRev" x1="0" y1="0" x2="0" y2="1">
-                  <stop
-                    offset="5%"
-                    stopColor="hsl(333, 60%, 34%)"
-                    stopOpacity={0.3}
-                  />
-                  <stop
-                    offset="95%"
-                    stopColor="hsl(333, 60%, 34%)"
-                    stopOpacity={0}
-                  />
-                </linearGradient>
-              </defs>
-              <CartesianGrid
-                strokeDasharray="3 3"
-                stroke="hsl(333, 15%, 90%)"
-              />
-              <XAxis
-                dataKey="month"
-                tick={{ fontSize: 12 }}
-                stroke="hsl(333, 10%, 46%)"
-              />
-              <YAxis
-                tick={{ fontSize: 12 }}
-                stroke="hsl(333, 10%, 46%)"
-                tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}K`}
-              />
-              <Tooltip
-                formatter={(v: number) => [`₹${v.toLocaleString()}`, "Revenue"]}
-              />
-              <Area
-                type="monotone"
-                dataKey="revenue"
-                stroke="hsl(333, 60%, 34%)"
-                fill="url(#rptRev)"
-                strokeWidth={2}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Staff Productivity */}
         <Card className="shadow-elegant border-0">
           <CardHeader>
             <CardTitle className="text-base">Staff Productivity</CardTitle>
           </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={280}>
+          <CardContent className="pt-0">
+            <ResponsiveContainer width="100%" height={300}>
               <BarChart
                 data={
                   staffPerformance.length
@@ -282,31 +166,54 @@ export default function Reports() {
           <CardHeader>
             <CardTitle className="text-base">Community Distribution</CardTitle>
           </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={280}>
-              <PieChart>
-                <Pie
-                  data={
-                    communityData.length
-                      ? communityData
-                      : [{ name: "No Data", value: 100 }]
-                  }
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={100}
-                  paddingAngle={2}
-                  dataKey="value"
-                  label={({ name, percent }) =>
-                    `${name} ${(percent * 100).toFixed(0)}%`
-                  }
-                >
-                  {communityData.map((_, i) => (
-                    <Cell key={i} fill={COLORS[i]} />
+          <CardContent className="pt-0">
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+              <div className="mx-auto h-[240px] w-full max-w-[260px] shrink-0 sm:mx-0">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={communityPieData}
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={95}
+                      paddingAngle={1}
+                      dataKey="value"
+                      nameKey="name"
+                      label={false}
+                    >
+                      {communityPieData.map((_, i) => (
+                        <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(value: number) => [`${Number(value).toFixed(1)}%`, "Share"]}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              {communityData.length > 0 ? (
+                <ul className="min-w-0 flex-1 space-y-2.5 text-sm sm:max-w-[min(100%,18rem)]">
+                  {communityData.map((row, i) => (
+                    <li
+                      key={`${row.name}-${i}`}
+                      className="flex items-center justify-between gap-4 border-b border-border/60 pb-2.5 last:border-0 last:pb-0"
+                    >
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span
+                          className="h-2.5 w-2.5 shrink-0 rounded-sm"
+                          style={{ backgroundColor: COLORS[i % COLORS.length] }}
+                          aria-hidden
+                        />
+                        <span className="truncate text-foreground">{row.name}</span>
+                      </span>
+                      <span className="shrink-0 font-semibold tabular-nums text-muted-foreground">
+                        {Number(row.value).toFixed(1)}%
+                      </span>
+                    </li>
                   ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
+                </ul>
+              ) : null}
+            </div>
           </CardContent>
         </Card>
 
@@ -315,8 +222,8 @@ export default function Reports() {
           <CardHeader>
             <CardTitle className="text-base">Plan Popularity</CardTitle>
           </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={280}>
+          <CardContent className="pt-0">
+            <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
                   data={
@@ -349,8 +256,8 @@ export default function Reports() {
           <CardHeader>
             <CardTitle className="text-base">Growth Report (Monthly)</CardTitle>
           </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={280}>
+          <CardContent className="pt-0">
+            <ResponsiveContainer width="100%" height={300}>
               <BarChart
                 data={
                   branchPerformance.length

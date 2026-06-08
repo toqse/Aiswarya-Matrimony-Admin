@@ -1,4 +1,9 @@
-import { adminRequest, adminFetchBlob, downloadBlob } from "@/lib/api-client";
+import {
+  adminRequest,
+  adminFetchBlob,
+  downloadBlob,
+  downloadSalarySlip as downloadBranchSalarySlipBlob,
+} from "@/lib/api-client";
 import { unwrap } from "@/lib/admin-api/http";
 import { getAuthApiErrorMessage } from "@/lib/auth-api";
 
@@ -120,7 +125,5 @@ export async function approveBranchPayroll(id: number) {
 }
 
 export async function downloadBranchSalarySlip(id: number) {
-  const { ok, blob, filename } = await adminFetchBlob(`v1/branch/payroll/${id}/download/`);
-  if (!ok) throw new Error("Download failed");
-  downloadBlob(blob, filename || `branch_salary_${id}_slip.pdf`);
+  await downloadBranchSalarySlipBlob(id);
 }

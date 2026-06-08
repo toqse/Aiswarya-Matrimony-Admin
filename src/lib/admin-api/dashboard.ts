@@ -39,12 +39,20 @@ export interface RecentActivityLog {
   created_at: string;
 }
 
+export interface BranchDashboardGrowth {
+  profiles: number;
+  revenue: number;
+  staff: number;
+  subscriptions: number;
+}
+
 export interface BranchDashboardSummary {
   total_subscriptions: number;
   total_revenue: number;
   total_staff: number;
   active_enquiries: number;
   total_profiles: number;
+  growth?: BranchDashboardGrowth;
 }
 
 interface BranchDashboardSummaryApi {
@@ -56,6 +64,7 @@ interface BranchDashboardSummaryApi {
   branch_revenue?: number;
   active_staff?: number;
   branch_profiles?: number;
+  growth?: Partial<BranchDashboardGrowth> | null;
 }
 
 export interface BranchDashboardRevenuePoint {
@@ -120,6 +129,17 @@ function toQs(params?: Record<string, string | number | undefined>) {
   return qs ? `?${qs}` : "";
 }
 
+function normalizeBranchGrowth(raw: BranchDashboardSummaryApi["growth"]): BranchDashboardGrowth | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const n = (v: unknown) => (typeof v === "number" && !Number.isNaN(v) ? v : Number(v) || 0);
+  return {
+    profiles: n(raw.profiles),
+    revenue: n(raw.revenue),
+    staff: n(raw.staff),
+    subscriptions: n(raw.subscriptions),
+  };
+}
+
 export async function fetchBranchDashboardSummary(params?: { month?: string }) {
   const res = await adminRequest<BranchDashboardSummaryApi>(`v1/branch/dashboard/summary/${toQs(params)}`);
   const data = await unwrap(res);
@@ -129,6 +149,7 @@ export async function fetchBranchDashboardSummary(params?: { month?: string }) {
     total_staff: data.total_staff ?? data.active_staff ?? 0,
     active_enquiries: data.active_enquiries ?? data.branch_profiles ?? 0,
     total_profiles: data.branch_profiles ?? data.active_enquiries ?? 0,
+    growth: normalizeBranchGrowth(data.growth),
   } satisfies BranchDashboardSummary;
 }
 

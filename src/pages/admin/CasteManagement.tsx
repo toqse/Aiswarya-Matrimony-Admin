@@ -28,6 +28,7 @@ export default function CasteManagement() {
   const [formReligionId, setFormReligionId] = useState<string>("");
   const [filterReligion, setFilterReligion] = useState<string>("");
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
   const qc = useQueryClient();
 
   const religionsQuery = useQuery({
@@ -44,17 +45,20 @@ export default function CasteManagement() {
 
   const { data, isLoading, error } = useQuery({
     enabled: !!effectiveReligion,
-    queryKey: ["master", "castes", search, effectiveReligion],
+    queryKey: ["master", "castes", search, effectiveReligion, page],
     queryFn: () =>
       fetchCastes({
         religion_id: Number(effectiveReligion),
         search: search.trim() || undefined,
-        page: 1,
+        page,
         page_size: 20,
       }),
   });
 
   const items = data?.results ?? [];
+  const total = data?.count ?? 0;
+  const canPrev = Boolean(data?.previous) && page > 1;
+  const canNext = Boolean(data?.next);
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["master", "castes"] });
 
@@ -107,7 +111,13 @@ export default function CasteManagement() {
       {error && <p className="text-destructive text-sm">{(error as Error).message}</p>}
 
       <div className="flex flex-wrap items-center gap-4">
-        <Select value={filterReligion} onValueChange={setFilterReligion}>
+        <Select
+          value={filterReligion}
+          onValueChange={(v) => {
+            setPage(1);
+            setFilterReligion(v);
+          }}
+        >
           <SelectTrigger className="w-[260px]">
             <SelectValue placeholder="Select religion" />
           </SelectTrigger>
@@ -124,7 +134,15 @@ export default function CasteManagement() {
       <div className="flex flex-wrap items-center gap-4">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search castes..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
+          <Input
+            placeholder="Search castes..."
+            value={search}
+            onChange={(e) => {
+              setPage(1);
+              setSearch(e.target.value);
+            }}
+            className="pl-10"
+          />
         </div>
         <Button onClick={openAdd}>
           <Plus className="h-4 w-4 mr-1" /> Add Caste
@@ -161,6 +179,31 @@ export default function CasteManagement() {
           </Table>
         </CardContent>
       </Card>
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-xs text-muted-foreground">
+          Showing {items.length} of {total} records
+        </p>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={!canPrev}
+          >
+            Previous
+          </Button>
+          <span className="text-sm text-muted-foreground">Page {page}</span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPage((p) => p + 1)}
+            disabled={!canNext}
+          >
+            Next
+          </Button>
+        </div>
+      </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>

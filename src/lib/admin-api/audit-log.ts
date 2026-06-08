@@ -16,6 +16,12 @@ export interface AuditLogRow {
   resource: string;
   details: string;
   ip_address: string;
+  /** Branch label when provided by API */
+  branch_name: string;
+  /** Acting staff display name when distinct from actor */
+  staff_name: string;
+  /** Target profile / entity display name */
+  target_profile: string;
 }
 
 export interface AuditLogListData {
@@ -29,6 +35,8 @@ export interface AuditLogFilters {
   search?: string;
   action?: string;
   role?: "admin" | "branch_manager" | "staff";
+  /** When supported by backend */
+  branch_id?: number | string;
   start_date?: string;
   end_date?: string;
   page?: number;
@@ -42,6 +50,12 @@ function pickFirstString(...values: unknown[]) {
   return "";
 }
 
+function nestedName(obj: unknown): string {
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) return "";
+  const o = obj as Record<string, unknown>;
+  return pickFirstString(o.name, o.title, o.label);
+}
+
 function normalizeAuditLogRow(row: unknown, index: number): AuditLogRow {
   const source = (row && typeof row === "object" ? row : {}) as Record<string, unknown>;
   const actorRole = pickFirstString(source.actor_role, source.role);
@@ -49,6 +63,24 @@ function normalizeAuditLogRow(row: unknown, index: number): AuditLogRow {
   const actionDisplay = pickFirstString(source.action_display, source.action_label, action);
   const idValue = source.id;
   const id = typeof idValue === "number" ? idValue : index + 1;
+
+  let branch_name = pickFirstString(
+    source.branch_name,
+    source.branch_title,
+    typeof source.branch === "string" ? source.branch : "",
+  );
+  if (!branch_name) branch_name = nestedName(source.branch);
+
+  let staff_name = pickFirstString(source.staff_name, typeof source.staff === "string" ? source.staff : "");
+  if (!staff_name) staff_name = nestedName(source.staff);
+
+  const target_profile = pickFirstString(
+    source.target_profile,
+    source.profile_name,
+    source.target_name,
+    source.subject_name,
+    source.profile_display_name,
+  );
 
   return {
     id,
@@ -71,6 +103,9 @@ function normalizeAuditLogRow(row: unknown, index: number): AuditLogRow {
       typeof source.details === "object" ? JSON.stringify(source.details) : "",
     ),
     ip_address: pickFirstString(source.ip_address, source.ip, source.client_ip),
+    branch_name,
+    staff_name,
+    target_profile,
   };
 }
 

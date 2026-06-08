@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,13 @@ import { fetchStaffCommissions } from "@/lib/admin-api/scoped";
 import { Search, Wallet, Clock, CheckCircle2, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useRole } from "@/contexts/RoleContext";
-import { exportMyBranchCommissions, fetchMyBranchCommissionSummary, fetchMyBranchCommissions } from "@/lib/admin-api/commissions";
+import {
+  exportMyBranchCommissions,
+  fetchMyBranchCommissionSummary,
+  fetchMyBranchCommissions,
+  fetchStaffCommissionSummary,
+  type StaffCommissionSummary,
+} from "@/lib/admin-api/commissions";
 
 const statusColors: Record<string, string> = {
   pending: "bg-warning text-warning-foreground",
@@ -46,24 +52,61 @@ export default function MyCommissions() {
     enabled: isBranchManager,
   });
 
-  const summary = isBranchManager ? branchSummaryQ.data : data?.summary;
+  const staffCommissionSummaryQ = useQuery({
+    queryKey: ["staff", "commissions", "summary"],
+    queryFn: () => fetchStaffCommissionSummary(),
+    enabled: !isBranchManager,
+  });
+
   const rows = data?.results ?? [];
   const getAmount = (c: Record<string, unknown>) => Number(c.amount ?? c.sale_amount ?? 0);
   const getCommission = (c: Record<string, unknown>) => Number(c.commission ?? 0);
   const getRate = (c: Record<string, unknown>) => Number(c.rate ?? 0);
 
+  const derivedStaffSummary = useMemo((): StaffCommissionSummary | null => {
+    if (isBranchManager || rows.length === 0) return null;
+    let pending = 0;
+    let approved = 0;
+    let paid = 0;
+    for (const c of rows) {
+      const amt = Number((c as { commission?: string | number }).commission ?? 0);
+      const st = String((c as { status?: string }).status ?? "").toLowerCase();
+      if (st === "pending") pending += amt;
+      else if (st === "approved") approved += amt;
+      else if (st === "paid") paid += amt;
+    }
+    return { pending, approved, paid, total: pending + approved + paid };
+  }, [isBranchManager, rows]);
+
+  /** Staff list API does not embed summary (see GET /v1/staff/commissions/); KPIs come from /summary/ or row totals. */
+  const summary = isBranchManager
+    ? branchSummaryQ.data
+    : staffCommissionSummaryQ.data ?? data?.summary ?? derivedStaffSummary ?? undefined;
+
   const summaryCards = [
     {
       label: "Pending",
-      value: summary ? `₹${Number(isBranchManager ? (summary as { pending: number }).pending : (summary as { total_pending: number }).total_pending).toLocaleString()}` : "—",
+      value: summary ? `₹${Number((summary as StaffCommissionSummary).pending ?? (summary as { total_pending?: number }).total_pending ?? 0).toLocaleString()}` : "—",
       icon: Clock,
       color: "text-warning",
     },
-    { label: "Approved", value: summary ? `₹${Number(summary.approved).toLocaleString()}` : "—", icon: CheckCircle2, color: "text-info" },
-    { label: "Paid", value: summary ? `₹${Number(summary.paid).toLocaleString()}` : "—", icon: Wallet, color: "text-success" },
+    {
+      label: "Approved",
+      value: summary ? `₹${Number((summary as StaffCommissionSummary).approved).toLocaleString()}` : "—",
+      icon: CheckCircle2,
+      color: "text-info",
+    },
+    {
+      label: "Paid",
+      value: summary ? `₹${Number((summary as StaffCommissionSummary).paid).toLocaleString()}` : "—",
+      icon: Wallet,
+      color: "text-success",
+    },
     {
       label: "Total",
-      value: summary ? `₹${Number(isBranchManager ? (summary as { total: number }).total : (summary as { grand_total: number }).grand_total).toLocaleString()}` : "—",
+      value: summary
+        ? `₹${Number((summary as StaffCommissionSummary).total ?? (summary as { grand_total?: number }).grand_total ?? 0).toLocaleString()}`
+        : "—",
       icon: Wallet,
       color: "text-primary",
     },

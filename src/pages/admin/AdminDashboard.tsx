@@ -5,7 +5,6 @@ import {
   fetchBranchPerformance,
   fetchDashboardSummary,
   fetchMonthlyRevenue,
-  fetchRecentActivity,
   fetchSubscriptionGrowth,
 } from "@/lib/admin-api/dashboard";
 import {
@@ -22,7 +21,6 @@ import {
   Line,
 } from "recharts";
 import {
-  Activity,
   TrendingUp,
   Building2,
   Users,
@@ -44,17 +42,6 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useQueries } from "@tanstack/react-query";
-
-const activityIcons: Record<string, string> = {
-  profile: "🧑",
-  subscription: "💳",
-  commission: "💰",
-  report: "📊",
-  cash: "💵",
-  enquiry: "📝",
-  salary: "🏦",
-  notification: "📧",
-};
 
 const quickLinks = [
   {
@@ -193,7 +180,7 @@ function formatINR(n: number) {
 export default function AdminDashboard() {
   const navigate = useNavigate();
 
-  const [summaryQ, revenueQ, growthQ, branchQ, activityQ] = useQueries({
+  const [summaryQ, revenueQ, growthQ, branchQ] = useQueries({
     queries: [
       {
         queryKey: ["admin", "dashboard", "summary"],
@@ -211,10 +198,6 @@ export default function AdminDashboard() {
         queryKey: ["admin", "dashboard", "branch-performance"],
         queryFn: fetchBranchPerformance,
       },
-      {
-        queryKey: ["admin", "dashboard", "recent-activity"],
-        queryFn: fetchRecentActivity,
-      },
     ],
   });
 
@@ -222,20 +205,17 @@ export default function AdminDashboard() {
     summaryQ.isLoading ||
     revenueQ.isLoading ||
     growthQ.isLoading ||
-    branchQ.isLoading ||
-    activityQ.isLoading;
+    branchQ.isLoading;
   const err =
     summaryQ.error ||
     revenueQ.error ||
     growthQ.error ||
-    branchQ.error ||
-    activityQ.error;
+    branchQ.error;
 
   const summary = summaryQ.data;
   const revenueSeries = revenueQ.data?.series ?? [];
   const growthSeries = growthQ.data?.series ?? [];
   const branchRows = branchQ.data?.branches ?? [];
-  const logs = activityQ.data?.logs ?? [];
 
   const revenueChart = revenueSeries.map((p) => ({
     month: formatMonthLabel(p.month),
@@ -259,43 +239,26 @@ export default function AdminDashboard() {
         {
           label: "Total Users",
           value: summary.total_users.toLocaleString(),
-          change: "—",
-          trend: "neutral" as const,
           icon: "Users",
         },
         {
           label: "Total Subscriptions",
           value: summary.total_subscriptions.toLocaleString(),
-          change: "—",
-          trend: "neutral" as const,
           icon: "CreditCard",
-        },
-        {
-          label: "MRR",
-          value: formatINR(summary.mrr),
-          change: "—",
-          trend: "neutral" as const,
-          icon: "TrendingUp",
         },
         {
           label: "Active Profiles",
           value: summary.active_profiles.toLocaleString(),
-          change: "—",
-          trend: "neutral" as const,
           icon: "UserCheck",
         },
         {
           label: "Today's Registrations",
           value: String(summary.todays_registrations),
-          change: "—",
-          trend: "neutral" as const,
           icon: "UserPlus",
         },
         {
           label: "Total Revenue",
           value: formatINR(summary.total_revenue),
-          change: "—",
-          trend: "neutral" as const,
           icon: "IndianRupee",
         },
       ]
@@ -324,7 +287,7 @@ export default function AdminDashboard() {
       )}
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         {kpis.map((kpi, i) => (
           <KPICard key={kpi.label} {...kpi} index={i} />
         ))}
@@ -434,85 +397,49 @@ export default function AdminDashboard() {
         </Card>
       </div>
 
-      {/* Branch Performance + Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-2 shadow-elegant border-0">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-semibold">
-              Branch Performance Comparison
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart
-                data={
-                  branchChart.length
-                    ? branchChart
-                    : [{ branch: "—", profiles: 0, subscriptions: 0 }]
-                }
-              >
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  stroke="hsl(333, 15%, 90%)"
-                />
-                <XAxis
-                  dataKey="branch"
-                  tick={{ fontSize: 11 }}
-                  stroke="hsl(333, 10%, 46%)"
-                />
-                <YAxis tick={{ fontSize: 11 }} stroke="hsl(333, 10%, 46%)" />
-                <Tooltip />
-                <Bar
-                  dataKey="profiles"
-                  name="Users"
-                  fill="hsl(333, 60%, 34%)"
-                  radius={[4, 4, 0, 0]}
-                />
-                <Bar
-                  dataKey="subscriptions"
-                  name="Active subs"
-                  fill="hsl(40, 100%, 58%)"
-                  radius={[4, 4, 0, 0]}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-elegant border-0">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <Activity className="h-4 w-4 text-primary" />
-              Recent Activity
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3 max-h-[280px] overflow-y-auto pr-1">
-              {logs.length === 0 && !loading && (
-                <p className="text-sm text-muted-foreground">
-                  No recent activity.
-                </p>
-              )}
-              {logs.map((a) => (
-                <div key={a.id} className="flex items-start gap-3 text-sm">
-                  <span className="text-lg shrink-0">
-                    {activityIcons[a.type] ?? activityIcons.notification}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium text-foreground truncate">
-                      {a.subject ||
-                        `${a.channel} · ${a.success ? "sent" : "failed"}`}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {a.recipient} · {new Date(a.created_at).toLocaleString()}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Branch Performance */}
+      <Card className="shadow-elegant border-0">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base font-semibold">
+            Branch Performance Comparison
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={280}>
+            <BarChart
+              data={
+                branchChart.length
+                  ? branchChart
+                  : [{ branch: "—", profiles: 0, subscriptions: 0 }]
+              }
+            >
+              <CartesianGrid
+                strokeDasharray="3 3"
+                stroke="hsl(333, 15%, 90%)"
+              />
+              <XAxis
+                dataKey="branch"
+                tick={{ fontSize: 11 }}
+                stroke="hsl(333, 10%, 46%)"
+              />
+              <YAxis tick={{ fontSize: 11 }} stroke="hsl(333, 10%, 46%)" />
+              <Tooltip />
+              <Bar
+                dataKey="profiles"
+                name="Users"
+                fill="hsl(333, 60%, 34%)"
+                radius={[4, 4, 0, 0]}
+              />
+              <Bar
+                dataKey="subscriptions"
+                name="Active subs"
+                fill="hsl(40, 100%, 58%)"
+                radius={[4, 4, 0, 0]}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
 
       {/* Quick Access — Admin Sections */}
       <Card className="shadow-elegant border-0">

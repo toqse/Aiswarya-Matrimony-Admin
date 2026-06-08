@@ -1,8 +1,10 @@
-import { adminRequest, adminFetchBlob, downloadBlob } from "@/lib/api-client";
 import { unwrap } from "@/lib/admin-api/http";
+import { adminFetchBlob, adminRequest, downloadBlob } from "@/lib/api-client";
 
 export async function downloadBulkTemplate(format: "csv" | "xlsx" = "csv") {
-  const { ok, blob, filename } = await adminFetchBlob(`v1/admin/bulk-upload/template/?format=${format}`);
+  const { ok, blob, filename } = await adminFetchBlob(
+    `v1/admin/bulk-upload/template/?format=${format}`,
+  );
   if (!ok) throw new Error("Failed to download template");
   downloadBlob(blob, filename || `bulk_upload_template.${format}`);
 }
@@ -19,7 +21,10 @@ export interface ValidateBulkResult {
 export async function validateBulkUpload(file: File) {
   const fd = new FormData();
   fd.append("file", file);
-  const res = await adminRequest<ValidateBulkResult>("v1/admin/bulk-upload/validate/", { method: "POST", body: fd });
+  const res = await adminRequest<ValidateBulkResult>(
+    "v1/admin/bulk-upload/validate/",
+    { method: "POST", body: fd },
+  );
   return unwrap(res);
 }
 
@@ -32,8 +37,14 @@ export interface ImportBulkResult {
   queued_rows?: number;
 }
 
-export async function importBulkUpload(body: { validation_token: string; branch_id?: number }) {
-  const res = await adminRequest<ImportBulkResult>("v1/admin/bulk-upload/import/", { method: "POST", body });
+export async function importBulkUpload(body: {
+  validation_token: string;
+  branch_id?: number;
+}) {
+  const res = await adminRequest<ImportBulkResult>(
+    "v1/admin/bulk-upload/import/",
+    { method: "POST", body },
+  );
   return unwrap(res);
 }
 
@@ -87,6 +98,10 @@ export async function fetchBulkUploadHistory(params?: {
   if (params?.page_size) q.set("page_size", String(params.page_size));
   if (params?.status) q.set("status", params.status);
   const qs = q.toString();
-  const res = await adminRequest<BulkUploadHistoryData>(qs ? `v1/admin/bulk-upload/history/?${qs}` : "v1/admin/bulk-upload/history/");
+  const res = await adminRequest<BulkUploadHistoryData>(
+    qs
+      ? `v1/admin/bulk-upload/history/?${qs}`
+      : "v1/admin/bulk-upload/history/",
+  );
   return unwrap(res);
 }

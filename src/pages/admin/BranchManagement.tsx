@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   createBranch,
   deleteBranch,
@@ -34,6 +35,8 @@ function formatINR(n: number) {
 
 export default function BranchManagement() {
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState("20");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<BranchRow | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
@@ -50,13 +53,21 @@ export default function BranchManagement() {
     email: "",
   });
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["admin", "branches", search],
-    queryFn: () => fetchBranchList({ search: search.trim() || undefined, page: 1 }),
+  const { data, isLoading, isFetching, error } = useQuery({
+    queryKey: ["admin", "branches", search, page, pageSize],
+    queryFn: () =>
+      fetchBranchList({
+        search: search.trim() || undefined,
+        page,
+        page_size: Number(pageSize),
+      }),
   });
 
   const summary = data?.summary;
   const filtered = Array.isArray(data?.results) ? data.results : [];
+  const total = data?.count ?? 0;
+  const canPrev = Boolean(data?.previous) && page > 1;
+  const canNext = Boolean(data?.next);
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["admin", "branches"] });
 
@@ -65,11 +76,15 @@ export default function BranchManagement() {
       if (!form.name || !form.city || !form.phone || !form.email) {
         throw new Error("Please fill name, city, phone, and email");
       }
+      const phoneDigits = form.phone.replace(/\D/g, "");
+      if (phoneDigits.length !== 10) {
+        throw new Error("Phone number must be exactly 10 digits");
+      }
       if (editing) {
         return updateBranch(editing.id, {
           name: form.name,
           city: form.city,
-          phone: form.phone,
+          phone: phoneDigits,
           email: form.email,
           address: form.address,
         });
@@ -77,7 +92,7 @@ export default function BranchManagement() {
       return createBranch({
         name: form.name,
         city: form.city,
-        phone: form.phone,
+        phone: phoneDigits,
         email: form.email,
         address: form.address || undefined,
       });
@@ -176,11 +191,31 @@ export default function BranchManagement() {
               <Input
                 placeholder="Search branches..."
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => {
+                  setPage(1);
+                  setSearch(e.target.value);
+                }}
                 className="pl-9"
               />
             </div>
-            {isLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+            <Select
+              value={pageSize}
+              onValueChange={(v) => {
+                setPage(1);
+                setPageSize(v);
+              }}
+            >
+              <SelectTrigger className="w-[130px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="10">10 / page</SelectItem>
+                <SelectItem value="20">20 / page</SelectItem>
+                <SelectItem value="50">50 / page</SelectItem>
+                <SelectItem value="100">100 / page</SelectItem>
+              </SelectContent>
+            </Select>
+            {(isLoading || isFetching) && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
           </div>
         </CardHeader>
         <CardContent>
@@ -239,6 +274,31 @@ export default function BranchManagement() {
               ))}
             </TableBody>
           </Table>
+
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-muted-foreground">
+              Showing {filtered.length} of {total} records
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={!canPrev}
+              >
+                Previous
+              </Button>
+              <span className="text-sm text-muted-foreground">Page {page}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => p + 1)}
+                disabled={!canNext}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
@@ -281,7 +341,17 @@ export default function BranchManagement() {
                 <Input
                   className="col-span-3"
                   value={form[key]}
-                  onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (key === "phone") {
+                      const digitsOnly = v.replace(/\D/g, "").slice(0, 10);
+                      setForm({ ...form, phone: digitsOnly });
+                      return;
+                    }
+                    setForm({ ...form, [key]: v });
+                  }}
+                  inputMode={key === "phone" ? "numeric" : undefined}
+                  maxLength={key === "phone" ? 10 : undefined}
                 />
               </div>
             ))}

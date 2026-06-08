@@ -31,14 +31,18 @@ export default function MotherTongueManagement() {
   const [deleteItem, setDeleteItem] = useState<MasterItem | null>(null);
   const [name, setName] = useState("");
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
   const qc = useQueryClient();
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["master", "mother-tongues", search],
-    queryFn: () => fetchMotherTongues({ search: search.trim() || undefined, page: 1, page_size: 20 }),
+    queryKey: ["master", "mother-tongues", search, page],
+    queryFn: () => fetchMotherTongues({ search: search.trim() || undefined, page, page_size: 20 }),
   });
 
   const items = data?.results ?? [];
+  const total = data?.count ?? 0;
+  const canPrev = Boolean(data?.previous) && page > 1;
+  const canNext = Boolean(data?.next);
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["master", "mother-tongues"] });
 
@@ -92,7 +96,10 @@ export default function MotherTongueManagement() {
             <Input
               placeholder="Search..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setPage(1);
+                setSearch(e.target.value);
+              }}
               className="max-w-sm"
             />
             {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -132,6 +139,31 @@ export default function MotherTongueManagement() {
           </Table>
         </CardContent>
       </Card>
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-xs text-muted-foreground">
+          Showing {items.length} of {total} records
+        </p>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={!canPrev}
+          >
+            Previous
+          </Button>
+          <span className="text-sm text-muted-foreground">Page {page}</span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPage((p) => p + 1)}
+            disabled={!canNext}
+          >
+            Next
+          </Button>
+        </div>
+      </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>

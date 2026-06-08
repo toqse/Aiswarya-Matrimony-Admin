@@ -1,0 +1,41 @@
+/**
+ * Highest education qualifications (aligned with admin list, 34 options).
+ */
+export const HIGHEST_EDUCATION_OPTIONS = [
+  "Below 10th",
+  "10th",
+  "12th",
+  "Diploma",
+  "B.A.",
+  "B.Com.",
+  "B.E.",
+  "B.Ed.",
+  "B.Pharm",
+  "B.Sc.",
+  "B.Tech.",
+  "BBA",
+  "BCA",
+  "BDS",
+  "CA",
+  "CS",
+  "ICWA",
+  "LLB",
+  "LLM",
+  "M.A.",
+  "M.Com.",
+  "M.E.",
+  "M.Ed.",
+  "M.Pharm",
+  "M.Sc.",
+  "M.Tech.",
+  "MBA",
+  "MBBS",
+  "MCA",
+  "MD",
+  "MDS",
+  "MS",
+  "PhD",
+  "Other",
+] as const;
+
+export type HighestEducationOption = (typeof HIGHEST_EDUCATION_OPTIONS)[number];

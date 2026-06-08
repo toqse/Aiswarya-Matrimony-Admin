@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "@/lib/config";
 import { apiUrl } from "@/lib/api-url";
 import type { AuthApiEnvelope } from "@/lib/auth-api";
 import {
@@ -7,6 +8,55 @@ import {
 } from "@/lib/matrimony-admin-storage";
 
 const LOG_PREFIX = "[admin-api]";
+
+/**
+ * Logging:
+ * - Set `VITE_API_DEBUG=true` in `.env` to log every request (noisy).
+ * - Even without debug, we still log URL/method for failed requests so you can see the endpoint in the console.
+ */
+const API_DEBUG_ALL = import.meta.env.VITE_API_DEBUG === "true";
+
+function apiLogAll(...args: unknown[]) {
+  if (!API_DEBUG_ALL) return;
+  console.log(...args);
+}
+
+function apiLogUrl(...args: unknown[]) {
+  // User requested: always show URLs in console.
+  console.log(...args);
+}
+
+function apiLogResponse(prefix: string, status: number, data: unknown) {
+  // Always log response summary + body (capped) for easier debugging.
+  const MAX_CHARS = 5000;
+  let printable: unknown = data;
+  try {
+    const s = JSON.stringify(data);
+    if (s.length > MAX_CHARS) {
+      printable = `${s.slice(0, MAX_CHARS)}… (truncated, ${s.length} chars)`;
+    }
+  } catch {
+    // non-serializable, just print as-is
+    printable = data;
+  }
+  console.log(`${prefix} response:`, status, printable);
+}
+
+function apiLogOnError(...args: unknown[]) {
+  console.warn(...args);
+}
+
+function networkFailure<T>(url: string, err: unknown): { ok: false; status: 0; data: AuthApiEnvelope<T> } {
+  const hint =
+    "Cannot reach the API. Start the backend on that host/port, or set VITE_API_BASE_URL in .env and restart the dev server. Current base: " +
+    API_BASE_URL;
+  apiLogOnError(`${LOG_PREFIX} network error:`, err, "URL:", url, hint);
+  return {
+    ok: false,
+    status: 0,
+    data: { success: false, message: hint },
+  };
+}
 
 function logBody(body: RequestInit["body"]): unknown {
   if (body == null) return undefined;
@@ -32,21 +82,26 @@ async function tryRefreshAccessToken(): Promise<string | null> {
   if (!s?.refresh_token) return null;
   const url = apiUrl("v1/admin/auth/token/refresh/");
   const body = { refresh_token: s.refresh_token };
-  console.log(`${LOG_PREFIX} POST token/refresh URL:`, url);
-  console.log(`${LOG_PREFIX} POST token/refresh body:`, { refresh_token: "[redacted]" });
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify(body),
-  });
+  apiLogAll(`${LOG_PREFIX} POST token/refresh URL:`, url);
+  apiLogAll(`${LOG_PREFIX} POST token/refresh body:`, { refresh_token: "[redacted]" });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    return null;
+  }
   let data: AuthApiEnvelope<{ access_token: string; refresh_token?: string }> = {};
   try {
     data = await res.json();
   } catch {
     data = {};
   }
-  console.log(`${LOG_PREFIX} POST token/refresh response status:`, res.status);
-  console.log(`${LOG_PREFIX} POST token/refresh response body:`, data);
+  apiLogAll(`${LOG_PREFIX} POST token/refresh response status:`, res.status);
+  apiLogAll(`${LOG_PREFIX} POST token/refresh response body:`, data);
   const access = data.data?.access_token;
   if (!res.ok || !access) return null;
   setMatrimonyAdminSession({
@@ -92,8 +147,8 @@ export async function adminRequest<T = unknown>(
     if (token) headers.set("Authorization", `Bearer ${token}`);
   }
 
-  console.log(`${LOG_PREFIX} ${method} URL:`, url);
-  console.log(`${LOG_PREFIX} ${method} body:`, logBody(body ?? null));
+  apiLogUrl(`${LOG_PREFIX} ${method} URL:`, url);
+  apiLogAll(`${LOG_PREFIX} ${method} body:`, logBody(body ?? null));
 
   const doFetch = () =>
     fetch(url, {
@@ -103,15 +158,24 @@ export async function adminRequest<T = unknown>(
       body: body ?? null,
     });
 
-  let res = await doFetch();
+  let res: Response;
+  try {
+    res = await doFetch();
+  } catch (err) {
+    return networkFailure<T>(url, err);
+  }
   let refreshSucceeded = false;
 
   if (res.status === 401 && !skipAuth) {
     const newAccess = await tryRefreshAccessToken();
     if (newAccess) {
       headers.set("Authorization", `Bearer ${newAccess}`);
-      console.log(`${LOG_PREFIX} ${method} retry URL:`, url);
-      res = await doFetch();
+      apiLogAll(`${LOG_PREFIX} ${method} retry URL:`, url);
+      try {
+        res = await doFetch();
+      } catch (err) {
+        return networkFailure<T>(url, err);
+      }
       refreshSucceeded = true;
     }
   }
@@ -126,8 +190,12 @@ export async function adminRequest<T = unknown>(
     }
   }
 
-  console.log(`${LOG_PREFIX} ${method} response status:`, res.status);
-  console.log(`${LOG_PREFIX} ${method} response body:`, data);
+  apiLogResponse(`${LOG_PREFIX} ${method} ${url}`, res.status, data);
+
+  if (!res.ok) {
+    // Always print the URL in console for easier debugging (even when VITE_API_DEBUG is off).
+    apiLogOnError(`${LOG_PREFIX} ${method} failed (${res.status}) URL:`, url);
+  }
 
   // Only force logout when refresh could not recover auth.
   // If refresh succeeded but endpoint still returns 401 (backend permission/config issue),
@@ -159,8 +227,8 @@ export async function adminFetchBlob(
     if (token) headers.set("Authorization", `Bearer ${token}`);
   }
 
-  console.log(`${LOG_PREFIX} ${method} [blob] URL:`, url);
-  console.log(`${LOG_PREFIX} ${method} [blob] body:`, logBody(body ?? null));
+  apiLogUrl(`${LOG_PREFIX} ${method} [blob] URL:`, url);
+  apiLogAll(`${LOG_PREFIX} ${method} [blob] body:`, logBody(body ?? null));
 
   const doFetch = () =>
     fetch(url, {
@@ -170,13 +238,34 @@ export async function adminFetchBlob(
       body: body ?? null,
     });
 
-  let res = await doFetch();
+  let res: Response;
+  try {
+    res = await doFetch();
+  } catch (err) {
+    apiLogOnError(`${LOG_PREFIX} ${method} [blob] network error:`, err, "URL:", url, API_BASE_URL);
+    return {
+      ok: false,
+      status: 0,
+      blob: new Blob(),
+      filename: null,
+    };
+  }
   let refreshSucceeded = false;
   if (res.status === 401 && !skipAuth) {
     const newAccess = await tryRefreshAccessToken();
     if (newAccess) {
       headers.set("Authorization", `Bearer ${newAccess}`);
-      res = await doFetch();
+      try {
+        res = await doFetch();
+      } catch (err) {
+        apiLogOnError(`${LOG_PREFIX} ${method} [blob] network error:`, err, "URL:", url, API_BASE_URL);
+        return {
+          ok: false,
+          status: 0,
+          blob: new Blob(),
+          filename: null,
+        };
+      }
       refreshSucceeded = true;
     }
   }
@@ -188,8 +277,15 @@ export async function adminFetchBlob(
     const m = /filename\*?=(?:UTF-8''|")?([^";\n]+)/i.exec(disp);
     if (m) filename = decodeURIComponent(m[1].replace(/"/g, ""));
   }
-  console.log(`${LOG_PREFIX} ${method} [blob] response status:`, res.status);
-  console.log(`${LOG_PREFIX} ${method} [blob] content-type:`, res.headers.get("content-type"), "size:", blob.size);
+  apiLogResponse(`${LOG_PREFIX} ${method} [blob] ${url}`, res.status, {
+    contentType: res.headers.get("content-type"),
+    size: blob.size,
+    filename,
+  });
+
+  if (!res.ok) {
+    apiLogOnError(`${LOG_PREFIX} ${method} [blob] failed (${res.status}) URL:`, url);
+  }
 
   if (res.status === 401 && !skipAuth && !refreshSucceeded) {
     clearMatrimonyAdminSession();
@@ -206,4 +302,10 @@ export function downloadBlob(blob: Blob, filename: string) {
   a.download = filename;
   a.click();
   URL.revokeObjectURL(u);
+}
+
+export async function downloadSalarySlip(id: number): Promise<void> {
+  const { ok, blob, filename } = await adminFetchBlob(`v1/branch/payroll/${id}/download/`);
+  if (!ok) throw new Error("Download failed");
+  downloadBlob(blob, filename || `salary_${id}_slip.pdf`);
 }

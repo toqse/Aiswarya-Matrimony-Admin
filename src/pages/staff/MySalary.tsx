@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -7,10 +7,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import {
   downloadStaffSalarySlip,
-  fetchStaffSalaryCurrent,
-  fetchStaffSalaryHistory,
-  fetchStaffSalarySummary,
+  fetchMySalaryCurrent,
+  fetchMySalaryHistory,
+  fetchMySalarySummary,
 } from "@/lib/admin-api/staff-salary";
+import { fetchStaffCommissions } from "@/lib/admin-api/scoped";
+import { useRole } from "@/contexts/RoleContext";
 import { IndianRupee, TrendingUp, Wallet, Calendar, Download, Loader2 } from "lucide-react";
 
 const statusColors: Record<string, string> = {
@@ -20,21 +22,35 @@ const statusColors: Record<string, string> = {
 };
 
 export default function MySalary() {
+  const { role } = useRole();
+  const salaryScope = role === "branch-manager" ? "branch-manager" : "staff";
   const [year, setYear] = useState(() => new Date().getFullYear());
+  const today = useMemo(() => new Date(), []);
+  const currentMonthKey = useMemo(
+    () => `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`,
+    [today],
+  );
 
   const summaryQ = useQuery({
-    queryKey: ["staff", "salary", "summary"],
-    queryFn: () => fetchStaffSalarySummary(),
+    queryKey: ["staff", "salary", "summary", salaryScope],
+    queryFn: () => fetchMySalarySummary(salaryScope),
   });
 
   const currentQ = useQuery({
-    queryKey: ["staff", "salary", "current"],
-    queryFn: () => fetchStaffSalaryCurrent(),
+    queryKey: ["staff", "salary", "current", salaryScope],
+    queryFn: () => fetchMySalaryCurrent(salaryScope),
+  });
+
+  // Fallback: if backend salary record doesn't include current approved commissions yet,
+  // compute from staff commissions list for the current calendar month.
+  const approvedCommissionsQ = useQuery({
+    queryKey: ["staff", "commissions", "approved", "for-salary-preview"],
+    queryFn: () => fetchStaffCommissions({ status: "approved" }),
   });
 
   const historyQ = useQuery({
-    queryKey: ["staff", "salary", "history", year],
-    queryFn: () => fetchStaffSalaryHistory({ year }),
+    queryKey: ["staff", "salary", "history", year, salaryScope],
+    queryFn: () => fetchMySalaryHistory({ year }, salaryScope),
   });
 
   const rows = historyQ.data?.results ?? [];
@@ -65,6 +81,35 @@ export default function MySalary() {
       color: "text-accent-foreground",
     },
   ];
+
+  const approvedCommissionThisMonth = useMemo(() => {
+    const rows = approvedCommissionsQ.data?.results ?? [];
+    if (!rows.length) return 0;
+    let sum = 0;
+    for (const c of rows) {
+      const d = String((c as { date?: string }).date ?? "");
+      if (!d) continue;
+      // Expecting YYYY-MM-DD, but tolerate other formats by Date.parse.
+      const ym = /^\d{4}-\d{2}/.test(d) ? d.slice(0, 7) : null;
+      if (ym ? ym !== currentMonthKey : false) continue;
+      if (!ym) {
+        const parsed = new Date(d);
+        if (Number.isNaN(parsed.getTime())) continue;
+        const pKey = `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, "0")}`;
+        if (pKey !== currentMonthKey) continue;
+      }
+      const commissionRaw = (c as { commission?: string | number }).commission ?? 0;
+      const commission = typeof commissionRaw === "number" ? commissionRaw : Number(commissionRaw);
+      if (!Number.isFinite(commission)) continue;
+      sum += commission;
+    }
+    return sum;
+  }, [approvedCommissionsQ.data, currentMonthKey]);
+
+  const commissionForPreview =
+    currentQ.data && Number(currentQ.data.commission_approved) > 0
+      ? Number(currentQ.data.commission_approved)
+      : approvedCommissionThisMonth;
 
   return (
     <div className="space-y-6">
@@ -113,7 +158,15 @@ export default function MySalary() {
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
               <div><p className="text-xs text-muted-foreground">Month</p><p className="font-semibold">{currentQ.data.month}</p></div>
               <div><p className="text-xs text-muted-foreground">Basic</p><p className="font-semibold">₹{Number(currentQ.data.basic).toLocaleString()}</p></div>
-              <div><p className="text-xs text-muted-foreground">Commission (approved)</p><p className="font-semibold">₹{Number(currentQ.data.commission_approved).toLocaleString()}</p></div>
+              <div>
+                <p className="text-xs text-muted-foreground">Commission (approved)</p>
+                <p className="font-semibold">₹{Number(commissionForPreview).toLocaleString()}</p>
+                {Number(currentQ.data.commission_approved) === 0 && approvedCommissionThisMonth > 0 && (
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    From approved commissions this month (salary preview not generated yet)
+                  </p>
+                )}
+              </div>
               <div><p className="text-xs text-muted-foreground">Allowances</p><p className="font-semibold">₹{Number(currentQ.data.allowances).toLocaleString()}</p></div>
               <div><p className="text-xs text-muted-foreground">Deductions</p><p className="font-semibold">₹{Number(currentQ.data.deductions).toLocaleString()}</p></div>
               <div><p className="text-xs text-muted-foreground">Net Pay</p><p className="font-semibold">₹{Number(currentQ.data.net_pay).toLocaleString()}</p></div>

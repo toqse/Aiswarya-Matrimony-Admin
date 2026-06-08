@@ -52,6 +52,9 @@ export interface StaffMyProfilesSummary {
 
 export type ProfilesQuery = {
   search?: string;
+  /** Explicit phone filter — sent alongside `search` for phone-like queries so backends that don't
+   * cover phone in `search` still return matches. */
+  phone?: string;
   filter?: "all" | "incomplete" | "complete" | "subscribed" | "unsubscribed" | "verified" | "unverified";
   gender?: "M" | "F" | "O";
   religion_id?: number;
@@ -59,6 +62,7 @@ export type ProfilesQuery = {
   verified?: boolean;
   staff_id?: number;
   page?: number;
+  page_size?: number;
   show_inactive?: boolean;
 };
 
@@ -66,6 +70,14 @@ function buildProfilesQuery(params?: ProfilesQuery): string {
   const q = new URLSearchParams();
   if (!params) return "";
   if (params.search) q.set("search", params.search);
+  if (params.phone) {
+    // Backends differ on field name — send the most common aliases so whichever the API
+    // recognizes (e.g. `phone`, `mobile`, `mobile_number`, `phone_number`) will match.
+    q.set("phone", params.phone);
+    q.set("mobile", params.phone);
+    q.set("mobile_number", params.phone);
+    q.set("phone_number", params.phone);
+  }
   if (params.filter) q.set("filter", params.filter);
   if (params.gender) q.set("gender", params.gender);
   if (params.religion_id != null) q.set("religion_id", String(params.religion_id));
@@ -73,9 +85,25 @@ function buildProfilesQuery(params?: ProfilesQuery): string {
   if (params.verified != null) q.set("verified", String(params.verified));
   if (params.staff_id != null) q.set("staff_id", String(params.staff_id));
   if (params.page != null) q.set("page", String(params.page));
+  if (params.page_size != null) q.set("page_size", String(params.page_size));
   if (params.show_inactive) q.set("show_inactive", "1");
   const qs = q.toString();
   return qs ? `?${qs}` : "";
+}
+
+/** True for inputs that look like a phone number (mostly digits, length >= 6). */
+export function looksLikePhone(input: string): boolean {
+  const cleaned = input.replace(/[\s\-()+]/g, "");
+  if (cleaned.length < 6) return false;
+  return /^\+?\d+$/.test(cleaned);
+}
+
+/** Returns a normalized phone string (digits only, with optional leading +) suitable for filtering. */
+export function normalizePhoneQuery(input: string): string {
+  const t = input.trim();
+  if (!looksLikePhone(t)) return "";
+  const cleaned = t.replace(/[\s\-()]/g, "");
+  return cleaned.startsWith("+") ? cleaned : cleaned.replace(/^0+/, "");
 }
 
 export async function fetchAdminProfiles(params?: ProfilesQuery) {
@@ -103,7 +131,7 @@ export async function fetchStaffProfileDetail(matriId: string) {
   return unwrap(res);
 }
 
-export async function patchAdminProfile(matriId: string, body: Record<string, unknown>) {
+export async function patchAdminProfile(matriId: string, body: Record<string, unknown> | FormData) {
   const res = await adminRequest<Record<string, unknown>>(`v1/admin/profiles/${encodeURIComponent(matriId)}/`, {
     method: "PATCH",
     body,
@@ -111,7 +139,71 @@ export async function patchAdminProfile(matriId: string, body: Record<string, un
   return unwrap(res);
 }
 
-export async function patchStaffProfile(matriId: string, body: Record<string, unknown>) {
+/** Section-wise admin profile updates: `PATCH /api/v1/admin/profiles/{matri_id}/{section}/`. */
+function adminProfileSectionPath(
+  matriId: string,
+  section: "basic" | "location" | "religion" | "personal" | "education" | "about" | "photos",
+) {
+  return `v1/admin/profiles/${encodeURIComponent(matriId)}/${section}/`;
+}
+
+export async function patchAdminProfileBasic(matriId: string, body: Record<string, unknown>) {
+  const res = await adminRequest<Record<string, unknown>>(adminProfileSectionPath(matriId, "basic"), {
+    method: "PATCH",
+    body,
+  });
+  return unwrap(res);
+}
+
+export async function patchAdminProfileLocation(matriId: string, body: Record<string, unknown>) {
+  const res = await adminRequest<Record<string, unknown>>(adminProfileSectionPath(matriId, "location"), {
+    method: "PATCH",
+    body,
+  });
+  return unwrap(res);
+}
+
+export async function patchAdminProfileReligion(matriId: string, body: Record<string, unknown>) {
+  const res = await adminRequest<Record<string, unknown>>(adminProfileSectionPath(matriId, "religion"), {
+    method: "PATCH",
+    body,
+  });
+  return unwrap(res);
+}
+
+export async function patchAdminProfilePersonal(matriId: string, body: Record<string, unknown>) {
+  const res = await adminRequest<Record<string, unknown>>(adminProfileSectionPath(matriId, "personal"), {
+    method: "PATCH",
+    body,
+  });
+  return unwrap(res);
+}
+
+export async function patchAdminProfileEducation(matriId: string, body: Record<string, unknown>) {
+  const res = await adminRequest<Record<string, unknown>>(adminProfileSectionPath(matriId, "education"), {
+    method: "PATCH",
+    body,
+  });
+  return unwrap(res);
+}
+
+export async function patchAdminProfileAbout(matriId: string, body: Record<string, unknown>) {
+  const res = await adminRequest<Record<string, unknown>>(adminProfileSectionPath(matriId, "about"), {
+    method: "PATCH",
+    body,
+  });
+  return unwrap(res);
+}
+
+export async function patchAdminProfilePhotos(matriId: string, formData: FormData) {
+  const res = await adminRequest<Record<string, unknown>>(adminProfileSectionPath(matriId, "photos"), {
+    method: "PATCH",
+    body: formData,
+  });
+  return unwrap(res);
+}
+
+export async function patchStaffProfile(matriId: string, body: Record<string, unknown> | FormData) {
   const res = await adminRequest<Record<string, unknown>>(`v1/staff/profiles/${encodeURIComponent(matriId)}/`, {
     method: "PATCH",
     body,

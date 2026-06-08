@@ -4,7 +4,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useRole } from "@/contexts/RoleContext";
-import { approveBranchPayroll, downloadBranchSalarySlip, fetchBranchPayrollList, fetchBranchPayrollSummary } from "@/lib/admin-api/payroll";
+import {
+  approveBranchPayroll,
+  downloadBranchSalarySlip,
+  fetchBranchPayrollList,
+  fetchBranchPayrollSummary,
+} from "@/lib/admin-api/payroll";
 import { Check, FileText, IndianRupee, Users, Loader2, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -30,7 +35,6 @@ export default function BranchSalary() {
     },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
-
   const downloadMut = useMutation({
     mutationFn: (id: number) => downloadBranchSalarySlip(id),
     onError: (e: Error) => toast({ title: "Download failed", description: e.message, variant: "destructive" }),
@@ -145,7 +149,8 @@ export default function BranchSalary() {
                         className={`${actionIconBtn} bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-700 focus-visible:ring-slate-400`}
                         onClick={() => {
                           const id = Number(r.id);
-                          if (Number.isFinite(id)) downloadMut.mutate(id);
+                          if (!Number.isFinite(id)) return;
+                          downloadMut.mutate(id);
                         }}
                         disabled={downloadMut.isPending}
                       >

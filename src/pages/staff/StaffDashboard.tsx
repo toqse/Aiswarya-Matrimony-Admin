@@ -2,7 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { KPICard } from "@/components/dashboard/KPICard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useRole } from "@/contexts/RoleContext";
-import { fetchStaffDashboardRecentActivity, fetchStaffDashboardSummary } from "@/lib/admin-api/staff-dashboard";
+import { fetchStaffDashboardSummary } from "@/lib/admin-api/staff-dashboard";
+import { fetchStaffCommissionSummary } from "@/lib/admin-api/commissions";
 import {
   BarChart,
   Bar,
@@ -12,7 +13,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { Activity, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 export default function StaffDashboard() {
   const { userName } = useRole();
@@ -22,13 +23,34 @@ export default function StaffDashboard() {
     queryFn: () => fetchStaffDashboardSummary(),
   });
 
-  const activityQ = useQuery({
-    queryKey: ["staff", "dashboard", "recent-activity"],
-    queryFn: () => fetchStaffDashboardRecentActivity(),
+  const commissionLedgerQ = useQuery({
+    queryKey: ["staff", "commissions", "summary"],
+    queryFn: () => fetchStaffCommissionSummary(),
   });
 
   const d = summaryQ.data;
-  const commissionByMonth = [{ month: "This month", commission: d?.commission_earned.amount ?? 0 }];
+  const ledger = commissionLedgerQ.data;
+
+  /** Dashboard summary counts approved+paid in the current month only; ledger summary includes pending (all time). */
+  const commissionKpiAmount =
+    ledger != null
+      ? Number(ledger.total)
+      : d != null
+        ? Number(d.commission_earned.amount)
+        : 0;
+  const commissionKpiTrend =
+    ledger != null && Number(ledger.pending) > 0
+      ? `₹${Number(ledger.pending).toLocaleString("en-IN")} pending · ${d?.commission_earned.growth_pct ?? "+0%"}`
+      : d?.commission_earned.growth_pct ?? "—";
+
+  const commissionChartData =
+    ledger != null
+      ? [
+          { month: "Pending", commission: Number(ledger.pending) },
+          { month: "Approved", commission: Number(ledger.approved) },
+          { month: "Paid", commission: Number(ledger.paid) },
+        ]
+      : [{ month: "This month (paid & approved)", commission: d?.commission_earned.amount ?? 0 }];
 
   const kpis = [
     {
@@ -46,9 +68,9 @@ export default function StaffDashboard() {
       icon: "CreditCard",
     },
     {
-      label: "Commission Earned",
-      value: d ? `₹${Number(d.commission_earned.amount).toLocaleString()}` : "—",
-      change: d?.commission_earned.growth_pct ?? "—",
+      label: "Commission (ledger)",
+      value: d || ledger ? `₹${Number(commissionKpiAmount).toLocaleString("en-IN")}` : "—",
+      change: commissionKpiTrend,
       trend: "neutral" as const,
       icon: "Wallet",
     },
@@ -70,16 +92,17 @@ export default function StaffDashboard() {
         </p>
       </div>
 
-      {(summaryQ.isLoading || activityQ.isLoading) && (
+      {summaryQ.isLoading && (
         <div className="flex items-center gap-2 text-muted-foreground text-sm">
           <Loader2 className="h-4 w-4 animate-spin" /> Loading…
         </div>
       )}
 
-      {(summaryQ.error || activityQ.error) && (
-        <p className="text-destructive text-sm">
-          {((summaryQ.error || activityQ.error) as Error).message}
-        </p>
+      {summaryQ.error && (
+        <p className="text-destructive text-sm">{(summaryQ.error as Error).message}</p>
+      )}
+      {commissionLedgerQ.isError && !summaryQ.error && (
+        <p className="text-destructive text-sm">Commission summary: {(commissionLedgerQ.error as Error).message}</p>
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -91,15 +114,20 @@ export default function StaffDashboard() {
       <Card className="shadow-elegant border-0">
         <CardHeader className="pb-2">
           <CardTitle className="text-base font-semibold">
-            Commission Earned (this month)
+            {ledger != null ? "Commission by status (ledger)" : "Commission earned (this month, paid & approved)"}
           </CardTitle>
+          {ledger != null && d != null && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Paid &amp; approved this month (dashboard tally): ₹{Number(d.commission_earned.amount).toLocaleString("en-IN")}
+            </p>
+          )}
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={280}>
             <BarChart
               data={
-                commissionByMonth.length
-                  ? commissionByMonth
+                commissionChartData.length
+                  ? commissionChartData
                   : [{ month: "—", commission: 0 }]
               }
             >
@@ -122,34 +150,6 @@ export default function StaffDashboard() {
               />
             </BarChart>
           </ResponsiveContainer>
-        </CardContent>
-      </Card>
-
-      <Card className="shadow-elegant border-0">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base font-semibold flex items-center gap-2">
-            <Activity className="h-4 w-4 text-primary" /> Activity
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {(activityQ.data?.items?.length ?? 0) === 0 ? (
-            <p className="text-sm text-muted-foreground">No recent activity.</p>
-          ) : (
-            <div className="space-y-3">
-              {activityQ.data!.items.map((it) => (
-                <div key={it.id} className="flex items-start justify-between gap-4 border-b border-border/50 pb-3 last:border-0">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">{it.action_display}</p>
-                    <p className="text-xs text-muted-foreground truncate">{it.details}</p>
-                    <p className="text-[10px] text-muted-foreground mt-1 truncate">
-                      {it.resource}{it.ip_address ? ` • ${it.ip_address}` : ""}
-                    </p>
-                  </div>
-                  <p className="text-xs text-muted-foreground whitespace-nowrap">{it.timestamp}</p>
-                </div>
-              ))}
-            </div>
-          )}
         </CardContent>
       </Card>
     </div>

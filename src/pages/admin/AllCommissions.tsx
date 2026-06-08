@@ -41,6 +41,8 @@ export default function AllCommissions() {
   const [selected, setSelected] = useState<number[]>([]);
   const [statusFilter, setStatusFilter] = useState("all");
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState("20");
   const [viewSale, setViewSale] = useState<CommissionRow | null>(null);
   const [pendingAction, setPendingAction] = useState<
     | { kind: "approve" | "paid" | "cancel" | "slip"; row: CommissionRow }
@@ -51,16 +53,21 @@ export default function AllCommissions() {
   const qc = useQueryClient();
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["admin", "commissions", search, statusFilter],
+    queryKey: ["admin", "commissions", search, statusFilter, page, pageSize],
     queryFn: () =>
       fetchCommissions({
         search: search.trim() || undefined,
         status: statusFilter === "all" ? undefined : statusFilter,
+        page: String(page),
+        page_size: pageSize,
       }),
   });
 
   const summary = data?.summary;
   const filtered = data?.results ?? [];
+  const total = data?.count ?? 0;
+  const canPrev = Boolean(data?.previous) && page > 1;
+  const canNext = Boolean(data?.next);
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["admin", "commissions"] });
 
@@ -160,9 +167,23 @@ export default function AllCommissions() {
           <div className="flex flex-wrap items-center gap-3">
             <div className="relative flex-1 min-w-[200px] max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+              <Input
+                placeholder="Search..."
+                value={search}
+                onChange={(e) => {
+                  setPage(1);
+                  setSearch(e.target.value);
+                }}
+                className="pl-9"
+              />
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <Select
+              value={statusFilter}
+              onValueChange={(v) => {
+                setPage(1);
+                setStatusFilter(v);
+              }}
+            >
               <SelectTrigger className="w-[140px]">
                 <SelectValue />
               </SelectTrigger>
@@ -172,6 +193,23 @@ export default function AllCommissions() {
                 <SelectItem value="approved">Approved</SelectItem>
                 <SelectItem value="paid">Paid</SelectItem>
                 <SelectItem value="cancelled">Cancelled</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
+              value={pageSize}
+              onValueChange={(v) => {
+                setPage(1);
+                setPageSize(v);
+              }}
+            >
+              <SelectTrigger className="w-[130px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="10">10 / page</SelectItem>
+                <SelectItem value="20">20 / page</SelectItem>
+                <SelectItem value="50">50 / page</SelectItem>
+                <SelectItem value="100">100 / page</SelectItem>
               </SelectContent>
             </Select>
             {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -273,6 +311,31 @@ export default function AllCommissions() {
               ))}
             </TableBody>
           </Table>
+
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-muted-foreground">
+              Showing {filtered.length} of {total} records
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={!canPrev}
+              >
+                Previous
+              </Button>
+              <span className="text-sm text-muted-foreground">Page {page}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => p + 1)}
+                disabled={!canNext}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

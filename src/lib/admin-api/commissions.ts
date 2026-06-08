@@ -17,7 +17,8 @@ export interface CommissionRow {
 }
 
 export interface CommissionListData {
-  summary: {
+  /** Admin list may embed summary; staff GET /v1/staff/commissions/ does not — use fetchStaffCommissionSummary(). */
+  summary?: {
     total_pending: number;
     approved: number;
     paid: number;
@@ -27,6 +28,14 @@ export interface CommissionListData {
   next: string | null;
   previous: string | null;
   results: CommissionRow[];
+}
+
+/** GET /api/v1/staff/commissions/summary/ */
+export interface StaffCommissionSummary {
+  pending: number;
+  approved: number;
+  paid: number;
+  total: number;
 }
 
 export interface BranchCommissionSummary {
@@ -59,6 +68,11 @@ export interface MyCommissionListData {
   next: string | null;
   previous: string | null;
   results: MyCommissionRow[];
+}
+
+export async function fetchStaffCommissionSummary() {
+  const res = await adminRequest<StaffCommissionSummary>("v1/staff/commissions/summary/");
+  return unwrap(res);
 }
 
 export async function fetchCommissions(params?: Record<string, string | undefined>) {

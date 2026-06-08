@@ -12,14 +12,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useRole } from "@/contexts/RoleContext";
 import { fetchBranchList } from "@/lib/admin-api/branches";
 import {
-  exportBranchStaffPerformance,
   fetchBranchStaffPerformanceChart,
   fetchBranchStaffPerformanceList,
   fetchBranchStaffPerformanceSummary,
   fetchBranchStaffPerformanceTargets,
 } from "@/lib/admin-api/reports";
 import { createStaff } from "@/lib/admin-api/staff";
-import { Search, Download, Target, Users, TrendingUp, Award, ArrowUpRight, ArrowDownRight, Loader2, Plus } from "lucide-react";
+import { Search, Target, Users, TrendingUp, Award, ArrowUpRight, ArrowDownRight, Loader2, Plus } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { useToast } from "@/hooks/use-toast";
 
@@ -45,8 +44,6 @@ export default function BranchStaffPerformance() {
     basicSalary: "",
     commissionRate: "",
     monthlyTarget: "",
-    loginUsername: "",
-    password: "",
   });
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -91,8 +88,6 @@ export default function BranchStaffPerformance() {
         basic_salary: Number(addForm.basicSalary || 0),
         commission_rate: Number(addForm.commissionRate || 0),
         monthly_target: Number(addForm.monthlyTarget || 0),
-        login_username: addForm.loginUsername.trim() || undefined,
-        password: addForm.password || undefined,
       });
     },
     onSuccess: () => {
@@ -110,8 +105,6 @@ export default function BranchStaffPerformance() {
         basicSalary: "",
         commissionRate: "",
         monthlyTarget: "",
-        loginUsername: "",
-        password: "",
       });
       qc.invalidateQueries({ queryKey: ["branch", "staff-performance"] });
     },
@@ -160,12 +153,6 @@ export default function BranchStaffPerformance() {
     rate: Math.round(toFiniteNumber(s.commission) * 100) / 100,
   }));
 
-  const exportCSV = () => {
-    exportBranchStaffPerformance({ month, format: "csv" }).catch((e: Error) =>
-      toast({ title: "Export failed", description: e.message, variant: "destructive" }),
-    );
-  };
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -176,9 +163,6 @@ export default function BranchStaffPerformance() {
         <div className="flex items-center gap-2">
           <Button onClick={() => setAddOpen(true)} className="gap-2">
             <Plus className="h-4 w-4" /> Add Staff
-          </Button>
-          <Button onClick={exportCSV} variant="outline" className="gap-2" disabled={!rows.length}>
-            <Download className="h-4 w-4" /> Export CSV
           </Button>
         </div>
       </div>
@@ -402,14 +386,6 @@ export default function BranchStaffPerformance() {
             <div className="space-y-1.5">
               <Label>Monthly Target</Label>
               <Input type="number" value={addForm.monthlyTarget} onChange={(e) => setAddForm((p) => ({ ...p, monthlyTarget: e.target.value }))} placeholder="20" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Login Username</Label>
-              <Input value={addForm.loginUsername} onChange={(e) => setAddForm((p) => ({ ...p, loginUsername: e.target.value }))} placeholder="anitha.staff" />
-            </div>
-            <div className="space-y-1.5 md:col-span-2">
-              <Label>Password</Label>
-              <Input type="password" value={addForm.password} onChange={(e) => setAddForm((p) => ({ ...p, password: e.target.value }))} placeholder="StrongPassword@123" />
             </div>
           </div>
           <DialogFooter>

@@ -51,6 +51,23 @@ export interface BranchEnquirySummary {
   sources: Array<{ source: EnquirySource; count: number }>;
 }
 
+export interface EnquiryOptionBranch {
+  id: number;
+  name: string;
+}
+
+export interface EnquiryOptionStaff {
+  id: number;
+  name: string;
+  branch_id: number | null;
+  branch_name: string;
+}
+
+export interface EnquiryFormOptions {
+  branches: EnquiryOptionBranch[];
+  staff: EnquiryOptionStaff[];
+}
+
 function toQs(params?: Record<string, string | number | undefined>) {
   const q = new URLSearchParams();
   if (params) {
@@ -95,6 +112,11 @@ export async function createAdminEnquiry(body: {
   assigned_to?: number;
 }) {
   const res = await adminRequest<EnquiryRow>("v1/admin/enquiries/", { method: "POST", body });
+  return unwrap(res);
+}
+
+export async function fetchAdminEnquiryOptions(params?: { branch_id?: number }) {
+  const res = await adminRequest<EnquiryFormOptions>(`v1/admin/enquiries/options/${toQs(params)}`);
   return unwrap(res);
 }
 

@@ -9,8 +9,8 @@ const iconMap: Record<string, any> = {
 interface KPICardProps {
   label: string;
   value: string;
-  change: string;
-  trend: "up" | "down" | "neutral";
+  change?: string;
+  trend?: "up" | "down" | "neutral";
   icon: string;
   index: number;
 }
@@ -26,7 +26,9 @@ const gradients = [
 
 export function KPICard({ label, value, change, trend, icon, index }: KPICardProps) {
   const Icon = iconMap[icon] || Users;
-  const TrendIcon = trend === "up" ? TrendingUp : trend === "down" ? TrendingDown : Minus;
+  const safeTrend = trend ?? "neutral";
+  const showChange = Boolean(change && change !== "—");
+  const TrendIcon = safeTrend === "up" ? TrendingUp : safeTrend === "down" ? TrendingDown : Minus;
 
   return (
     <Card className={cn("shadow-elegant border-0 bg-gradient-to-br overflow-hidden relative group hover:shadow-lg transition-shadow", gradients[index % gradients.length])}>
@@ -35,12 +37,21 @@ export function KPICard({ label, value, change, trend, icon, index }: KPICardPro
           <div className="space-y-2">
             <p className="text-sm text-muted-foreground font-medium">{label}</p>
             <p className="text-2xl font-bold text-foreground">{value}</p>
-            <div className={cn("flex items-center gap-1 text-xs font-medium",
-              trend === "up" ? "text-success" : trend === "down" ? "text-destructive" : "text-muted-foreground"
-            )}>
-              <TrendIcon className="h-3.5 w-3.5" />
-              <span>{change}</span>
-            </div>
+            {showChange && (
+              <div
+                className={cn(
+                  "flex items-center gap-1 text-xs font-medium",
+                  safeTrend === "up"
+                    ? "text-success"
+                    : safeTrend === "down"
+                      ? "text-destructive"
+                      : "text-muted-foreground"
+                )}
+              >
+                <TrendIcon className="h-3.5 w-3.5" />
+                <span>{change}</span>
+              </div>
+            )}
           </div>
           <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center group-hover:scale-110 transition-transform">
             <Icon className="h-5 w-5 text-primary" />

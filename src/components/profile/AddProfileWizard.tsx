@@ -7,10 +7,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ChevronDown, Sparkles } from "lucide-react";
+import PlacesAutocomplete from "@/components/profile/PlacesAutocomplete";
 import { useToast } from "@/hooks/use-toast";
 import {
   fetchCastes,
-  fetchCities,
   fetchCountries,
   fetchDistricts,
   fetchEducations,
@@ -33,6 +35,7 @@ interface AddProfileWizardProps {
 
 export default function AddProfileWizard({ open, onOpenChange, onComplete }: AddProfileWizardProps) {
   const { toast } = useToast();
+  const [horoExpanded, setHoroExpanded] = useState(true);
   const [form, setForm] = useState({
     profileFor: "",
     fullName: "",
@@ -40,6 +43,15 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete }: Add
     email: "",
     dob: "",
     gender: "",
+    hasHoroscope: false,
+    timeOfBirth: "",
+    horoCountryId: "",
+    horoStateId: "",
+    horoDistrictId: "",
+    placeOfBirth: "",
+    birthLatitude: "",
+    birthLongitude: "",
+    birthTimezone: "",
     countryId: "",
     stateId: "",
     districtId: "",
@@ -77,6 +89,9 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete }: Add
     termsAgreed: false,
   });
 
+  const horoscopeValid =
+    !form.hasHoroscope || (!!form.dob && !!form.timeOfBirth && !!form.placeOfBirth);
+
   const canSubmit =
     !!form.profileFor &&
     !!form.fullName &&
@@ -88,6 +103,7 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete }: Add
     !!form.height &&
     !!form.highestEducationId &&
     !!form.employmentStatus &&
+    horoscopeValid &&
     form.termsAgreed;
 
   const update = (field: keyof typeof form, value: string | boolean) =>
@@ -101,6 +117,15 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete }: Add
       email: "",
       dob: "",
       gender: "",
+      hasHoroscope: false,
+      timeOfBirth: "",
+      horoCountryId: "",
+      horoStateId: "",
+      horoDistrictId: "",
+      placeOfBirth: "",
+      birthLatitude: "",
+      birthLongitude: "",
+      birthTimezone: "",
       countryId: "",
       stateId: "",
       districtId: "",
@@ -140,7 +165,11 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete }: Add
 
   const submit = () => {
     if (!canSubmit) {
-      toast({ title: "Missing fields", description: "Please fill all required fields.", variant: "destructive" });
+      const description =
+        form.hasHoroscope && !horoscopeValid
+          ? "Horoscope is enabled — Date of Birth, Time of Birth and Place of Birth are required."
+          : "Please fill all required fields.";
+      toast({ title: "Missing fields", description, variant: "destructive" });
       return;
     }
 
@@ -151,6 +180,15 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete }: Add
       email: form.email,
       dob: form.dob,
       gender: form.gender,
+      hasHoroscope: form.hasHoroscope,
+      timeOfBirth: form.timeOfBirth,
+      horoCountryId: form.horoCountryId,
+      horoStateId: form.horoStateId,
+      horoDistrictId: form.horoDistrictId,
+      placeOfBirth: form.placeOfBirth,
+      birthLatitude: form.birthLatitude,
+      birthLongitude: form.birthLongitude,
+      birthTimezone: form.birthTimezone,
       countryId: form.countryId,
       stateId: form.stateId,
       districtId: form.districtId,
@@ -187,7 +225,9 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete }: Add
       aadhaar_back: form.aadhaar_back,
     });
 
-    reset();
+    // Do NOT reset here: keep all entered values if the backend rejects the
+    // submission. The form is reset on dialog close (see Dialog onOpenChange),
+    // which fires only after a successful create closes the wizard.
   };
 
   const religionsQ = useQuery({
@@ -223,10 +263,16 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete }: Add
     enabled: !!form.stateId,
   });
 
-  const citiesQ = useQuery({
-    queryKey: ["master", "cities", "profile-form", form.districtId],
-    queryFn: () => fetchCities({ district_id: Number(form.districtId), page_size: 200 }),
-    enabled: !!form.districtId,
+  const horoStatesQ = useQuery({
+    queryKey: ["master", "states", "profile-form", "horo", form.horoCountryId],
+    queryFn: () => fetchStates({ country_id: Number(form.horoCountryId), page_size: 200 }),
+    enabled: form.hasHoroscope && !!form.horoCountryId,
+  });
+
+  const horoDistrictsQ = useQuery({
+    queryKey: ["master", "districts", "profile-form", "horo", form.horoStateId],
+    queryFn: () => fetchDistricts({ state_id: Number(form.horoStateId), page_size: 200 }),
+    enabled: form.hasHoroscope && !!form.horoStateId,
   });
 
   const educationsQ = useQuery({
@@ -314,6 +360,13 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete }: Add
             <div>
               <Label>Date of Birth *</Label>
               <Input type="date" value={form.dob} onChange={(e) => update("dob", e.target.value)} />
+              <label className="mt-2 flex items-center gap-2 text-sm cursor-pointer select-none">
+                <Checkbox
+                  checked={form.hasHoroscope}
+                  onCheckedChange={(v) => update("hasHoroscope", !!v)}
+                />
+                <span>I have horoscope details</span>
+              </label>
             </div>
             <div>
               <Label>Gender *</Label>
@@ -406,18 +459,11 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete }: Add
             </div>
             <div>
               <Label>City</Label>
-              <Select value={form.cityId} onValueChange={(v) => update("cityId", v)} disabled={!form.districtId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select city" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(citiesQ.data?.results ?? []).map((c) => (
-                    <SelectItem key={c.id} value={String(c.id)}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Input
+                value={form.city}
+                onChange={(e) => update("city", e.target.value)}
+                placeholder="Enter city"
+              />
             </div>
             <div className="sm:col-span-2">
               <Label>Address</Label>
@@ -681,6 +727,140 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete }: Add
               </Select>
             </div>
           </div>
+
+          {form.hasHoroscope && (
+            <Collapsible
+              open={horoExpanded}
+              onOpenChange={setHoroExpanded}
+              className="rounded-lg border border-border bg-muted/30"
+            >
+              <CollapsibleTrigger asChild>
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left"
+                >
+                  <span className="flex items-center gap-2 text-sm font-semibold">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    Horoscope Information
+                  </span>
+                  <ChevronDown
+                    className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 ${
+                      horoExpanded ? "rotate-180" : ""
+                    }`}
+                  />
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="border-t border-border p-4">
+                  <p className="mb-3 text-sm font-medium text-muted-foreground">Horoscope Details</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <Label>Time of Birth *</Label>
+                      <Input
+                        type="time"
+                        value={form.timeOfBirth}
+                        onChange={(e) => update("timeOfBirth", e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <Label>Country *</Label>
+                      <Select
+                        value={form.horoCountryId}
+                        onValueChange={(v) =>
+                          setForm((p) => ({
+                            ...p,
+                            horoCountryId: v,
+                            horoStateId: "",
+                            horoDistrictId: "",
+                          }))
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select country" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(countriesQ.data?.results ?? []).map((c) => (
+                            <SelectItem key={c.id} value={String(c.id)}>
+                              {c.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>State *</Label>
+                      <Select
+                        value={form.horoStateId}
+                        onValueChange={(v) =>
+                          setForm((p) => ({ ...p, horoStateId: v, horoDistrictId: "" }))
+                        }
+                        disabled={!form.horoCountryId}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select state" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(horoStatesQ.data?.results ?? []).map((s) => (
+                            <SelectItem key={s.id} value={String(s.id)}>
+                              {s.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>District *</Label>
+                      <Select
+                        value={form.horoDistrictId}
+                        onValueChange={(v) => update("horoDistrictId", v)}
+                        disabled={!form.horoStateId}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select district" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(horoDistrictsQ.data?.results ?? []).map((d) => (
+                            <SelectItem key={d.id} value={String(d.id)}>
+                              {d.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <Label>Place of Birth *</Label>
+                      <PlacesAutocomplete
+                        value={form.placeOfBirth}
+                        onChange={(v) => update("placeOfBirth", v)}
+                        onPlaceSelect={(place) =>
+                          setForm((p) => ({
+                            ...p,
+                            placeOfBirth: place.placeName || p.placeOfBirth,
+                            birthLatitude: place.latitude != null ? String(place.latitude) : p.birthLatitude,
+                            birthLongitude: place.longitude != null ? String(place.longitude) : p.birthLongitude,
+                            birthTimezone: place.timezone || p.birthTimezone,
+                          }))
+                        }
+                        placeholder="Start typing the birth place..."
+                      />
+                    </div>
+                    <div>
+                      <Label>Latitude</Label>
+                      <Input value={form.birthLatitude} readOnly placeholder="Auto-filled" />
+                    </div>
+                    <div>
+                      <Label>Longitude</Label>
+                      <Input value={form.birthLongitude} readOnly placeholder="Auto-filled" />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <Label>Timezone</Label>
+                      <Input value={form.birthTimezone} readOnly placeholder="Auto-filled" />
+                    </div>
+                  </div>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          )}
 
           <div>
             <Label>About Me</Label>

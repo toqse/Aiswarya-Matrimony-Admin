@@ -2,7 +2,7 @@ import {
   LayoutDashboard, Building2, Users, CreditCard, Receipt, Wallet, IndianRupee,
   UserCircle, Upload, MessageSquare, Banknote, BarChart3, Mail, Settings,
   ClipboardList, Target, CheckSquare, CalendarClock, Activity, FileText, Sparkles, MapPinned,
-  Church, ScrollText, Languages
+  Church, ScrollText, Languages, GraduationCap, BookOpen, Briefcase
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -34,6 +34,9 @@ const adminItems = [
   { title: "Caste", url: "/caste", icon: ScrollText },
   { title: "Religion", url: "/religion", icon: Church },
   { title: "Mother Tongue", url: "/mother-tongue", icon: Languages },
+  { title: "Education", url: "/education", icon: GraduationCap },
+  { title: "Education Subject", url: "/education-subject", icon: BookOpen },
+  { title: "Occupation", url: "/occupation", icon: Briefcase },
 ];
 
 const staffItems = [

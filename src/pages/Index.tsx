@@ -27,6 +27,9 @@ import DistrictAnalysis from "@/pages/admin/DistrictAnalysis";
 import CasteManagement from "@/pages/admin/CasteManagement";
 import ReligionManagement from "@/pages/admin/ReligionManagement";
 import MotherTongueManagement from "@/pages/admin/MotherTongueManagement";
+import EducationManagement from "@/pages/admin/EducationManagement";
+import EducationSubjectManagement from "@/pages/admin/EducationSubjectManagement";
+import OccupationManagement from "@/pages/admin/OccupationManagement";
 import MyProfiles from "@/pages/staff/MyProfiles";
 import StaffEnquiries from "@/pages/staff/StaffEnquiries";
 import StaffSubscriptions from "@/pages/staff/StaffSubscriptions";
@@ -73,6 +76,9 @@ const Index = () => {
         <Route path="/caste" element={<CasteManagement />} />
         <Route path="/religion" element={<ReligionManagement />} />
         <Route path="/mother-tongue" element={<MotherTongueManagement />} />
+        <Route path="/education" element={<EducationManagement />} />
+        <Route path="/education-subject" element={<EducationSubjectManagement />} />
+        <Route path="/occupation" element={<OccupationManagement />} />
         {/* Staff & Branch Manager dedicated routes */}
         <Route path="/my-commissions" element={<MyCommissions />} />
         <Route path="/my-salary" element={<MySalary />} />

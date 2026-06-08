@@ -77,6 +77,7 @@ export default function BranchMyProfiles() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] =
     useState<NonNullable<ProfilesQuery["filter"]>>("all");
+  const [page, setPage] = useState(1);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [docId, setDocId] = useState<string | null>(null);
   const [assignId, setAssignId] = useState<string | null>(null);
@@ -97,12 +98,12 @@ export default function BranchMyProfiles() {
     queryFn: () => fetchBranchMyProfilesSummary(),
   });
   const listQ = useQuery({
-    queryKey: ["branch", "my-profiles", "list", search, filter],
+    queryKey: ["branch", "my-profiles", "list", search, filter, page],
     queryFn: () =>
       fetchBranchMyProfiles({
         search: search.trim() || undefined,
         filter,
-        page: 1,
+        page,
         page_size: 20,
       }),
   });
@@ -192,6 +193,9 @@ export default function BranchMyProfiles() {
   });
 
   const rows = listQ.data?.results ?? [];
+  const total = listQ.data?.count ?? 0;
+  const canPrev = Boolean(listQ.data?.previous) && page > 1;
+  const canNext = Boolean(listQ.data?.next);
   const incompleteMsg = summaryQ.data?.incomplete_message;
   const normalizedRows = useMemo(
     () =>
@@ -263,15 +267,19 @@ export default function BranchMyProfiles() {
           <div className="flex items-center gap-2 flex-wrap">
             <Input
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setPage(1);
+                setSearch(e.target.value);
+              }}
               placeholder="Search name or matri ID..."
               className="max-w-sm"
             />
             <Select
               value={filter}
-              onValueChange={(v) =>
-                setFilter(v as NonNullable<ProfilesQuery["filter"]>)
-              }
+              onValueChange={(v) => {
+                setPage(1);
+                setFilter(v as NonNullable<ProfilesQuery["filter"]>);
+              }}
             >
               <SelectTrigger className="w-[180px]">
                 <SelectValue />
@@ -395,6 +403,31 @@ export default function BranchMyProfiles() {
               ))}
             </TableBody>
           </Table>
+
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-muted-foreground">
+              Showing {rows.length} of {total} records
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={!canPrev}
+              >
+                Previous
+              </Button>
+              <span className="text-sm text-muted-foreground">Page {page}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => p + 1)}
+                disabled={!canNext}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

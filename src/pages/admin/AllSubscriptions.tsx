@@ -20,19 +20,26 @@ export default function AllSubscriptions() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [paymentFilter, setPaymentFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState("20");
   const { toast } = useToast();
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["admin", "subscriptions", search, statusFilter, paymentFilter],
+    queryKey: ["admin", "subscriptions", search, statusFilter, paymentFilter, page, pageSize],
     queryFn: () =>
       fetchAdminSubscriptions({
         search: search.trim() || undefined,
         status: statusFilter === "all" ? undefined : statusFilter,
         payment_mode: paymentFilter === "all" ? undefined : paymentFilter.toLowerCase(),
+        page,
+        page_size: Number(pageSize),
       }),
   });
 
   const rows = data?.results ?? [];
+  const total = data?.count ?? 0;
+  const canPrev = Boolean(data?.previous) && page > 1;
+  const canNext = Boolean(data?.next);
 
   const exportMut = useMutation({
     mutationFn: () =>
@@ -67,11 +74,20 @@ export default function AllSubscriptions() {
               <Input
                 placeholder="Search customer..."
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => {
+                  setPage(1);
+                  setSearch(e.target.value);
+                }}
                 className="pl-9"
               />
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <Select
+              value={statusFilter}
+              onValueChange={(v) => {
+                setPage(1);
+                setStatusFilter(v);
+              }}
+            >
               <SelectTrigger className="w-[140px]">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
@@ -82,7 +98,13 @@ export default function AllSubscriptions() {
                 <SelectItem value="cancelled">Cancelled</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={paymentFilter} onValueChange={setPaymentFilter}>
+            <Select
+              value={paymentFilter}
+              onValueChange={(v) => {
+                setPage(1);
+                setPaymentFilter(v);
+              }}
+            >
               <SelectTrigger className="w-[140px]">
                 <SelectValue placeholder="Payment" />
               </SelectTrigger>
@@ -92,6 +114,23 @@ export default function AllSubscriptions() {
                 <SelectItem value="upi">UPI</SelectItem>
                 <SelectItem value="card">Card</SelectItem>
                 <SelectItem value="netbanking">Netbanking</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
+              value={pageSize}
+              onValueChange={(v) => {
+                setPage(1);
+                setPageSize(v);
+              }}
+            >
+              <SelectTrigger className="w-[130px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="10">10 / page</SelectItem>
+                <SelectItem value="20">20 / page</SelectItem>
+                <SelectItem value="50">50 / page</SelectItem>
+                <SelectItem value="100">100 / page</SelectItem>
               </SelectContent>
             </Select>
             {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -132,6 +171,31 @@ export default function AllSubscriptions() {
               ))}
             </TableBody>
           </Table>
+
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-muted-foreground">
+              Showing {rows.length} of {total} records
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={!canPrev}
+              >
+                Previous
+              </Button>
+              <span className="text-sm text-muted-foreground">Page {page}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => p + 1)}
+                disabled={!canNext}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>

@@ -42,6 +42,8 @@ export interface StaffSalaryListData {
   results: StaffSalaryRow[];
 }
 
+export type SalaryApiScope = "staff" | "branch-manager";
+
 function toQs(params?: Record<string, string | number | undefined>) {
   const q = new URLSearchParams();
   if (params) {
@@ -65,6 +67,29 @@ export async function fetchStaffSalaryCurrent() {
 
 export async function fetchStaffSalaryHistory(params?: { year?: number; page?: number; page_size?: number }) {
   const res = await adminRequest<StaffSalaryListData>(`v1/staff/salary/${toQs(params)}`);
+  return unwrap(res);
+}
+
+function getSalaryBasePath(scope: SalaryApiScope | undefined): string {
+  if (scope === "branch-manager") return "v1/staff/me/salary/";
+  return "v1/staff/salary/";
+}
+
+export async function fetchMySalarySummary(scope?: SalaryApiScope) {
+  const res = await adminRequest<StaffSalarySummaryData>(`${getSalaryBasePath(scope)}summary/`);
+  return unwrap(res);
+}
+
+export async function fetchMySalaryCurrent(scope?: SalaryApiScope) {
+  const res = await adminRequest<StaffSalaryCurrentData>(`${getSalaryBasePath(scope)}current/`);
+  return unwrap(res);
+}
+
+export async function fetchMySalaryHistory(
+  params?: { year?: number; page?: number; page_size?: number },
+  scope?: SalaryApiScope,
+) {
+  const res = await adminRequest<StaffSalaryListData>(`${getSalaryBasePath(scope)}${toQs(params)}`);
   return unwrap(res);
 }
 

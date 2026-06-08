@@ -27,7 +27,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -136,6 +135,8 @@ function FormField({
 export default function StaffManagement() {
   const { role } = useRole();
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState("20");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<StaffListRow | null>(null);
   const [viewStaff, setViewStaff] = useState<StaffListRow | null>(null);
@@ -154,14 +155,25 @@ export default function StaffManagement() {
   const branchOptions = branchesQuery.data?.results ?? [];
 
   const listQuery = useQuery({
-    queryKey: ["staff", "list", role, search],
+    queryKey: ["staff", "list", role, search, page, pageSize],
     queryFn: () =>
       role === "admin"
-        ? fetchAdminStaffList({ search: search.trim() || undefined })
-        : fetchBranchStaffList({ search: search.trim() || undefined }),
+        ? fetchAdminStaffList({
+            search: search.trim() || undefined,
+            page,
+            page_size: Number(pageSize),
+          })
+        : fetchBranchStaffList({
+            search: search.trim() || undefined,
+            page,
+            page_size: Number(pageSize),
+          }),
   });
 
   const staffRows = listQuery.data?.results ?? [];
+  const total = listQuery.data?.count ?? 0;
+  const canPrev = Boolean(listQuery.data?.previous) && page > 1;
+  const canNext = Boolean(listQuery.data?.next);
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["staff", "list"] });
@@ -364,9 +376,29 @@ export default function StaffManagement() {
             <Input
               placeholder="Search staff..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setPage(1);
+                setSearch(e.target.value);
+              }}
               className="pl-9"
             />
+            <Select
+              value={pageSize}
+              onValueChange={(v) => {
+                setPage(1);
+                setPageSize(v);
+              }}
+            >
+              <SelectTrigger className="w-[130px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="10">10 / page</SelectItem>
+                <SelectItem value="20">20 / page</SelectItem>
+                <SelectItem value="50">50 / page</SelectItem>
+                <SelectItem value="100">100 / page</SelectItem>
+              </SelectContent>
+            </Select>
             {listQuery.isLoading && (
               <Loader2 className="h-4 w-4 animate-spin shrink-0" />
             )}
@@ -382,7 +414,6 @@ export default function StaffManagement() {
                 <TableHead>Designation</TableHead>
                 <TableHead>Salary</TableHead>
                 <TableHead>Commission %</TableHead>
-                <TableHead>Target Progress</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Report</TableHead>
                 <TableHead>Actions</TableHead>
@@ -390,8 +421,6 @@ export default function StaffManagement() {
             </TableHeader>
             <TableBody>
               {staffRows.map((s) => {
-                const achieved = s.target_progress?.achieved ?? 0;
-                const target = s.target_progress?.target ?? 1;
                 return (
                   <TableRow key={s.id}>
                     <TableCell className="font-mono text-xs">
@@ -404,17 +433,6 @@ export default function StaffManagement() {
                       ₹{Number(s.basic_salary).toLocaleString()}
                     </TableCell>
                     <TableCell>{s.commission_rate}%</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Progress
-                          value={target ? (achieved / target) * 100 : 0}
-                          className="h-2 w-20"
-                        />
-                        <span className="text-xs text-muted-foreground">
-                          {achieved}/{target}
-                        </span>
-                      </div>
-                    </TableCell>
                     <TableCell>
                       <Badge
                         variant={
@@ -486,6 +504,31 @@ export default function StaffManagement() {
               })}
             </TableBody>
           </Table>
+
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-muted-foreground">
+              Showing {staffRows.length} of {total} records
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={!canPrev}
+              >
+                Previous
+              </Button>
+              <span className="text-sm text-muted-foreground">Page {page}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => p + 1)}
+                disabled={!canNext}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

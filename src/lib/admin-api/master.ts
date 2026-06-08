@@ -41,18 +41,26 @@ export interface EducationItem {
   id: number;
   name: string;
   is_active?: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface EducationSubjectItem {
   id: number;
   name: string;
   education?: number;
+  education_ids?: number[];
+  is_active?: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface OccupationItem {
   id: number;
   name: string;
   is_active?: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface EmploymentStatusItem {
@@ -82,7 +90,7 @@ function parsePaginated<T>(res: { ok: boolean; data: unknown }): PaginatedMaster
   if (d.data && typeof d.data === "object" && d.data !== null && "results" in (d.data as object)) {
     return d.data as PaginatedMaster<T>;
   }
-  if ("results" in d) return d as PaginatedMaster<T>;
+  if ("results" in d) return d as unknown as PaginatedMaster<T>;
   throw new Error("Invalid list response");
 }
 
@@ -256,6 +264,86 @@ export async function fetchOccupations(params?: { search?: string; page?: number
   return parsePaginated<OccupationItem>(res);
 }
 
+export async function fetchAdminEducations(params?: { search?: string; page?: number; page_size?: number }) {
+  const q = new URLSearchParams();
+  if (params?.search) q.set("search", params.search);
+  if (params?.page) q.set("page", String(params.page));
+  if (params?.page_size) q.set("page_size", String(params.page_size));
+  const qs = q.toString();
+  const res = await adminRequest<never>(qs ? `v1/admin/master/educations/?${qs}` : "v1/admin/master/educations/");
+  return parsePaginated<EducationItem>(res);
+}
+
+export async function createEducation(body: { name: string }) {
+  const res = await adminRequest<EducationItem>("v1/admin/master/educations/", { method: "POST", body });
+  return unwrap(res);
+}
+
+export async function updateEducation(id: number, body: { name?: string }) {
+  const res = await adminRequest<EducationItem>(`v1/admin/master/educations/${id}/`, { method: "PATCH", body });
+  return unwrap(res);
+}
+
+export async function deleteEducation(id: number) {
+  const res = await adminRequest<unknown>(`v1/admin/master/educations/${id}/`, { method: "DELETE" });
+  if (!res.ok) throw new Error(getAuthApiErrorMessage(res.data as AuthApiEnvelope<unknown>));
+}
+
+export async function fetchAdminEducationSubjects(params?: { search?: string; page?: number; page_size?: number }) {
+  const q = new URLSearchParams();
+  if (params?.search) q.set("search", params.search);
+  if (params?.page) q.set("page", String(params.page));
+  if (params?.page_size) q.set("page_size", String(params.page_size));
+  const qs = q.toString();
+  const res = await adminRequest<never>(
+    qs ? `v1/admin/master/education-subjects/?${qs}` : "v1/admin/master/education-subjects/",
+  );
+  return parsePaginated<EducationSubjectItem>(res);
+}
+
+export async function createEducationSubject(body: { name: string; educations?: number[] }) {
+  const res = await adminRequest<EducationSubjectItem>("v1/admin/master/education-subjects/", { method: "POST", body });
+  return unwrap(res);
+}
+
+export async function updateEducationSubject(id: number, body: { name?: string; educations?: number[] }) {
+  const res = await adminRequest<EducationSubjectItem>(`v1/admin/master/education-subjects/${id}/`, {
+    method: "PATCH",
+    body,
+  });
+  return unwrap(res);
+}
+
+export async function deleteEducationSubject(id: number) {
+  const res = await adminRequest<unknown>(`v1/admin/master/education-subjects/${id}/`, { method: "DELETE" });
+  if (!res.ok) throw new Error(getAuthApiErrorMessage(res.data as AuthApiEnvelope<unknown>));
+}
+
+export async function fetchAdminOccupations(params?: { search?: string; page?: number; page_size?: number }) {
+  const q = new URLSearchParams();
+  if (params?.search) q.set("search", params.search);
+  if (params?.page) q.set("page", String(params.page));
+  if (params?.page_size) q.set("page_size", String(params.page_size));
+  const qs = q.toString();
+  const res = await adminRequest<never>(qs ? `v1/admin/master/occupations/?${qs}` : "v1/admin/master/occupations/");
+  return parsePaginated<OccupationItem>(res);
+}
+
+export async function createOccupation(body: { name: string }) {
+  const res = await adminRequest<OccupationItem>("v1/admin/master/occupations/", { method: "POST", body });
+  return unwrap(res);
+}
+
+export async function updateOccupation(id: number, body: { name?: string }) {
+  const res = await adminRequest<OccupationItem>(`v1/admin/master/occupations/${id}/`, { method: "PATCH", body });
+  return unwrap(res);
+}
+
+export async function deleteOccupation(id: number) {
+  const res = await adminRequest<unknown>(`v1/admin/master/occupations/${id}/`, { method: "DELETE" });
+  if (!res.ok) throw new Error(getAuthApiErrorMessage(res.data as AuthApiEnvelope<unknown>));
+}
+
 export async function fetchEmploymentStatuses(params?: { search?: string; page?: number; page_size?: number }) {
   const q = new URLSearchParams();
   if (params?.search) q.set("search", params.search);
@@ -273,4 +361,13 @@ export async function fetchIncomeRanges(params?: { page?: number; page_size?: nu
   const qs = q.toString();
   const res = await adminRequest<never>(qs ? `v1/master/income-ranges/?${qs}` : "v1/master/income-ranges/");
   return parsePaginated<IncomeRangeItem>(res);
+}
+
+export async function fetchMaritalStatuses(params?: { page?: number; page_size?: number }) {
+  const q = new URLSearchParams();
+  if (params?.page) q.set("page", String(params.page));
+  if (params?.page_size) q.set("page_size", String(params.page_size));
+  const qs = q.toString();
+  const res = await adminRequest<never>(qs ? `v1/master/marital-status/?${qs}` : "v1/master/marital-status/");
+  return parsePaginated<MasterItem>(res);
 }

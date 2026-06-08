@@ -298,24 +298,12 @@ export default function CashPayments() {
           <h1 className="text-2xl font-bold text-foreground">
             Payment Control Center
           </h1>
-          <div className="flex items-center gap-3 mt-1">
-            <div
-              className="flex items-center gap-1.5"
-              title={summary?.live ? "Live data" : "Snapshot data"}
-            >
-              <span className="relative flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
-              </span>
-              <span className="text-xs font-semibold text-red-600">LIVE</span>
-            </div>
-            <span className="text-xs text-muted-foreground">
-              Last updated:{" "}
-              {summary?.last_updated
-                ? new Date(summary.last_updated).toLocaleTimeString()
-                : "--:--:--"}
-            </span>
-          </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            Last updated:{" "}
+            {summary?.last_updated
+              ? new Date(summary.last_updated).toLocaleTimeString()
+              : "--:--:--"}
+          </p>
         </div>
         <div className="flex gap-2">
           <Button

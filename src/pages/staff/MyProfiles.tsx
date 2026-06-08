@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,15 +7,13 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { subscriptionPlans } from "@/data/mockData";
 import {
-  Search, Plus, Eye, Edit, RefreshCw, Heart, Mail, StickyNote,
+  Search, Plus, Eye, Edit, RefreshCw, Heart, StickyNote,
   UserCheck, UserX, AlertTriangle, Users, CreditCard, CheckCircle2, XCircle
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -26,8 +25,6 @@ import {
   fetchStaffProfiles,
   fetchStaffProfileDetail,
   patchStaffProfile,
-  refreshStaffProfile,
-  sendStaffProfileEmail,
   toggleStaffProfileWishlist,
 } from "@/lib/admin-api/profiles";
 import { fetchCities, fetchCountries, fetchDistricts, fetchStates } from "@/lib/admin-api/master";
@@ -70,6 +67,8 @@ function showValue(value: unknown) {
 export default function MyProfiles() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState("20");
   const [viewProfile, setViewProfile] = useState<ProfileListRow | null>(null);
   const [showAddProfile, setShowAddProfile] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
@@ -113,17 +112,17 @@ export default function MyProfiles() {
   const [showNoteDialog, setShowNoteDialog] = useState(false);
   const [noteTarget, setNoteTarget] = useState<string>("");
   const [noteText, setNoteText] = useState("");
-  const [showRenewDialog, setShowRenewDialog] = useState(false);
-  const [renewTarget, setRenewTarget] = useState<ProfileListRow | null>(null);
-  const [renewPlan, setRenewPlan] = useState("");
   const [showMatchDialog, setShowMatchDialog] = useState(false);
   const [matchTarget, setMatchTarget] = useState<ProfileListRow | null>(null);
-  const [showEmailDialog, setShowEmailDialog] = useState(false);
-  const [emailTarget, setEmailTarget] = useState<ProfileListRow | null>(null);
-  const [emailSubject, setEmailSubject] = useState("");
-  const [emailBody, setEmailBody] = useState("");
   const { toast } = useToast();
   const qc = useQueryClient();
+  const navigate = useNavigate();
+
+  const goToCashPaymentForRenewal = (p: ProfileListRow) => {
+    navigate("/cash-entry", {
+      state: { renewProfile: { matri_id: p.matri_id, name: p.name } },
+    });
+  };
 
   const summaryQ = useQuery({
     queryKey: ["staff", "profiles", "summary"],
@@ -131,16 +130,20 @@ export default function MyProfiles() {
   });
 
   const listQ = useQuery({
-    queryKey: ["staff", "profiles", "list", search, statusFilter],
+    queryKey: ["staff", "profiles", "list", search, statusFilter, page, pageSize],
     queryFn: () =>
       fetchStaffProfiles({
         search: search.trim() || undefined,
         filter: filterToApi(statusFilter),
-        page: 1,
+        page,
+        page_size: Number(pageSize),
       }),
   });
 
   const profiles = listQ.data?.results ?? [];
+  const total = listQ.data?.count ?? 0;
+  const canPrev = Boolean(listQ.data?.previous) && page > 1;
+  const canNext = Boolean(listQ.data?.next);
 
   const viewDetailQ = useQuery({
     queryKey: ["staff", "profiles", "detail", viewProfile?.matri_id],
@@ -279,51 +282,13 @@ export default function MyProfiles() {
     setNoteText("");
   };
 
-  const handleRenew = () => {
-    if (!renewTarget || !renewPlan) return;
-    const plan = subscriptionPlans.find(p => p.name === renewPlan);
-    setShowRenewDialog(false);
-    setRenewPlan("");
-    toast({ title: "Subscription Renewed", description: `${renewTarget.name} upgraded to ${renewPlan} plan (₹${plan?.price || 0})` });
-  };
-
   const getMatches = (profile: ProfileListRow) =>
     profiles.filter((p) => p.matri_id !== profile.matri_id && p.gender !== profile.gender && p.religion === profile.religion);
-
-  const handleSendEmail = () => {
-    if (!emailTarget || !emailSubject) return;
-    // Staff API supports template_id only; map current UI to a default template.
-    sendEmailMut.mutate({ matriId: emailTarget.matri_id, templateId: 1 });
-  };
-
-  const refreshMut = useMutation({
-    mutationFn: (matriId: string) => refreshStaffProfile(matriId),
-    onSuccess: async () => {
-      toast({ title: "Refreshed", description: "Profile completeness refreshed." });
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: ["staff", "profiles", "summary"] }),
-        qc.invalidateQueries({ queryKey: ["staff", "profiles", "list"] }),
-      ]);
-    },
-    onError: (e) => toast({ title: "Failed", description: (e as Error).message, variant: "destructive" }),
-  });
 
   const wishlistMut = useMutation({
     mutationFn: (matriId: string) => toggleStaffProfileWishlist(matriId),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["staff", "profiles", "list"] });
-    },
-    onError: (e) => toast({ title: "Failed", description: (e as Error).message, variant: "destructive" }),
-  });
-
-  const sendEmailMut = useMutation({
-    mutationFn: ({ matriId, templateId }: { matriId: string; templateId: number }) =>
-      sendStaffProfileEmail(matriId, { template_id: templateId }),
-    onSuccess: () => {
-      toast({ title: "Email Sent", description: "Email sent successfully." });
-      setShowEmailDialog(false);
-      setEmailSubject("");
-      setEmailBody("");
     },
     onError: (e) => toast({ title: "Failed", description: (e as Error).message, variant: "destructive" }),
   });
@@ -385,16 +350,44 @@ export default function MyProfiles() {
           <div className="flex flex-wrap items-center gap-3">
             <div className="relative flex-1 min-w-[200px] max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search by name or ID..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+              <Input
+                placeholder="Search by name or ID..."
+                value={search}
+                onChange={(e) => {
+                  setPage(1);
+                  setSearch(e.target.value);
+                }}
+                className="pl-9"
+              />
             </div>
             <div className="flex gap-2 flex-wrap">
               {statusFilters.map((f) => (
                 <Button key={f} variant={statusFilter === f ? "default" : "outline"} size="sm"
-                  onClick={() => setStatusFilter(f)} className="text-xs">
+                  onClick={() => {
+                    setPage(1);
+                    setStatusFilter(f);
+                  }} className="text-xs">
                   {f}
                 </Button>
               ))}
             </div>
+            <Select
+              value={pageSize}
+              onValueChange={(v) => {
+                setPage(1);
+                setPageSize(v);
+              }}
+            >
+              <SelectTrigger className="w-[130px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="10">10 / page</SelectItem>
+                <SelectItem value="20">20 / page</SelectItem>
+                <SelectItem value="50">50 / page</SelectItem>
+                <SelectItem value="100">100 / page</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardHeader>
         <CardContent>
@@ -408,16 +401,12 @@ export default function MyProfiles() {
                 <TableHead>Religion / Caste</TableHead>
                 <TableHead>Subscription</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Completeness</TableHead>
                 <TableHead>Quick Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {profiles.map((p) => (
-                <TableRow
-                  key={p.matri_id}
-                  className={(p.completeness ?? p.completion_percent ?? 0) < 50 ? "bg-warning/5" : ""}
-                >
+                <TableRow key={p.matri_id}>
                   <TableCell className="font-mono text-xs">{p.matri_id}</TableCell>
                   <TableCell className="font-medium">{p.name}</TableCell>
                   <TableCell>{p.gender}</TableCell>
@@ -439,12 +428,6 @@ export default function MyProfiles() {
                     )}
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-2 min-w-[120px]">
-                      <Progress value={p.completeness ?? p.completion_percent ?? 0} className="h-2 flex-1" />
-                      <span className="text-xs font-medium text-muted-foreground">{p.completeness ?? p.completion_percent ?? 0}%</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
                     <div className="flex items-center gap-1">
                       <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-blue-500/10" title="Edit Profile"
                         onClick={() => openEdit(p)}>
@@ -454,30 +437,22 @@ export default function MyProfiles() {
                         onClick={() => setViewProfile(p)}>
                         <Eye className="h-3.5 w-3.5 text-violet-500" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-emerald-500/10" title="Renew Subscription"
-                        onClick={() => { setRenewTarget(p); setRenewPlan((p.subscription_plan ?? "") || ""); setShowRenewDialog(true); }}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 hover:bg-emerald-500/10"
+                        title="Renew subscription — Cash & digital payment"
+                        onClick={() => goToCashPaymentForRenewal(p)}
+                      >
                         <RefreshCw className="h-3.5 w-3.5 text-emerald-500" />
                       </Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-pink-500/10" title="View Matches"
                         onClick={() => { setMatchTarget(p); setShowMatchDialog(true); }}>
                         <Heart className="h-3.5 w-3.5 text-pink-500" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-amber-500/10" title="Send Email"
-                        onClick={() => { setEmailTarget(p); setShowEmailDialog(true); }}>
-                        <Mail className="h-3.5 w-3.5 text-amber-500" />
-                      </Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-teal-500/10" title="Add Note"
                         onClick={() => { setNoteTarget(p.name); setShowNoteDialog(true); }}>
                         <StickyNote className="h-3.5 w-3.5 text-teal-500" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 hover:bg-primary/10"
-                        title="Refresh completeness"
-                        onClick={() => refreshMut.mutate(p.matri_id)}
-                      >
-                        <RefreshCw className="h-3.5 w-3.5 text-primary" />
                       </Button>
                     </div>
                   </TableCell>
@@ -485,6 +460,31 @@ export default function MyProfiles() {
               ))}
             </TableBody>
           </Table>
+
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-muted-foreground">
+              Showing {profiles.length} of {total} records
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={!canPrev}
+              >
+                Previous
+              </Button>
+              <span className="text-sm text-muted-foreground">Page {page}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => p + 1)}
+                disabled={!canNext}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
@@ -500,6 +500,9 @@ export default function MyProfiles() {
             <DialogTitle>
               Profile Details — {viewProfile?.matri_id}
             </DialogTitle>
+            <DialogDescription className="sr-only">
+              View complete profile details.
+            </DialogDescription>
             {!!viewProfile?.name && (
               <p className="text-xs text-muted-foreground">{viewProfile.name}</p>
             )}
@@ -711,9 +714,9 @@ export default function MyProfiles() {
                     variant="outline"
                     onClick={() => {
                       if (!viewProfile) return;
+                      const vp = viewProfile;
                       setViewProfile(null);
-                      setRenewTarget(viewProfile);
-                      setShowRenewDialog(true);
+                      goToCashPaymentForRenewal(vp);
                     }}
                   >
                     <RefreshCw className="h-3.5 w-3.5 mr-1" /> Renew
@@ -743,19 +746,51 @@ export default function MyProfiles() {
         onOpenChange={setShowAddProfile}
         onComplete={(form: any) => {
           const gender = form.gender === "Male" ? "M" : form.gender === "Female" ? "F" : "O";
+          const birthTime = String(form.timeOfBirth ?? "").trim();
+          const birthPlace = String(form.placeOfBirth ?? "").trim();
+          const birthDate = isoToDDMMYYYY(String(form.dob ?? ""));
+          const horoscopeDetails = form.hasHoroscope
+            ? {
+                date_of_birth: birthDate || undefined,
+                pr_dob: birthDate || undefined,
+                time_of_birth: birthTime || undefined,
+                birth_time: birthTime || undefined,
+                pr_tob: birthTime || undefined,
+                country_id: form.horoCountryId ? Number(form.horoCountryId) : undefined,
+                state_id: form.horoStateId ? Number(form.horoStateId) : undefined,
+                district_id: form.horoDistrictId ? Number(form.horoDistrictId) : undefined,
+                place_of_birth: birthPlace || undefined,
+                birth_place: birthPlace || undefined,
+                pr_pob: birthPlace || undefined,
+                latitude: form.birthLatitude ? Number(form.birthLatitude) : undefined,
+                longitude: form.birthLongitude ? Number(form.birthLongitude) : undefined,
+                timezone: form.birthTimezone || undefined,
+              }
+            : undefined;
           const registration = {
             name: String(form.name ?? form.fullName ?? "").trim(),
             phone_number: String(form.mobile ?? "").trim(),
             gender,
-            dob: isoToDDMMYYYY(String(form.dob ?? "")),
+            dob: birthDate,
             email: form.email ? String(form.email).trim() : undefined,
             terms_accepted: true,
             profile_for: String(form.profileFor ?? "myself").toLowerCase(),
+            has_horoscope: !!form.hasHoroscope,
+            horoscope_details: horoscopeDetails,
+            time_of_birth: form.hasHoroscope ? birthTime || undefined : undefined,
+            birth_time: form.hasHoroscope ? birthTime || undefined : undefined,
+            pr_tob: form.hasHoroscope ? birthTime || undefined : undefined,
+            place_of_birth: form.hasHoroscope ? birthPlace || undefined : undefined,
+            birth_place: form.hasHoroscope ? birthPlace || undefined : undefined,
+            pr_pob: form.hasHoroscope ? birthPlace || undefined : undefined,
+            latitude: form.hasHoroscope && form.birthLatitude ? Number(form.birthLatitude) : undefined,
+            longitude: form.hasHoroscope && form.birthLongitude ? Number(form.birthLongitude) : undefined,
+            timezone: form.hasHoroscope ? form.birthTimezone || undefined : undefined,
             location_details: {
               country_id: form.countryId ? Number(form.countryId) : undefined,
               state_id: form.stateId ? Number(form.stateId) : undefined,
               district_id: form.districtId ? Number(form.districtId) : undefined,
-              city_id: form.cityId ? Number(form.cityId) : undefined,
+              city: form.city ? String(form.city).trim() : undefined,
               address: form.address || undefined,
             },
             religion_details: {
@@ -803,6 +838,45 @@ export default function MyProfiles() {
             if (f instanceof File) fd.append(k, f);
           });
 
+          const formData = {
+            horoscopeFields: [
+              {
+                uiFieldName: "Time of Birth",
+                stateFieldName: "timeOfBirth",
+                stateValue: form.timeOfBirth,
+                apiPayloadFieldNames: [
+                  "registration.time_of_birth",
+                  "registration.birth_time",
+                  "registration.pr_tob",
+                  "registration.horoscope_details.time_of_birth",
+                  "registration.horoscope_details.birth_time",
+                  "registration.horoscope_details.pr_tob",
+                ],
+                serializerFieldNames: ["time_of_birth", "birth_time", "pr_tob"],
+              },
+              {
+                uiFieldName: "Place of Birth",
+                stateFieldName: "placeOfBirth",
+                stateValue: form.placeOfBirth,
+                apiPayloadFieldNames: [
+                  "registration.place_of_birth",
+                  "registration.birth_place",
+                  "registration.pr_pob",
+                  "registration.horoscope_details.place_of_birth",
+                  "registration.horoscope_details.birth_place",
+                  "registration.horoscope_details.pr_pob",
+                ],
+                serializerFieldNames: ["place_of_birth", "birth_place", "pr_pob"],
+              },
+            ],
+            registration,
+            formDataEntries: Array.from(fd.entries()).map(([key, value]) => [
+              key,
+              value instanceof File ? `[File:${value.name}]` : value,
+            ]),
+          };
+          console.log(formData);
+
           createMut.mutate(fd);
         }}
       />
@@ -810,7 +884,12 @@ export default function MyProfiles() {
       {/* Edit Profile Dialog — Full Fields */}
       <Dialog open={showEditProfile} onOpenChange={setShowEditProfile}>
         <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>Edit Profile — {editProfile?.id}</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Edit Profile — {editProfile?.id}</DialogTitle>
+            <DialogDescription className="sr-only">
+              Edit profile fields and save changes.
+            </DialogDescription>
+          </DialogHeader>
           {editProfile && (
             <div className="space-y-4">
               <div className="space-y-4">
@@ -1027,60 +1106,15 @@ export default function MyProfiles() {
         </DialogContent>
       </Dialog>
 
-      {/* Renew Subscription Dialog */}
-      <Dialog open={showRenewDialog} onOpenChange={setShowRenewDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Renew Subscription — {renewTarget?.name}</DialogTitle></DialogHeader>
-          {renewTarget && (
-            <div className="space-y-4">
-              <div>
-                <Label className="text-muted-foreground text-xs">Current Plan</Label>
-                <p className="font-semibold">{renewTarget.subscription === "None" ? "No active plan" : renewTarget.subscription}</p>
-              </div>
-              <div>
-                <Label>Select New Plan</Label>
-                <Select value={renewPlan} onValueChange={setRenewPlan}>
-                  <SelectTrigger><SelectValue placeholder="Choose a plan" /></SelectTrigger>
-                  <SelectContent>
-                    {subscriptionPlans.filter(p => p.status === "active").map(p => (
-                      <SelectItem key={p.name} value={p.name}>
-                        {p.name} — ₹{p.price.toLocaleString()} ({p.duration})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {renewPlan && (
-                <Card className="bg-primary/5 border-primary/20">
-                  <CardContent className="p-3 text-sm space-y-1">
-                    {(() => {
-                      const plan = subscriptionPlans.find(p => p.name === renewPlan);
-                      return plan ? (
-                        <>
-                          <p><span className="text-muted-foreground">Plan:</span> <strong>{plan.name}</strong></p>
-                          <p><span className="text-muted-foreground">Duration:</span> {plan.duration}</p>
-                          <p><span className="text-muted-foreground">Price:</span> <strong>₹{plan.price.toLocaleString()}</strong></p>
-                          <p><span className="text-muted-foreground">Interests:</span> {plan.interests === -1 ? "Unlimited" : plan.interests}</p>
-                          <p><span className="text-muted-foreground">Contact Views:</span> {plan.contactViews === -1 ? "Unlimited" : plan.contactViews}</p>
-                        </>
-                      ) : null;
-                    })()}
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowRenewDialog(false)}>Cancel</Button>
-            <Button onClick={handleRenew} disabled={!renewPlan} className="bg-emerald-600 hover:bg-emerald-700 text-white">Confirm Renewal</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       {/* Match Viewer Dialog */}
       <Dialog open={showMatchDialog} onOpenChange={setShowMatchDialog}>
         <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>Matches for {matchTarget?.name}</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Matches for {matchTarget?.name}</DialogTitle>
+            <DialogDescription className="sr-only">
+              View suggested matches for this profile.
+            </DialogDescription>
+          </DialogHeader>
           {matchTarget && (
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">Showing compatible profiles (opposite gender, same religion)</p>
@@ -1116,48 +1150,15 @@ export default function MyProfiles() {
         </DialogContent>
       </Dialog>
 
-      {/* Email Dialog */}
-      <Dialog open={showEmailDialog} onOpenChange={setShowEmailDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Send Email to {emailTarget?.name}</DialogTitle></DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label>Subject *</Label>
-              <Input value={emailSubject} onChange={(e) => setEmailSubject(e.target.value)} placeholder="Enter email subject..." />
-            </div>
-            <div>
-              <Label>Quick Templates</Label>
-              <div className="flex flex-wrap gap-2 mt-1">
-                {[
-                  { label: "Profile Incomplete", subj: "Please Complete Your Profile", body: "Dear {name},\n\nWe noticed your profile is incomplete. Please log in and update your details to improve your match rate.\n\nBest Regards,\nAiswarya Matrimony" },
-                  { label: "Subscription Reminder", subj: "Subscription Renewal Reminder", body: "Dear {name},\n\nYour subscription is expiring soon. Renew now to continue receiving match suggestions.\n\nBest Regards,\nAiswarya Matrimony" },
-                  { label: "New Match", subj: "You Have a New Match!", body: "Dear {name},\n\nGreat news! We found a potential match for you. Log in to view the profile.\n\nBest Regards,\nAiswarya Matrimony" },
-                ].map(t => (
-                  <Button key={t.label} size="sm" variant="outline" className="text-xs"
-                    onClick={() => { setEmailSubject(t.subj); setEmailBody(t.body.replace("{name}", emailTarget?.name || "")); }}>
-                    {t.label}
-                  </Button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <Label>Message</Label>
-              <Textarea value={emailBody} onChange={(e) => setEmailBody(e.target.value)} placeholder="Type your message..." rows={5} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowEmailDialog(false)}>Cancel</Button>
-            <Button onClick={handleSendEmail} disabled={!emailSubject} className="bg-amber-600 hover:bg-amber-700 text-white gap-1">
-              <Mail className="h-3.5 w-3.5" /> Send Email
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       {/* Add Note Dialog */}
       <Dialog open={showNoteDialog} onOpenChange={setShowNoteDialog}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Add Note — {noteTarget}</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Add Note — {noteTarget}</DialogTitle>
+            <DialogDescription className="sr-only">
+              Add an internal note for this profile.
+            </DialogDescription>
+          </DialogHeader>
           <Textarea value={noteText} onChange={(e) => setNoteText(e.target.value)} placeholder="Enter your note..." rows={4} />
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowNoteDialog(false)}>Cancel</Button>

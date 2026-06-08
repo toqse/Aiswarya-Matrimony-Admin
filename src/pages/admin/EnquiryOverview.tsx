@@ -35,10 +35,10 @@ import {
   EnquiryStatus,
   fetchAdminEnquiries,
   fetchAdminEnquiryDetail,
-  fetchAdminEnquiryKanban,
+  fetchAdminEnquiryOptions,
   moveAdminEnquiry,
 } from "@/lib/admin-api/enquiries";
-import { Search, Columns, LayoutGrid, Loader2, Plus } from "lucide-react";
+import { Search, Loader2, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useRole } from "@/contexts/RoleContext";
 
@@ -50,7 +50,7 @@ const statusColors: Record<string, string> = {
   lost: "bg-muted text-muted-foreground",
 };
 
-const kanbanStatuses = [
+const enquiryStatuses = [
   "new",
   "contacted",
   "interested",
@@ -73,12 +73,12 @@ const sourceOptions: EnquirySource[] = [
 
 export default function EnquiryOverview() {
   const { role } = useRole();
-  const [view, setView] = useState<"kanban" | "table">("kanban");
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<string>("all");
   const [source, setSource] = useState<string>("all");
   const [branchId, setBranchId] = useState("");
   const [staffId, setStaffId] = useState("");
+  const [page, setPage] = useState(1);
   const [createOpen, setCreateOpen] = useState(false);
   const [assignOpenId, setAssignOpenId] = useState<number | null>(null);
   const [noteOpenId, setNoteOpenId] = useState<number | null>(null);
@@ -101,7 +101,7 @@ export default function EnquiryOverview() {
     source: source === "all" ? undefined : (source as EnquirySource),
     branch_id: branchId ? Number(branchId) : undefined,
     staff_id: staffId ? Number(staffId) : undefined,
-    page: 1,
+    page,
     page_size: 20,
   };
 
@@ -114,19 +114,19 @@ export default function EnquiryOverview() {
     queryFn: () => fetchAdminEnquiries(listParams),
   });
 
-  const {
-    data: kanbanData,
-    isLoading: kanbanLoading,
-    error: kanbanError,
-  } = useQuery({
-    queryKey: ["admin", "enquiries", "kanban", listParams],
-    queryFn: () => fetchAdminEnquiryKanban(listParams),
-  });
-
   const { data: noteDetail } = useQuery({
     enabled: !!noteOpenId,
     queryKey: ["admin", "enquiries", "detail", noteOpenId],
     queryFn: () => fetchAdminEnquiryDetail(Number(noteOpenId)),
+  });
+
+  const { data: enquiryOptions, isLoading: optionsLoading } = useQuery({
+    enabled: createOpen,
+    queryKey: ["admin", "enquiries", "options", form.branch],
+    queryFn: () =>
+      fetchAdminEnquiryOptions(
+        form.branch ? { branch_id: Number(form.branch) } : undefined,
+      ),
   });
 
   const invalidate = () => {
@@ -222,7 +222,10 @@ export default function EnquiryOverview() {
   });
 
   const listRows = listData?.results ?? [];
-  const err = (listError || kanbanError) as Error | null;
+  const total = listData?.count ?? 0;
+  const canPrev = Boolean(listData?.previous) && page > 1;
+  const canNext = Boolean(listData?.next);
+  const err = listError as Error | null;
 
   const canAssign = role === "admin" || role === "branch-manager";
 
@@ -239,22 +242,6 @@ export default function EnquiryOverview() {
           <Button className="gap-1" onClick={() => setCreateOpen(true)}>
             <Plus className="h-4 w-4" /> Add Enquiry
           </Button>
-          <Button
-            variant={view === "kanban" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setView("kanban")}
-            className="gap-1"
-          >
-            <LayoutGrid className="h-4 w-4" /> Kanban
-          </Button>
-          <Button
-            variant={view === "table" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setView("table")}
-            className="gap-1"
-          >
-            <Columns className="h-4 w-4" /> Table
-          </Button>
         </div>
       </div>
       {err && <p className="text-sm text-destructive">{err.message}</p>}
@@ -265,24 +252,39 @@ export default function EnquiryOverview() {
           <Input
             placeholder="Search enquiries..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setPage(1);
+              setSearch(e.target.value);
+            }}
             className="pl-9"
           />
         </div>
-        <Select value={status} onValueChange={setStatus}>
+        <Select
+          value={status}
+          onValueChange={(v) => {
+            setPage(1);
+            setStatus(v);
+          }}
+        >
           <SelectTrigger className="w-[140px]">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All status</SelectItem>
-            {kanbanStatuses.map((s) => (
+            {enquiryStatuses.map((s) => (
               <SelectItem key={s} value={s}>
                 {s}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
-        <Select value={source} onValueChange={setSource}>
+        <Select
+          value={source}
+          onValueChange={(v) => {
+            setPage(1);
+            setSource(v);
+          }}
+        >
           <SelectTrigger className="w-[140px]">
             <SelectValue placeholder="Source" />
           </SelectTrigger>
@@ -299,150 +301,126 @@ export default function EnquiryOverview() {
           className="w-[140px]"
           placeholder="Branch ID"
           value={branchId}
-          onChange={(e) => setBranchId(e.target.value)}
+          onChange={(e) => {
+            setPage(1);
+            setBranchId(e.target.value);
+          }}
         />
         <Input
           className="w-[140px]"
           placeholder="Staff ID"
           value={staffId}
-          onChange={(e) => setStaffId(e.target.value)}
+          onChange={(e) => {
+            setPage(1);
+            setStaffId(e.target.value);
+          }}
         />
-        {(listLoading || kanbanLoading) && (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        )}
+        {listLoading && <Loader2 className="h-4 w-4 animate-spin" />}
       </div>
 
-      {view === "kanban" ? (
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-          {kanbanStatuses.map((status) => (
-            <div key={status} className="space-y-3">
-              <div className="flex items-center gap-2 mb-2">
-                <Badge className={statusColors[status]}>{status}</Badge>
-                <span className="text-xs text-muted-foreground">
-                  ({kanbanData?.[status]?.count ?? 0})
-                </span>
-              </div>
-              {(kanbanData?.[status]?.items ?? []).map((e) => (
-                <Card
-                  key={e.id}
-                  className="shadow-sm border cursor-pointer hover:shadow-md transition-shadow"
-                >
-                  <CardContent className="p-3 space-y-2">
-                    <p className="font-medium text-sm">{e.name}</p>
-                    <p className="text-xs text-muted-foreground">{e.phone}</p>
-                    <div className="flex items-center gap-1">
-                      <Badge variant="outline" className="text-[10px]">
-                        {e.source}
-                      </Badge>
-                    </div>
-                    <p className="text-xs text-muted-foreground">{e.notes}</p>
-                    <div className="flex gap-1 flex-wrap">
-                      {moveStatuses
-                        .filter((s) => s !== status)
-                        .map((s) => (
-                          <Button
-                            key={s}
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 text-[10px] px-2"
-                            onClick={() =>
-                              moveMut.mutate({ id: e.id, next: s })
-                            }
-                          >
-                            {s}
-                          </Button>
-                        ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          ))}
-        </div>
-      ) : (
-        <Card className="shadow-elegant border-0">
-          <CardContent className="pt-6">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Phone</TableHead>
-                  <TableHead>Source</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Assigned To</TableHead>
-                  <TableHead>Branch</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {listRows.map((e) => (
-                  <TableRow key={e.id}>
-                    <TableCell className="font-medium">{e.name}</TableCell>
-                    <TableCell>{e.phone}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{e.source}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={statusColors[e.status]}>
-                        {e.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{e.assigned_to_name ?? "—"}</TableCell>
-                    <TableCell>{e.branch_name ?? "—"}</TableCell>
-                    <TableCell>
-                      {new Date(e.created_at).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        <Select
-                          onValueChange={(v) =>
-                            moveMut.mutate({
-                              id: e.id,
-                              next: v as Exclude<EnquiryStatus, "new">,
-                            })
-                          }
-                        >
-                          <SelectTrigger className="h-8 w-[110px] text-xs">
-                            <SelectValue placeholder="Move to..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {moveStatuses
-                              .filter((s) => s !== e.status)
-                              .map((s) => (
-                                <SelectItem key={s} value={s}>
-                                  {s}
-                                </SelectItem>
-                              ))}
-                          </SelectContent>
-                        </Select>
-                        {canAssign && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 text-xs"
-                            onClick={() => setAssignOpenId(e.id)}
-                          >
-                            Assign
-                          </Button>
-                        )}
+      <Card className="shadow-elegant border-0">
+        <CardContent className="pt-6">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Phone</TableHead>
+                <TableHead>Source</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Assigned To</TableHead>
+                <TableHead>Branch</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {listRows.map((e) => (
+                <TableRow key={e.id}>
+                  <TableCell className="font-medium">{e.name}</TableCell>
+                  <TableCell>{e.phone}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline">{e.source}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge className={statusColors[e.status]}>{e.status}</Badge>
+                  </TableCell>
+                  <TableCell>{e.assigned_to_name ?? "—"}</TableCell>
+                  <TableCell>{e.branch_name ?? "—"}</TableCell>
+                  <TableCell>{new Date(e.created_at).toLocaleDateString()}</TableCell>
+                  <TableCell>
+                    <div className="flex gap-1">
+                      <Select
+                        onValueChange={(v) =>
+                          moveMut.mutate({
+                            id: e.id,
+                            next: v as Exclude<EnquiryStatus, "new">,
+                          })
+                        }
+                      >
+                        <SelectTrigger className="h-8 w-[110px] text-xs">
+                          <SelectValue placeholder="Move to..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {moveStatuses
+                            .filter((s) => s !== e.status)
+                            .map((s) => (
+                              <SelectItem key={s} value={s}>
+                                {s}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                      {canAssign && (
                         <Button
                           size="sm"
                           variant="outline"
                           className="h-8 text-xs"
-                          onClick={() => setNoteOpenId(e.id)}
+                          onClick={() => setAssignOpenId(e.id)}
                         >
-                          Note
+                          Assign
                         </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-xs"
+                        onClick={() => setNoteOpenId(e.id)}
+                      >
+                        Note
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-muted-foreground">
+              Showing {listRows.length} of {total} records
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={!canPrev}
+              >
+                Previous
+              </Button>
+              <span className="text-sm text-muted-foreground">Page {page}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => p + 1)}
+                disabled={!canNext}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent>
@@ -486,21 +464,42 @@ export default function EnquiryOverview() {
                 ))}
               </SelectContent>
             </Select>
-            <Input
-              placeholder="Branch ID (optional)"
-              value={form.branch}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, branch: e.target.value }))
+            <Select
+              value={form.branch || undefined}
+              onValueChange={(v) =>
+                setForm((p) => ({ ...p, branch: v, assigned_to: "" }))
               }
-            />
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select branch (optional)" />
+              </SelectTrigger>
+              <SelectContent>
+                {(enquiryOptions?.branches ?? []).map((b) => (
+                  <SelectItem key={b.id} value={String(b.id)}>
+                    {b.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             {canAssign && (
-              <Input
-                placeholder="Assign Staff ID (optional)"
-                value={form.assigned_to}
-                onChange={(e) =>
-                  setForm((p) => ({ ...p, assigned_to: e.target.value }))
+              <Select
+                value={form.assigned_to || undefined}
+                onValueChange={(v) =>
+                  setForm((p) => ({ ...p, assigned_to: v }))
                 }
-              />
+                disabled={optionsLoading || (enquiryOptions?.staff ?? []).length === 0}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Assign staff (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(enquiryOptions?.staff ?? []).map((s) => (
+                    <SelectItem key={s.id} value={String(s.id)}>
+                      {form.branch ? s.name : `${s.name} — ${s.branch_name}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             )}
           </div>
           <DialogFooter>

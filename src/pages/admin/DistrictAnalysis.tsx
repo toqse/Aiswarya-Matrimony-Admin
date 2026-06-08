@@ -2,16 +2,13 @@ import { useMemo, useState } from "react";
 import { useQueries } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   fetchDistrictAnalysis,
   fetchDistrictAnalysisGeoJson,
-  type DistrictAnalysisSortBy,
 } from "@/lib/admin-api/district-analysis";
 import { Loader2, MapPin } from "lucide-react";
 
 export default function DistrictAnalysis() {
-  const [sortBy, setSortBy] = useState<DistrictAnalysisSortBy>("registrations");
   const [stateIdText, setStateIdText] = useState("");
 
   const stateId = useMemo(() => {
@@ -22,8 +19,8 @@ export default function DistrictAnalysis() {
   const [metricsQ, geoQ] = useQueries({
     queries: [
       {
-        queryKey: ["admin", "district-analysis", "cards", stateId, sortBy],
-        queryFn: () => fetchDistrictAnalysis({ stateId, sortBy }),
+        queryKey: ["admin", "district-analysis", "cards", stateId],
+        queryFn: () => fetchDistrictAnalysis({ stateId }),
       },
       {
         queryKey: ["admin", "district-analysis", "geojson", stateId],
@@ -57,15 +54,6 @@ export default function DistrictAnalysis() {
             placeholder="State ID (optional)"
             className="sm:w-44"
           />
-          <Select value={sortBy} onValueChange={(v) => setSortBy(v as DistrictAnalysisSortBy)}>
-            <SelectTrigger className="sm:w-48">
-              <SelectValue placeholder="Sort by" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="registrations">Sort: Registrations</SelectItem>
-              <SelectItem value="conversion_rate">Sort: Conversion Rate</SelectItem>
-            </SelectContent>
-          </Select>
         </div>
       </div>
 
@@ -92,14 +80,6 @@ export default function DistrictAnalysis() {
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Paid Users</span>
                   <span className="font-bold text-base">{d.paid_users.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Active Profiles</span>
-                  <span className="font-bold text-base">{d.active_profiles.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Conversion Rate</span>
-                  <span className="font-bold text-base">{d.conversion_rate.toFixed(1)}%</span>
                 </div>
               </div>
             </CardContent>

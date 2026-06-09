@@ -314,7 +314,67 @@ export interface HoroscopeChartSource {
   starName?: unknown;
   pada?: unknown;
   dasaLord?: unknown;
+  /** Raw dasa balance in days (e.g. pr_dasabalance = 2384). */
+  dasaBalanceDays?: unknown;
+  /** Pre-formatted dasa balance string (cache); used only if days absent. */
   dasaBalanceText?: unknown;
+}
+
+/** Zodiac sign names 1-12 — index 0 unused. */
+export const SIGN_NAMES_ML: ReadonlyArray<string> = [
+  "", "മേടം", "ഇടവം", "മിഥുനം", "കർക്കടകം", "ചിങ്ങം", "കന്നി",
+  "തുലാം", "വൃശ്ചികം", "ധനു", "മകരം", "കുംഭം", "മീനം",
+];
+
+export const SIGN_NAMES_EN: ReadonlyArray<string> = [
+  "", "Medam", "Edavam", "Midhunam", "Kadakam", "Chingam", "Kanni",
+  "Thulam", "Vrischikam", "Dhanu", "Makaram", "Kumbham", "Meenam",
+];
+
+/**
+ * Vimshottari dasa lord order, starting at Ashwini (star 1). Repeats every 9
+ * nakshatras. Used to derive the running dasa lord directly from pr_star.
+ */
+const VIMSHOTTARI_LORD_KEYS: ReadonlyArray<string> = [
+  "kethu", "sukran", "ravi", "chandran", "kuja", "rahu", "guru", "sani", "budhan",
+];
+
+/** Returns the canonical dasa-lord planet key for a star number (1-27). */
+export function dasaLordKeyFromStar(starNumber: unknown): string {
+  const n = Number(starNumber);
+  if (!Number.isInteger(n) || n < 1 || n > 27) return "";
+  return VIMSHOTTARI_LORD_KEYS[(n - 1) % 9];
+}
+
+/**
+ * Formats a raw dasa balance (in days) as "06y 06m 11d".
+ * Convention (matches the Windows EXE): 1 year = 365 days, 1 month = 30.5 days.
+ */
+export function formatDasaBalance(daysValue: unknown): string {
+  const days = Number(daysValue);
+  if (!Number.isFinite(days) || days <= 0) return "";
+  const y = Math.floor(days / 365);
+  const rem = days - y * 365;
+  const m = Math.floor(rem / 30.5);
+  const d = Math.round(rem - m * 30.5);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(y)}y ${pad(m)}m ${pad(d)}d`;
+}
+
+/**
+ * Resolves a zodiac sign name from a pr_* chart string at the given planet
+ * index (e.g. index 0 = Lagnam sign, index 2 = Chandran/Rasi sign).
+ */
+export function signNameFromChartString(
+  chartString: unknown,
+  index: number,
+  lang: HoroscopeLang,
+): string {
+  if (typeof chartString !== "string") return "";
+  const letter = chartString.trim().toUpperCase()[index];
+  const sign = letter ? RASI_CELL[letter] : undefined;
+  if (!sign) return "";
+  return (lang === "ml" ? SIGN_NAMES_ML : SIGN_NAMES_EN)[sign] ?? "";
 }
 
 /**
@@ -384,22 +444,37 @@ export function formatStarDisplay(
   return { name, number, pada };
 }
 
-/** Formats the dasa balance + lord display for the chosen language. */
+/**
+ * Formats the dasa balance + lord display for the chosen language.
+ * Computes from raw fields first (pr_star -> lord, pr_dasabalance -> balance),
+ * falling back to any stored/cached values. Never gated on is_calculated.
+ */
 export function formatDasaDisplay(
   source: HoroscopeChartSource,
   lang: HoroscopeLang,
 ): DasaInfo | null {
   const map = lang === "ml" ? DASA_LORDS_ML : DASA_LORDS_EN;
-  const key = normalizeDasaKey(source.dasaLord);
-  const lord =
-    (key && map[key]) ||
-    (typeof source.dasaLord === "string" && source.dasaLord.trim()
-      ? source.dasaLord.trim()
-      : undefined);
-  const balance_text =
-    typeof source.dasaBalanceText === "string" && source.dasaBalanceText.trim()
-      ? source.dasaBalanceText.trim()
-      : undefined;
+
+  // Lord: prefer Vimshottari derivation from the star; fall back to stored.
+  let lord: string | undefined;
+  const starLordKey = dasaLordKeyFromStar(source.starNumber);
+  if (starLordKey && map[starLordKey]) {
+    lord = map[starLordKey];
+  } else {
+    const key = normalizeDasaKey(source.dasaLord);
+    lord =
+      (key && map[key]) ||
+      (typeof source.dasaLord === "string" && source.dasaLord.trim()
+        ? source.dasaLord.trim()
+        : undefined);
+  }
+
+  // Balance: prefer computing from raw days; fall back to cached text.
+  let balance_text = formatDasaBalance(source.dasaBalanceDays) || undefined;
+  if (!balance_text && typeof source.dasaBalanceText === "string" && source.dasaBalanceText.trim()) {
+    balance_text = source.dasaBalanceText.trim();
+  }
+
   if (!lord && !balance_text) return null;
   return { lord, balance_text };
 }

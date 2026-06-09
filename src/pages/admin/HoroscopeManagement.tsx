@@ -42,6 +42,7 @@ import {
   MALAYALAM_FONT,
   type HoroscopeLang,
 } from "@/components/horoscope/HoroscopeChart";
+import { signNameFromChartString } from "@/components/horoscope/horoscope-i18n";
 
 const jathagamStatusConfig: Record<string, { icon: typeof CheckCircle; color: string; label: string }> = {
   generated: { icon: CheckCircle, color: "bg-success/10 text-success", label: "Generated" },
@@ -834,7 +835,8 @@ function HoroscopeDetailBody({
     starName: record.nakshatram ?? horoscope.star_name ?? record.star_name ?? payload.star_name,
     pada: horoscope.nakshatra_pada ?? horoscope.pr_pada ?? record.nakshatra_pada ?? record.pr_pada ?? payload.pr_pada,
     dasaLord: horoscope.pr_dasalord ?? horoscope.pr_dasa_lord ?? horoscope.dasa_lord ?? record.pr_dasalord ?? record.pr_dasa_lord ?? record.dasa_lord ?? payload.pr_dasalord ?? payload.pr_dasa_lord ?? dasaFromCharts?.lord,
-    dasaBalanceText: horoscope.pr_dasabalance ?? horoscope.pr_dasa_balance ?? record.pr_dasabalance ?? record.pr_dasa_balance ?? payload.pr_dasabalance ?? payload.pr_dasa_balance ?? dasaFromCharts?.balance_text,
+    dasaBalanceDays: horoscope.pr_dasabalance ?? horoscope.pr_dasa_balance ?? record.pr_dasabalance ?? record.pr_dasa_balance ?? payload.pr_dasabalance ?? payload.pr_dasa_balance,
+    dasaBalanceText: dasaFromCharts?.balance_text,
   };
   const [lang, setLang] = useState<HoroscopeLang>("ml");
   const mlFont = lang === "ml" ? MALAYALAM_FONT : undefined;
@@ -871,9 +873,9 @@ function HoroscopeDetailBody({
       </Section>
 
       <Section title="Astrology">
-        <KV label="Rasi" value={displayVal(record.rasi || horoscope.rasi_sign)} />
+        <KV label="Rasi" value={displayVal(record.rasi || horoscope.rasi_sign || signNameFromChartString(chartSource.rasiString, 2, lang))} />
         <KV label="Rasi (input)" value={displayVal(horoscope.pr_rasi)} />
-        <KV label="Lagnam" value={displayVal(horoscope.lagnam)} />
+        <KV label="Lagnam" value={displayVal(horoscope.lagnam || signNameFromChartString(chartSource.rasiString, 0, lang))} />
         <KV label="Nakshatram" value={displayVal(record.nakshatram || horoscope.star_name)} />
         <KV label="Star (input)" value={displayVal(horoscope.pr_star)} />
         <KV label="Nakshatra pada" value={displayVal(horoscope.nakshatra_pada ?? horoscope.pr_pada)} />

@@ -1,10 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { PhoneInput } from "@/components/ui/phone-input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -12,8 +11,10 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { ChevronDown, Loader2, Sparkles } from "lucide-react";
 import PlacesAutocomplete from "@/components/profile/PlacesAutocomplete";
 import { useToast } from "@/hooks/use-toast";
+import type { WizardFormValues } from "@/lib/admin-api/profile-registration";
 import {
   fetchCastes,
+  fetchCities,
   fetchComplexions,
   fetchCountries,
   fetchDistricts,
@@ -30,18 +31,82 @@ import {
 
 const profileForOptions = ["Myself", "Son", "Daughter", "Brother", "Sister", "Friend", "Relative"];
 
-interface AddProfileWizardProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onComplete: (profile: any) => void;
-  submitting?: boolean;
+const CHILDREN_MARITAL = ["Divorced", "Widowed", "Awaiting Divorce", "Separated"];
+
+type PhotoKey =
+  | "full_photo"
+  | "passport_photo"
+  | "profile_photo"
+  | "selfie_photo"
+  | "family_photo"
+  | "aadhaar_front"
+  | "aadhaar_back";
+
+const PHOTO_FIELDS: { key: PhotoKey; label: string; fullWidth?: boolean }[] = [
+  { key: "full_photo", label: "Full Photo" },
+  { key: "passport_photo", label: "Passport Photo" },
+  { key: "profile_photo", label: "Profile Photo" },
+  { key: "selfie_photo", label: "Selfie Photo" },
+  { key: "family_photo", label: "Family Photo" },
+  { key: "aadhaar_front", label: "Aadhaar Front" },
+  { key: "aadhaar_back", label: "Aadhaar Back", fullWidth: true },
+];
+
+function PhotoField({
+  label,
+  file,
+  existingUrl,
+  onSelect,
+}: {
+  label: string;
+  file: File | null;
+  existingUrl?: string | null;
+  onSelect: (file: File | null) => void;
+}) {
+  const [preview, setPreview] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (file) {
+      const url = URL.createObjectURL(file);
+      setPreview(url);
+      return () => URL.revokeObjectURL(url);
+    }
+    setPreview(null);
+  }, [file]);
+
+  const shownUrl = preview ?? existingUrl ?? null;
+
+  return (
+    <div>
+      <Label>{label}</Label>
+      <div className="mt-1 flex items-start gap-3">
+        {shownUrl ? (
+          <a href={shownUrl} target="_blank" rel="noreferrer" className="shrink-0">
+            <img
+              src={shownUrl}
+              alt={label}
+              className="h-20 w-20 rounded-md border object-cover"
+            />
+          </a>
+        ) : (
+          <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-md border border-dashed text-center text-[10px] text-muted-foreground">
+            No image
+          </div>
+        )}
+        <div className="flex-1">
+          <Input type="file" accept="image/*" onChange={(e) => onSelect(e.target.files?.[0] ?? null)} />
+          <p className="mt-1 text-xs text-muted-foreground">
+            {preview ? "New image selected" : existingUrl ? "Current image" : "No image uploaded"}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
 }
 
-export default function AddProfileWizard({ open, onOpenChange, onComplete, submitting = false }: AddProfileWizardProps) {
-  const { toast } = useToast();
-  const [horoExpanded, setHoroExpanded] = useState(true);
-  const [form, setForm] = useState({
-    profileFor: "",
+function emptyForm(): WizardFormValues {
+  return {
+    profileFor: "Myself",
     fullName: "",
     mobile: "",
     email: "",
@@ -62,9 +127,9 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
     casteId: "",
     motherTongueId: "",
     maritalStatus: "",
-    partnerPreferenceType: "own_religion_only" as "own_religion_only" | "open_to_all" | "specific_religions",
-    partnerReligionIds: [] as string[],
-    partnerCastePreference: "any" as "any" | "own_caste_only",
+    partnerPreferenceType: "own_religion_only",
+    partnerReligionIds: [],
+    partnerCastePreference: "any",
     hasChildren: false,
     numberOfMarriages: "",
     numberOfChildren: "",
@@ -76,217 +141,47 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
     educationSubjectId: "",
     employmentStatus: "",
     occupationId: "",
-    state: "",
-    city: "",
     aboutMe: "",
-    full_photo: null as File | null,
-    passport_photo: null as File | null,
-    profile_photo: null as File | null,
-    selfie_photo: null as File | null,
-    family_photo: null as File | null,
-    aadhaar_front: null as File | null,
-    aadhaar_back: null as File | null,
-  });
-
-  const horoscopeValid =
-    !form.hasHoroscope || (!!form.dob && !!form.timeOfBirth && !!form.placeOfBirth);
-
-  const canSubmit =
-    !!form.profileFor &&
-    !!form.fullName &&
-    form.mobile.length === 10 &&
-    !!form.dob &&
-    !!form.gender &&
-    !!form.religionId &&
-    !!form.maritalStatus &&
-    !!form.height &&
-    !!form.highestEducationId &&
-    !!form.employmentStatus &&
-    horoscopeValid;
-
-  const update = (field: keyof typeof form, value: string | boolean) =>
-    setForm((prev) => ({ ...prev, [field]: value }));
-
-  const reset = () =>
-    setForm({
-      profileFor: "",
-      fullName: "",
-      mobile: "",
-      email: "",
-      dob: "",
-      gender: "",
-      hasHoroscope: false,
-      timeOfBirth: "",
-      placeOfBirth: "",
-      birthLatitude: "",
-      birthLongitude: "",
-      birthTimezone: "",
-      countryId: "",
-      stateId: "",
-      districtId: "",
-      cityId: "",
-      address: "",
-      religionId: "",
-      casteId: "",
-      motherTongueId: "",
-      maritalStatus: "",
-      partnerPreferenceType: "own_religion_only",
-      partnerReligionIds: [],
-      partnerCastePreference: "any",
-      hasChildren: false,
-      numberOfMarriages: "",
-      numberOfChildren: "",
-      height: "",
-      weight: "",
-      complexion: "",
-      annualIncomeId: "",
-      highestEducationId: "",
-      educationSubjectId: "",
-      employmentStatus: "",
-      occupationId: "",
-      state: "",
-      city: "",
-      aboutMe: "",
-      full_photo: null,
-      passport_photo: null,
-      profile_photo: null,
-      selfie_photo: null,
-      family_photo: null,
-      aadhaar_front: null,
-      aadhaar_back: null,
-    });
-
-  const submit = () => {
-    if (!canSubmit) {
-      const description =
-        form.hasHoroscope && !horoscopeValid
-          ? "Horoscope is enabled — Date of Birth, Time of Birth and Place of Birth are required."
-          : "Please fill all required fields.";
-      toast({ title: "Missing fields", description, variant: "destructive" });
-      return;
-    }
-
-    onComplete({
-      profileFor: form.profileFor,
-      fullName: form.fullName,
-      mobile: form.mobile,
-      email: form.email,
-      dob: form.dob,
-      gender: form.gender,
-      hasHoroscope: form.hasHoroscope,
-      timeOfBirth: form.timeOfBirth,
-      placeOfBirth: form.placeOfBirth,
-      birthLatitude: form.birthLatitude,
-      birthLongitude: form.birthLongitude,
-      birthTimezone: form.birthTimezone,
-      countryId: form.countryId,
-      stateId: form.stateId,
-      districtId: form.districtId,
-      cityId: form.cityId,
-      address: form.address,
-      religionId: form.religionId,
-      casteId: form.casteId,
-      motherTongueId: form.motherTongueId,
-      maritalStatus: form.maritalStatus,
-      partnerPreferenceType: form.partnerPreferenceType,
-      partnerReligionIds: form.partnerReligionIds,
-      partnerCastePreference: form.partnerCastePreference,
-      hasChildren: form.hasChildren,
-      numberOfMarriages: form.numberOfMarriages,
-      numberOfChildren: form.numberOfChildren,
-      height: form.height,
-      weight: form.weight,
-      complexion: form.complexion,
-      annualIncomeId: form.annualIncomeId,
-      highestEducationId: form.highestEducationId,
-      educationSubjectId: form.educationSubjectId,
-      employmentStatus: form.employmentStatus,
-      occupationId: form.occupationId,
-      state: form.state,
-      city: form.city,
-      aboutMe: form.aboutMe,
-      full_photo: form.full_photo,
-      passport_photo: form.passport_photo,
-      profile_photo: form.profile_photo,
-      selfie_photo: form.selfie_photo,
-      family_photo: form.family_photo,
-      aadhaar_front: form.aadhaar_front,
-      aadhaar_back: form.aadhaar_back,
-    });
-
-    // Do NOT reset here: keep all entered values if the backend rejects the
-    // submission. The form is reset on dialog close (see Dialog onOpenChange),
-    // which fires only after a successful create closes the wizard.
+    full_photo: null,
+    passport_photo: null,
+    profile_photo: null,
+    selfie_photo: null,
+    family_photo: null,
+    aadhaar_front: null,
+    aadhaar_back: null,
+    existingPhotos: {},
   };
+}
 
-  const religionsQ = useQuery({
-    queryKey: ["master", "religions", "profile-form"],
-    queryFn: () => fetchReligions({ page_size: 200 }),
-  });
+interface EditProfileWizardProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  initial: WizardFormValues | null;
+  onComplete: (form: WizardFormValues) => void;
+  submitting?: boolean;
+}
 
-  const castesQ = useQuery({
-    queryKey: ["master", "castes", "profile-form", form.religionId],
-    queryFn: () => fetchCastes({ religion_id: Number(form.religionId), page_size: 500 }),
-    enabled: !!form.religionId,
-  });
+export default function EditProfileWizard({
+  open,
+  onOpenChange,
+  initial,
+  onComplete,
+  submitting = false,
+}: EditProfileWizardProps) {
+  const { toast } = useToast();
+  const [horoExpanded, setHoroExpanded] = useState(true);
+  const [form, setForm] = useState<WizardFormValues>(emptyForm());
 
-  const motherTonguesQ = useQuery({
-    queryKey: ["master", "mother-tongues", "profile-form"],
-    queryFn: () => fetchPublicMotherTongues({ page_size: 500 }),
-  });
+  // Load the mapped detail into the form whenever a new profile is opened.
+  useEffect(() => {
+    if (open && initial) {
+      setForm(initial);
+      setHoroExpanded(true);
+    }
+  }, [open, initial]);
 
-  const countriesQ = useQuery({
-    queryKey: ["master", "countries", "profile-form"],
-    queryFn: () => fetchCountries({ page_size: 200 }),
-  });
-
-  const statesQ = useQuery({
-    queryKey: ["master", "states", "profile-form", form.countryId],
-    queryFn: () => fetchStates({ country_id: Number(form.countryId), page_size: 200 }),
-    enabled: !!form.countryId,
-  });
-
-  const districtsQ = useQuery({
-    queryKey: ["master", "districts", "profile-form", form.stateId],
-    queryFn: () => fetchDistricts({ state_id: Number(form.stateId), page_size: 200 }),
-    enabled: !!form.stateId,
-  });
-
-  const educationsQ = useQuery({
-    queryKey: ["master", "educations", "profile-form"],
-    queryFn: () => fetchEducations({ page_size: 500 }),
-  });
-
-  const subjectsQ = useQuery({
-    queryKey: ["master", "education-subjects", "profile-form", form.highestEducationId],
-    queryFn: () => fetchEducationSubjects({ education_id: Number(form.highestEducationId), page_size: 500 }),
-    enabled: !!form.highestEducationId,
-  });
-
-  const occupationsQ = useQuery({
-    queryKey: ["master", "occupations", "profile-form"],
-    queryFn: () => fetchOccupations({ page_size: 500 }),
-  });
-
-  const employmentQ = useQuery({
-    queryKey: ["master", "employment-statuses", "profile-form"],
-    queryFn: () => fetchEmploymentStatuses({ page_size: 200 }),
-  });
-
-  const incomeQ = useQuery({
-    queryKey: ["master", "income-ranges", "profile-form"],
-    queryFn: () => fetchIncomeRanges({ page_size: 200 }),
-  });
-
-  const maritalStatusesQ = useQuery({
-    queryKey: ["master", "marital-statuses", "profile-form"],
-    queryFn: () => fetchMaritalStatuses({ page_size: 200 }),
-  });
-
-  const complexionsQ = useQuery({
-    queryKey: ["master", "complexions", "profile-form"],
-    queryFn: () => fetchComplexions({ page_size: 200 }),
-  });
+  const update = <K extends keyof WizardFormValues>(field: K, value: WizardFormValues[K]) =>
+    setForm((prev) => ({ ...prev, [field]: value }));
 
   const togglePartnerReligion = (id: string, checked: boolean) => {
     setForm((p) => {
@@ -297,22 +192,113 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
     });
   };
 
+  const horoscopeValid =
+    !form.hasHoroscope || (!!form.dob && !!form.timeOfBirth && !!form.placeOfBirth);
+
+  const canSubmit =
+    !!form.fullName &&
+    !!form.dob &&
+    !!form.gender &&
+    !!form.religionId &&
+    !!form.maritalStatus &&
+    !!form.height &&
+    !!form.highestEducationId &&
+    !!form.employmentStatus &&
+    horoscopeValid;
+
+  const religionsQ = useQuery({
+    queryKey: ["master", "religions", "edit-form"],
+    queryFn: () => fetchReligions({ page_size: 200 }),
+    enabled: open,
+  });
+  const castesQ = useQuery({
+    queryKey: ["master", "castes", "edit-form", form.religionId],
+    queryFn: () => fetchCastes({ religion_id: Number(form.religionId), page_size: 500 }),
+    enabled: open && !!form.religionId,
+  });
+  const motherTonguesQ = useQuery({
+    queryKey: ["master", "mother-tongues", "edit-form"],
+    queryFn: () => fetchPublicMotherTongues({ page_size: 500 }),
+    enabled: open,
+  });
+  const countriesQ = useQuery({
+    queryKey: ["master", "countries", "edit-form"],
+    queryFn: () => fetchCountries({ page_size: 200 }),
+    enabled: open,
+  });
+  const statesQ = useQuery({
+    queryKey: ["master", "states", "edit-form", form.countryId],
+    queryFn: () => fetchStates({ country_id: Number(form.countryId), page_size: 200 }),
+    enabled: open && !!form.countryId,
+  });
+  const districtsQ = useQuery({
+    queryKey: ["master", "districts", "edit-form", form.stateId],
+    queryFn: () => fetchDistricts({ state_id: Number(form.stateId), page_size: 200 }),
+    enabled: open && !!form.stateId,
+  });
+  const citiesQ = useQuery({
+    queryKey: ["master", "cities", "edit-form", form.districtId],
+    queryFn: () => fetchCities({ district_id: Number(form.districtId), page_size: 500 }),
+    enabled: open && !!form.districtId,
+  });
+  const educationsQ = useQuery({
+    queryKey: ["master", "educations", "edit-form"],
+    queryFn: () => fetchEducations({ page_size: 500 }),
+    enabled: open,
+  });
+  const subjectsQ = useQuery({
+    queryKey: ["master", "education-subjects", "edit-form", form.highestEducationId],
+    queryFn: () => fetchEducationSubjects({ education_id: Number(form.highestEducationId), page_size: 500 }),
+    enabled: open && !!form.highestEducationId,
+  });
+  const occupationsQ = useQuery({
+    queryKey: ["master", "occupations", "edit-form"],
+    queryFn: () => fetchOccupations({ page_size: 500 }),
+    enabled: open,
+  });
+  const employmentQ = useQuery({
+    queryKey: ["master", "employment-statuses", "edit-form"],
+    queryFn: () => fetchEmploymentStatuses({ page_size: 200 }),
+    enabled: open,
+  });
+  const incomeQ = useQuery({
+    queryKey: ["master", "income-ranges", "edit-form"],
+    queryFn: () => fetchIncomeRanges({ page_size: 200 }),
+    enabled: open,
+  });
+  const maritalStatusesQ = useQuery({
+    queryKey: ["master", "marital-statuses", "edit-form"],
+    queryFn: () => fetchMaritalStatuses({ page_size: 200 }),
+    enabled: open,
+  });
+  const complexionsQ = useQuery({
+    queryKey: ["master", "complexions", "edit-form"],
+    queryFn: () => fetchComplexions({ page_size: 200 }),
+    enabled: open,
+  });
+
+  const submit = () => {
+    if (!canSubmit) {
+      const description =
+        form.hasHoroscope && !horoscopeValid
+          ? "Horoscope is enabled - Date of Birth, Time of Birth and Place of Birth are required."
+          : "Please fill all required fields.";
+      toast({ title: "Missing fields", description, variant: "destructive" });
+      return;
+    }
+    onComplete(form);
+  };
+
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(v) => {
-        if (!v) reset();
-        onOpenChange(v);
-      }}
-    >
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Add New Profile</DialogTitle>
+          <DialogTitle>Edit Profile</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6">
           <div>
-            <Label>Profile For *</Label>
+            <Label>Profile For</Label>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
               {profileForOptions.map((opt) => (
                 <Button
@@ -333,8 +319,8 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
               <Input value={form.fullName} onChange={(e) => update("fullName", e.target.value)} />
             </div>
             <div>
-              <Label>Mobile *</Label>
-              <PhoneInput value={form.mobile} onChange={(v) => update("mobile", v)} />
+              <Label>Mobile</Label>
+              <Input value={form.mobile} readOnly disabled />
             </div>
             <div>
               <Label>Email</Label>
@@ -348,7 +334,7 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
                   checked={form.hasHoroscope}
                   onCheckedChange={(v) => update("hasHoroscope", !!v)}
                 />
-                <span>I have horoscope details</span>
+                <span>Has horoscope details</span>
               </label>
             </div>
             <div>
@@ -367,15 +353,9 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
               <Label>Country</Label>
               <Select
                 value={form.countryId}
-                onValueChange={(v) => {
-                  setForm((p) => ({
-                    ...p,
-                    countryId: v,
-                    stateId: "",
-                    districtId: "",
-                    cityId: "",
-                  }));
-                }}
+                onValueChange={(v) =>
+                  setForm((p) => ({ ...p, countryId: v, stateId: "", districtId: "", cityId: "" }))
+                }
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select country" />
@@ -393,14 +373,7 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
               <Label>State</Label>
               <Select
                 value={form.stateId}
-                onValueChange={(v) => {
-                  setForm((p) => ({
-                    ...p,
-                    stateId: v,
-                    districtId: "",
-                    cityId: "",
-                  }));
-                }}
+                onValueChange={(v) => setForm((p) => ({ ...p, stateId: v, districtId: "", cityId: "" }))}
                 disabled={!form.countryId}
               >
                 <SelectTrigger>
@@ -419,13 +392,7 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
               <Label>District</Label>
               <Select
                 value={form.districtId}
-                onValueChange={(v) => {
-                  setForm((p) => ({
-                    ...p,
-                    districtId: v,
-                    cityId: "",
-                  }));
-                }}
+                onValueChange={(v) => setForm((p) => ({ ...p, districtId: v, cityId: "" }))}
                 disabled={!form.stateId}
               >
                 <SelectTrigger>
@@ -442,11 +409,22 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
             </div>
             <div>
               <Label>City</Label>
-              <Input
-                value={form.city}
-                onChange={(e) => update("city", e.target.value)}
-                placeholder="Enter city"
-              />
+              <Select
+                value={form.cityId}
+                onValueChange={(v) => update("cityId", v)}
+                disabled={!form.districtId}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={form.districtId ? "Select city" : "Select district first"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {(citiesQ.data?.results ?? []).map((c) => (
+                    <SelectItem key={c.id} value={String(c.id)}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="sm:col-span-2">
               <Label>Address</Label>
@@ -456,15 +434,15 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
               <Label>Religion *</Label>
               <Select
                 value={form.religionId}
-                onValueChange={(v) => {
+                onValueChange={(v) =>
                   setForm((p) => ({
                     ...p,
                     religionId: v,
                     casteId: "",
                     partnerReligionIds:
                       p.partnerPreferenceType === "specific_religions" ? [] : p.partnerReligionIds,
-                  }));
-                }}
+                  }))
+                }
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select religion" />
@@ -528,7 +506,7 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
               <Select
                 value={form.partnerPreferenceType}
                 onValueChange={(v) => {
-                  const nv = v as typeof form.partnerPreferenceType;
+                  const nv = v as WizardFormValues["partnerPreferenceType"];
                   setForm((p) => ({
                     ...p,
                     partnerPreferenceType: nv,
@@ -548,7 +526,7 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
             </div>
             <div>
               <Label>Partner Caste Preference</Label>
-              <Select value={form.partnerCastePreference} onValueChange={(v) => update("partnerCastePreference", v)}>
+              <Select value={form.partnerCastePreference} onValueChange={(v) => update("partnerCastePreference", v as WizardFormValues["partnerCastePreference"])}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select preference" />
                 </SelectTrigger>
@@ -566,21 +544,16 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
                     const checked = form.partnerReligionIds.includes(String(r.id));
                     return (
                       <label key={r.id} className="flex items-center gap-2 text-sm cursor-pointer select-none">
-                        <Checkbox
-                          checked={checked}
-                          onCheckedChange={(v) => togglePartnerReligion(String(r.id), !!v)}
-                        />
+                        <Checkbox checked={checked} onCheckedChange={(v) => togglePartnerReligion(String(r.id), !!v)} />
                         <span>{r.name}</span>
                       </label>
                     );
                   })}
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Selected: {form.partnerReligionIds.length}
-                </p>
+                <p className="text-xs text-muted-foreground">Selected: {form.partnerReligionIds.length}</p>
               </div>
             )}
-            {["Divorced", "Widowed", "Awaiting Divorce"].includes(form.maritalStatus) && (
+            {CHILDREN_MARITAL.includes(form.maritalStatus) && (
               <div className="sm:col-span-2 border rounded-md p-3">
                 <div className="flex items-center gap-2 mb-3">
                   <Checkbox checked={form.hasChildren} onCheckedChange={(v) => update("hasChildren", !!v)} />
@@ -589,12 +562,11 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
                 {form.hasChildren && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <Label>No. of Marriages</Label>
-                      <Input value={form.numberOfMarriages} onChange={(e) => update("numberOfMarriages", e.target.value.replace(/\D/g, ""))} />
-                    </div>
-                    <div>
                       <Label>No. of Children</Label>
-                      <Input value={form.numberOfChildren} onChange={(e) => update("numberOfChildren", e.target.value.replace(/\D/g, ""))} />
+                      <Input
+                        value={form.numberOfChildren}
+                        onChange={(e) => update("numberOfChildren", e.target.value.replace(/\D/g, ""))}
+                      />
                     </div>
                   </div>
                 )}
@@ -642,13 +614,7 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
               <Label>Highest Education *</Label>
               <Select
                 value={form.highestEducationId}
-                onValueChange={(v) =>
-                  setForm((p) => ({
-                    ...p,
-                    highestEducationId: v,
-                    educationSubjectId: "",
-                  }))
-                }
+                onValueChange={(v) => setForm((p) => ({ ...p, highestEducationId: v, educationSubjectId: "" }))}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select highest education" />
@@ -720,10 +686,7 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
               className="rounded-lg border border-border bg-muted/30"
             >
               <CollapsibleTrigger asChild>
-                <button
-                  type="button"
-                  className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left"
-                >
+                <button type="button" className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left">
                   <span className="flex items-center gap-2 text-sm font-semibold">
                     <Sparkles className="h-4 w-4 text-primary" />
                     Horoscope Information
@@ -787,34 +750,19 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
             <Textarea value={form.aboutMe} onChange={(e) => update("aboutMe", e.target.value)} rows={4} />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <Label>full_photo</Label>
-              <Input type="file" accept="image/*" onChange={(e) => setForm((p) => ({ ...p, full_photo: e.target.files?.[0] ?? null }))} />
-            </div>
-            <div>
-              <Label>passport_photo</Label>
-              <Input type="file" accept="image/*" onChange={(e) => setForm((p) => ({ ...p, passport_photo: e.target.files?.[0] ?? null }))} />
-            </div>
-            <div>
-              <Label>profile_photo</Label>
-              <Input type="file" accept="image/*" onChange={(e) => setForm((p) => ({ ...p, profile_photo: e.target.files?.[0] ?? null }))} />
-            </div>
-            <div>
-              <Label>selfie_photo</Label>
-              <Input type="file" accept="image/*" onChange={(e) => setForm((p) => ({ ...p, selfie_photo: e.target.files?.[0] ?? null }))} />
-            </div>
-            <div>
-              <Label>family_photo</Label>
-              <Input type="file" accept="image/*" onChange={(e) => setForm((p) => ({ ...p, family_photo: e.target.files?.[0] ?? null }))} />
-            </div>
-            <div>
-              <Label>aadhaar_front</Label>
-              <Input type="file" accept="image/*" onChange={(e) => setForm((p) => ({ ...p, aadhaar_front: e.target.files?.[0] ?? null }))} />
-            </div>
-            <div className="sm:col-span-2">
-              <Label>aadhaar_back</Label>
-              <Input type="file" accept="image/*" onChange={(e) => setForm((p) => ({ ...p, aadhaar_back: e.target.files?.[0] ?? null }))} />
+          <div>
+            <p className="mb-3 text-sm font-medium">Photos &amp; Documents</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {PHOTO_FIELDS.map(({ key, label, fullWidth }) => (
+                <div key={key} className={fullWidth ? "sm:col-span-2" : undefined}>
+                  <PhotoField
+                    label={label}
+                    file={form[key]}
+                    existingUrl={form.existingPhotos?.[key] ?? null}
+                    onSelect={(file) => update(key, file)}
+                  />
+                </div>
+              ))}
             </div>
           </div>
 
@@ -826,10 +774,10 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
               {submitting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  Creating...
+                  Saving...
                 </>
               ) : (
-                "Create Profile"
+                "Save Changes"
               )}
             </Button>
           </div>

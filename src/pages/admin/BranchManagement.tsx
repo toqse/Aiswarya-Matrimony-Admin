@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { PhoneInput } from "@/components/ui/phone-input";
+import { digitsOnlyMobile, formatPhoneDisplay, formatPhoneForApi, isValidIndianMobile } from "@/lib/phone";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   createBranch,
@@ -52,6 +54,34 @@ export default function BranchManagement() {
     phone: "",
     email: "",
   });
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  const setField = (key: keyof typeof form, value: string) => {
+    setForm((f) => ({ ...f, [key]: value }));
+    setFieldErrors((e) => {
+      if (!e[key]) return e;
+      const { [key]: _omit, ...rest } = e;
+      return rest;
+    });
+  };
+
+  const validate = () => {
+    const errs: Record<string, string> = {};
+    if (!form.name.trim()) errs.name = "Branch name is required";
+    if (!form.city.trim()) errs.city = "City is required";
+    if (!form.phone.trim()) errs.phone = "Phone is required";
+    else if (!isValidIndianMobile(form.phone)) errs.phone = "Enter a valid 10-digit Indian mobile number";
+    if (!form.email.trim()) errs.email = "Email is required";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) errs.email = "Enter a valid email address";
+    return errs;
+  };
+
+  const handleSave = () => {
+    const errs = validate();
+    setFieldErrors(errs);
+    if (Object.keys(errs).length > 0) return;
+    saveMut.mutate();
+  };
 
   const { data, isLoading, isFetching, error } = useQuery({
     queryKey: ["admin", "branches", search, page, pageSize],
@@ -76,15 +106,15 @@ export default function BranchManagement() {
       if (!form.name || !form.city || !form.phone || !form.email) {
         throw new Error("Please fill name, city, phone, and email");
       }
-      const phoneDigits = form.phone.replace(/\D/g, "");
-      if (phoneDigits.length !== 10) {
-        throw new Error("Phone number must be exactly 10 digits");
+      const phoneE164 = formatPhoneForApi(form.phone);
+      if (!isValidIndianMobile(form.phone)) {
+        throw new Error("Enter a valid 10-digit Indian mobile number");
       }
       if (editing) {
         return updateBranch(editing.id, {
           name: form.name,
           city: form.city,
-          phone: phoneDigits,
+          phone: phoneE164,
           email: form.email,
           address: form.address,
         });
@@ -92,7 +122,7 @@ export default function BranchManagement() {
       return createBranch({
         name: form.name,
         city: form.city,
-        phone: phoneDigits,
+        phone: phoneE164,
         email: form.email,
         address: form.address || undefined,
       });
@@ -133,6 +163,7 @@ export default function BranchManagement() {
   const openAdd = () => {
     setEditing(null);
     setForm({ name: "", code: "", city: "", address: "", phone: "", email: "" });
+    setFieldErrors({});
     setDialogOpen(true);
   };
 
@@ -143,9 +174,10 @@ export default function BranchManagement() {
       code: b.code,
       city: b.city,
       address: b.address ?? "",
-      phone: b.phone,
+      phone: digitsOnlyMobile(b.phone),
       email: b.email,
     });
+    setFieldErrors({});
     setDialogOpen(true);
   };
 
@@ -198,23 +230,6 @@ export default function BranchManagement() {
                 className="pl-9"
               />
             </div>
-            <Select
-              value={pageSize}
-              onValueChange={(v) => {
-                setPage(1);
-                setPageSize(v);
-              }}
-            >
-              <SelectTrigger className="w-[130px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="10">10 / page</SelectItem>
-                <SelectItem value="20">20 / page</SelectItem>
-                <SelectItem value="50">50 / page</SelectItem>
-                <SelectItem value="100">100 / page</SelectItem>
-              </SelectContent>
-            </Select>
             {(isLoading || isFetching) && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
           </div>
         </CardHeader>
@@ -239,7 +254,7 @@ export default function BranchManagement() {
                   <TableCell className="font-medium">{b.name}</TableCell>
                   <TableCell>{b.code ?? "—"}</TableCell>
                   <TableCell>{b.city}</TableCell>
-                  <TableCell>{b.phone}</TableCell>
+                  <TableCell>{formatPhoneDisplay(b.phone)}</TableCell>
                   <TableCell>{b.email}</TableCell>
                   <TableCell>{(b.profiles_count ?? 0).toLocaleString()}</TableCell>
                   <TableCell>{formatINR(b.revenue ?? 0)}</TableCell>
@@ -280,6 +295,23 @@ export default function BranchManagement() {
               Showing {filtered.length} of {total} records
             </p>
             <div className="flex items-center gap-2">
+              <Select
+                value={pageSize}
+                onValueChange={(v) => {
+                  setPage(1);
+                  setPageSize(v);
+                }}
+              >
+                <SelectTrigger className="w-[130px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10 / page</SelectItem>
+                  <SelectItem value="20">20 / page</SelectItem>
+                  <SelectItem value="50">50 / page</SelectItem>
+                  <SelectItem value="100">100 / page</SelectItem>
+                </SelectContent>
+              </Select>
               <Button
                 variant="outline"
                 size="sm"
@@ -303,18 +335,24 @@ export default function BranchManagement() {
       </Card>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent
+          onInteractOutside={(e) => e.preventDefault()}
+        >
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Branch" : "Add New Branch"}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right">Branch Name</Label>
-              <Input
-                className="col-span-3"
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-              />
+            <div className="grid grid-cols-4 items-start gap-4">
+              <Label className="text-right pt-2.5">Branch Name</Label>
+              <div className="col-span-3">
+                <Input
+                  value={form.name}
+                  onChange={(e) => setField("name", e.target.value)}
+                  className={fieldErrors.name ? "border-destructive focus-visible:ring-destructive" : ""}
+                  aria-invalid={Boolean(fieldErrors.name)}
+                />
+                {fieldErrors.name && <p className="text-xs text-destructive mt-1">{fieldErrors.name}</p>}
+              </div>
             </div>
             {editing && (
               <div className="grid grid-cols-4 items-center gap-4">
@@ -336,23 +374,25 @@ export default function BranchManagement() {
                 ["Email", "email"],
               ] as const
             ).map(([label, key]) => (
-              <div key={key} className="grid grid-cols-4 items-center gap-4">
-                <Label className="text-right">{label}</Label>
-                <Input
-                  className="col-span-3"
-                  value={form[key]}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    if (key === "phone") {
-                      const digitsOnly = v.replace(/\D/g, "").slice(0, 10);
-                      setForm({ ...form, phone: digitsOnly });
-                      return;
-                    }
-                    setForm({ ...form, [key]: v });
-                  }}
-                  inputMode={key === "phone" ? "numeric" : undefined}
-                  maxLength={key === "phone" ? 10 : undefined}
-                />
+              <div key={key} className="grid grid-cols-4 items-start gap-4">
+                <Label className="text-right pt-2.5">{label}</Label>
+                <div className="col-span-3">
+                  {key === "phone" ? (
+                    <PhoneInput
+                      value={form.phone}
+                      onChange={(v) => setField("phone", v)}
+                      invalid={Boolean(fieldErrors.phone)}
+                    />
+                  ) : (
+                    <Input
+                      value={form[key]}
+                      onChange={(e) => setField(key, e.target.value)}
+                      className={fieldErrors[key] ? "border-destructive focus-visible:ring-destructive" : ""}
+                      aria-invalid={Boolean(fieldErrors[key])}
+                    />
+                  )}
+                  {fieldErrors[key] && <p className="text-xs text-destructive mt-1">{fieldErrors[key]}</p>}
+                </div>
               </div>
             ))}
           </div>
@@ -360,7 +400,7 @@ export default function BranchManagement() {
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={() => saveMut.mutate()} disabled={saveMut.isPending}>
+            <Button onClick={handleSave} disabled={saveMut.isPending}>
               {saveMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : editing ? "Update" : "Create"}
             </Button>
           </DialogFooter>

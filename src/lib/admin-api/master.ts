@@ -371,3 +371,12 @@ export async function fetchMaritalStatuses(params?: { page?: number; page_size?:
   const res = await adminRequest<never>(qs ? `v1/master/marital-status/?${qs}` : "v1/master/marital-status/");
   return parsePaginated<MasterItem>(res);
 }
+
+export async function fetchComplexions(params?: { page?: number; page_size?: number }) {
+  const q = new URLSearchParams();
+  if (params?.page) q.set("page", String(params.page));
+  if (params?.page_size) q.set("page_size", String(params.page_size));
+  const qs = q.toString();
+  const res = await adminRequest<never>(qs ? `v1/master/complexions/?${qs}` : "v1/master/complexions/");
+  return parsePaginated<MasterItem>(res);
+}

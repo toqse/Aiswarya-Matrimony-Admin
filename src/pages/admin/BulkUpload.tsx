@@ -432,6 +432,7 @@ export default function BulkUpload() {
           >
             <Download className="h-4 w-4" /> CSV Template
           </Button>
+          {/* Excel Template temporarily disabled — only CSV template is needed.
           <Button
             variant="outline"
             onClick={() => downloadTemplate("xlsx")}
@@ -439,6 +440,7 @@ export default function BulkUpload() {
           >
             <Download className="h-4 w-4" /> Excel Template
           </Button>
+          */}
         </div>
       </div>
 

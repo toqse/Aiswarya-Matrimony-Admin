@@ -4,6 +4,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { formatPhoneDisplay } from "@/lib/phone";
+import AddProfileWizard from "@/components/profile/AddProfileWizard";
+import EditProfileWizard from "@/components/profile/EditProfileWizard";
+import {
+  buildProfileEditFormData,
+  mapDetailToWizardForm,
+  type WizardFormValues,
+} from "@/lib/admin-api/profile-registration";
 import {
   Select,
   SelectContent,
@@ -14,12 +22,15 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Table,
   TableBody,
@@ -34,17 +45,17 @@ import {
   fetchBranchMyProfileDocuments,
   fetchBranchMyProfiles,
   fetchBranchMyProfilesSummary,
+  patchBranchMyProfile,
   patchProfileAssignStaff,
   patchBranchMyProfileVerify,
-  refreshBranchMyProfile,
-  sendBranchMyProfileEmail,
-  toggleBranchMyProfileWishlist,
+  type ProfileListRow,
   type ProfilesQuery,
 } from "@/lib/admin-api/profiles";
 import { fetchBranchStaffList } from "@/lib/admin-api/staff";
 import { cn } from "@/lib/utils";
 import {
   Eye,
+  Edit,
   BadgeCheck,
   BadgeX,
   FileText,
@@ -53,24 +64,17 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-function getPath(obj: unknown, path: Array<string | number>): unknown {
-  let cur: any = obj;
-  for (const key of path) {
-    if (cur == null) return undefined;
-    cur = cur[key as any];
-  }
-  return cur;
+function isoToDDMMYYYY(iso: string): string {
+  const [y, m, d] = iso.split("-");
+  if (!y || !m || !d) return iso;
+  return `${d}-${m}-${y}`;
 }
 
-function asString(v: unknown): string | null {
-  if (v == null) return null;
-  if (typeof v === "string") return v.trim() ? v : null;
-  if (typeof v === "number" || typeof v === "boolean") return String(v);
-  return null;
-}
-
-function formatMaybe(v: unknown): string {
-  return asString(v) ?? "—";
+function showValue(value: unknown) {
+  if (value == null || value === "") return "—";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (Array.isArray(value)) return value.length ? value.join(", ") : "—";
+  return String(value);
 }
 
 export default function BranchMyProfiles() {
@@ -78,18 +82,14 @@ export default function BranchMyProfiles() {
   const [filter, setFilter] =
     useState<NonNullable<ProfilesQuery["filter"]>>("all");
   const [page, setPage] = useState(1);
-  const [detailId, setDetailId] = useState<string | null>(null);
+  const [viewProfile, setViewProfile] = useState<ProfileListRow | null>(null);
   const [docId, setDocId] = useState<string | null>(null);
   const [assignId, setAssignId] = useState<string | null>(null);
   const [assignStaffId, setAssignStaffId] = useState<string>("");
-  const [createOpen, setCreateOpen] = useState(false);
-  const [createForm, setCreateForm] = useState({
-    name: "",
-    phone_number: "",
-    gender: "F" as "M" | "F" | "O",
-    dob: "",
-    email: "",
-  });
+  const [showAddProfile, setShowAddProfile] = useState(false);
+  const [showEditProfile, setShowEditProfile] = useState(false);
+  const [editProfile, setEditProfile] = useState<ProfileListRow | null>(null);
+  const [editInitial, setEditInitial] = useState<WizardFormValues | null>(null);
   const qc = useQueryClient();
   const { toast } = useToast();
 
@@ -108,10 +108,10 @@ export default function BranchMyProfiles() {
       }),
   });
 
-  const detailQ = useQuery({
-    queryKey: ["branch", "my-profiles", "detail", detailId],
-    queryFn: () => fetchBranchMyProfileDetail(detailId as string),
-    enabled: !!detailId,
+  const viewDetailQ = useQuery({
+    queryKey: ["branch", "my-profiles", "detail", viewProfile?.matri_id],
+    queryFn: () => fetchBranchMyProfileDetail(String(viewProfile?.matri_id ?? "")),
+    enabled: !!viewProfile?.matri_id,
   });
 
   const docsQ = useQuery({
@@ -136,16 +136,6 @@ export default function BranchMyProfiles() {
       toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
-  const refreshMut = useMutation({
-    mutationFn: (matriId: string) => refreshBranchMyProfile(matriId),
-    onSuccess: () => {
-      toast({ title: "Profile completion refreshed" });
-      qc.invalidateQueries({ queryKey: ["branch", "my-profiles"] });
-    },
-    onError: (e: Error) =>
-      toast({ title: "Error", description: e.message, variant: "destructive" }),
-  });
-
   const assignMut = useMutation({
     mutationFn: ({ matriId, staffId }: { matriId: string; staffId: number }) =>
       patchProfileAssignStaff(matriId, staffId),
@@ -164,24 +154,15 @@ export default function BranchMyProfiles() {
   });
 
   const createMut = useMutation({
-    mutationFn: () =>
-      createBranchMyProfile({
-        name: createForm.name.trim(),
-        phone_number: createForm.phone_number.trim(),
-        gender: createForm.gender,
-        dob: createForm.dob.trim(),
-        email: createForm.email.trim() || undefined,
-      }),
-    onSuccess: () => {
-      toast({ title: "Profile created successfully" });
-      setCreateOpen(false);
-      setCreateForm({
-        name: "",
-        phone_number: "",
-        gender: "F",
-        dob: "",
-        email: "",
+    mutationFn: (payload: FormData | Record<string, unknown>) =>
+      createBranchMyProfile(payload),
+    onSuccess: (res) => {
+      const matriId = String((res as { matri_id?: string }).matri_id ?? "");
+      toast({
+        title: "Profile created successfully",
+        description: matriId ? `Matri ID: ${matriId}` : undefined,
       });
+      setShowAddProfile(false);
       qc.invalidateQueries({ queryKey: ["branch", "my-profiles"] });
     },
     onError: (e: Error) =>
@@ -191,6 +172,41 @@ export default function BranchMyProfiles() {
         variant: "destructive",
       }),
   });
+
+  const patchMut = useMutation({
+    mutationFn: ({ matriId, body }: { matriId: string; body: FormData }) =>
+      patchBranchMyProfile(matriId, body),
+    onSuccess: async () => {
+      toast({
+        title: "Profile Updated",
+        description: "Changes saved successfully.",
+      });
+      setShowEditProfile(false);
+      await qc.invalidateQueries({ queryKey: ["branch", "my-profiles"] });
+    },
+    onError: (e) =>
+      toast({
+        title: "Failed",
+        description: (e as Error).message,
+        variant: "destructive",
+      }),
+  });
+
+  const openEdit = async (p: ProfileListRow) => {
+    setEditProfile(p);
+    setEditInitial(null);
+    setShowEditProfile(true);
+    try {
+      const detail = await fetchBranchMyProfileDetail(p.matri_id);
+      setEditInitial(mapDetailToWizardForm(detail as Record<string, unknown>, p));
+    } catch (e) {
+      toast({
+        title: "Could not load full profile details",
+        description: (e as Error).message,
+        variant: "destructive",
+      });
+    }
+  };
 
   const rows = listQ.data?.results ?? [];
   const total = listQ.data?.count ?? 0;
@@ -294,7 +310,7 @@ export default function BranchMyProfiles() {
                 <SelectItem value="unverified">unverified</SelectItem>
               </SelectContent>
             </Select>
-            <Button onClick={() => setCreateOpen(true)}>Add Profile</Button>
+            <Button onClick={() => setShowAddProfile(true)}>Add Profile</Button>
             {(listQ.isLoading || summaryQ.isLoading) && (
               <Loader2 className="h-4 w-4 animate-spin" />
             )}
@@ -307,7 +323,7 @@ export default function BranchMyProfiles() {
                 <TableHead>Gender</TableHead>
                 <TableHead>Age</TableHead>
                 <TableHead>Plan</TableHead>
-                <TableHead>Verified</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -320,8 +336,8 @@ export default function BranchMyProfiles() {
                   <TableCell>{r.age}</TableCell>
                   <TableCell>{r.planText}</TableCell>
                   <TableCell>
-                    <Badge variant={r.verifiedFlag ? "default" : "outline"}>
-                      {r.verifiedFlag ? "Verified" : "Unverified"}
+                    <Badge variant={r.is_blocked ? "destructive" : "secondary"}>
+                      {r.is_blocked ? "Blocked" : "Active"}
                     </Badge>
                   </TableCell>
                   <TableCell>
@@ -336,10 +352,25 @@ export default function BranchMyProfiles() {
                           actionIconBtn,
                           "bg-purple-100 text-purple-600 hover:bg-purple-200 hover:text-purple-700 focus-visible:ring-purple-400",
                         )}
-                        onClick={() => setDetailId(r.matri_id)}
+                        onClick={() => setViewProfile(r)}
                       >
                         <Eye className="h-4 w-4" />
                       </Button>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        title="Edit"
+                        aria-label="Edit"
+                        className={cn(
+                          actionIconBtn,
+                          "bg-blue-100 text-blue-600 hover:bg-blue-200 hover:text-blue-700 focus-visible:ring-blue-400",
+                        )}
+                        onClick={() => void openEdit(r)}
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      {/* Temporarily disabled: Verify/Unverify action
                       <Button
                         type="button"
                         size="icon"
@@ -363,6 +394,8 @@ export default function BranchMyProfiles() {
                           <BadgeCheck className="h-4 w-4" />
                         )}
                       </Button>
+                      */}
+                      {/* Temporarily disabled: Documents action
                       <Button
                         type="button"
                         size="icon"
@@ -377,6 +410,7 @@ export default function BranchMyProfiles() {
                       >
                         <FileText className="h-4 w-4" />
                       </Button>
+                      */}
                       <Button
                         type="button"
                         size="icon"
@@ -431,118 +465,326 @@ export default function BranchMyProfiles() {
         </CardContent>
       </Card>
 
-      <Dialog open={!!detailId} onOpenChange={(o) => !o && setDetailId(null)}>
-        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Profile Detail</DialogTitle>
+      {/* View Profile Dialog */}
+      <Dialog
+        open={!!viewProfile}
+        onOpenChange={(o) => {
+          if (!o) setViewProfile(null);
+        }}
+      >
+        <DialogContent className="max-w-4xl h-[90vh] flex flex-col gap-0 p-0">
+          <DialogHeader className="px-6 pt-6 pb-2 shrink-0">
+            <DialogTitle>Profile Details — {viewProfile?.matri_id}</DialogTitle>
+            <DialogDescription className="sr-only">
+              View complete profile details.
+            </DialogDescription>
+            {!!viewProfile?.name && (
+              <p className="text-xs text-muted-foreground">
+                {viewProfile.name}
+              </p>
+            )}
           </DialogHeader>
-          {detailQ.isLoading && (
-            <p className="text-sm text-muted-foreground">Loading...</p>
-          )}
-          {detailQ.data && (() => {
-            const d = detailQ.data as unknown;
-            const matriId =
-              asString(getPath(d, ["matri_id"])) ??
-              asString(getPath(d, ["matriId"])) ??
-              detailId ??
-              "—";
-            const basic = getPath(d, ["basic_details"]);
-            const photos = getPath(d, ["photos"]);
 
-            const name = asString(getPath(basic, ["name"])) ?? asString(getPath(d, ["name"]));
-            const gender = asString(getPath(basic, ["gender"])) ?? asString(getPath(d, ["gender"]));
-            const dob = asString(getPath(basic, ["dob"])) ?? asString(getPath(d, ["dob"]));
-            const email = asString(getPath(basic, ["email"])) ?? asString(getPath(d, ["email"]));
-            const phone =
-              asString(getPath(basic, ["phone"])) ??
-              asString(getPath(basic, ["phone_number"])) ??
-              asString(getPath(d, ["phone"])) ??
-              asString(getPath(d, ["phone_number"]));
-            const profileFor = asString(getPath(basic, ["profile_for"])) ?? asString(getPath(d, ["profile_for"]));
+          <ScrollArea className="flex-1 px-6 pb-6">
+            {viewDetailQ.isLoading && (
+              <p className="text-sm text-muted-foreground py-6">
+                Loading profile…
+              </p>
+            )}
+            {viewDetailQ.error && (
+              <p className="text-sm text-destructive py-6">
+                {(viewDetailQ.error as Error).message}
+              </p>
+            )}
 
-            const photoItems = [
-              { key: "profile_photo", label: "Profile Photo" },
-              { key: "full_photo", label: "Full Photo" },
-              { key: "selfie_photo", label: "Selfie Photo" },
-              { key: "family_photo", label: "Family Photo" },
-              { key: "aadhaar_front", label: "Aadhaar Front" },
-              { key: "aadhaar_back", label: "Aadhaar Back" },
-            ]
-              .map((p) => ({
-                ...p,
-                url: asString(getPath(photos, [p.key])),
-              }))
-              .filter((p) => !!p.url);
+            {viewDetailQ.data && (
+              <div className="space-y-5 text-sm pr-3">
+                {(() => {
+                  const detail = viewDetailQ.data ?? {};
+                  const basic =
+                    (detail.basic_details as
+                      | Record<string, unknown>
+                      | undefined) ?? {};
+                  const religion =
+                    (detail.religion_details as
+                      | Record<string, unknown>
+                      | undefined) ?? {};
+                  const personal =
+                    (detail.personal_details as
+                      | Record<string, unknown>
+                      | undefined) ?? {};
+                  const location =
+                    (detail.location_details as
+                      | Record<string, unknown>
+                      | undefined) ?? {};
+                  const education =
+                    (detail.education_details as
+                      | Record<string, unknown>
+                      | undefined) ?? {};
+                  const family =
+                    (detail.family_details as
+                      | Record<string, unknown>
+                      | undefined) ?? {};
+                  const photos =
+                    (detail.photos as
+                      | Record<string, string | null>
+                      | undefined) ?? {};
 
-            return (
-              <div className="space-y-5">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <Label className="text-muted-foreground">Matri ID</Label>
-                    <p className="font-mono">{matriId}</p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Name</Label>
-                    <p className="font-medium">{formatMaybe(name)}</p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Gender</Label>
-                    <p>{formatMaybe(gender)}</p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">DOB</Label>
-                    <p>{formatMaybe(dob)}</p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Phone</Label>
-                    <p>{formatMaybe(phone)}</p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Email</Label>
-                    <p className="break-all">{formatMaybe(email)}</p>
-                  </div>
-                  <div className="sm:col-span-2">
-                    <Label className="text-muted-foreground">Profile For</Label>
-                    <p>{formatMaybe(profileFor)}</p>
-                  </div>
-                </div>
-
-                <Separator />
-
-                <div className="space-y-2">
-                  <Label className="text-muted-foreground">Photos</Label>
-                  {photoItems.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No photos uploaded.</p>
-                  ) : (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                      {photoItems.map((p) => (
-                        <a
-                          key={p.key}
-                          href={p.url as string}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="group rounded-md border overflow-hidden bg-muted/20 hover:bg-muted/40 transition-colors"
-                          title="Open image"
-                        >
-                          <div className="aspect-[4/3] bg-muted flex items-center justify-center overflow-hidden">
-                            <img
-                              src={p.url as string}
-                              alt={p.label}
-                              className="h-full w-full object-cover group-hover:scale-[1.02] transition-transform"
-                              loading="lazy"
-                            />
-                          </div>
-                          <div className="p-2">
-                            <p className="text-xs font-medium truncate">{p.label}</p>
-                          </div>
-                        </a>
+                  const FieldGrid = ({
+                    rows,
+                  }: {
+                    rows: [string, unknown][];
+                  }) => (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {rows.map(([k, v]) => (
+                        <div key={k} className="rounded-md border bg-card p-3">
+                          <p className="text-xs text-muted-foreground">{k}</p>
+                          <p className="font-medium text-sm break-words">
+                            {showValue(v)}
+                          </p>
+                        </div>
                       ))}
                     </div>
-                  )}
+                  );
+
+                  const Section = ({
+                    title,
+                    children,
+                  }: {
+                    title: string;
+                    children: React.ReactNode;
+                  }) => (
+                    <div className="space-y-2">
+                      <h3 className="text-sm font-semibold text-foreground">
+                        {title}
+                      </h3>
+                      {children}
+                    </div>
+                  );
+
+                  return (
+                    <>
+                      <Section title="Record">
+                        <FieldGrid
+                          rows={[
+                            ["Matrimony ID", detail.matri_id],
+                            ["Profile UUID", detail.id],
+                          ]}
+                        />
+                      </Section>
+
+                      <Separator />
+
+                      <Section title="Basic details">
+                        <FieldGrid
+                          rows={[
+                            ["Name", basic.name],
+                            ["Gender", basic.gender],
+                            ["Date of birth", basic.dob],
+                            ["Age", basic.age],
+                            ["Email", basic.email],
+                            ["Phone", formatPhoneDisplay(basic.phone)],
+                            ["Profile for", basic.profile_for],
+                          ]}
+                        />
+                      </Section>
+
+                      <Separator />
+
+                      <Section title="Location">
+                        <FieldGrid
+                          rows={[
+                            [
+                              "Country",
+                              location.country ?? location.country_id,
+                            ],
+                            ["State", location.state ?? location.state_id],
+                            [
+                              "District",
+                              location.district ?? location.district_id,
+                            ],
+                            ["City", location.city ?? location.city_id],
+                            ["Address", location.address],
+                          ]}
+                        />
+                      </Section>
+
+                      <Separator />
+
+                      <Section title="Religion & partner preference">
+                        <FieldGrid
+                          rows={[
+                            [
+                              "Religion",
+                              religion.religion ?? religion.religion_id,
+                            ],
+                            ["Caste", religion.caste ?? religion.caste_id],
+                            [
+                              "Mother tongue",
+                              religion.mother_tongue ??
+                                religion.mother_tongue_id,
+                            ],
+                            [
+                              "Partner religion preference",
+                              religion.partner_religion_preference,
+                            ],
+                            [
+                              "Partner preference type",
+                              religion.partner_preference_type,
+                            ],
+                            [
+                              "Partner religion IDs",
+                              religion.partner_religion_ids,
+                            ],
+                            [
+                              "Partner caste preference",
+                              religion.partner_caste_preference,
+                            ],
+                          ]}
+                        />
+                      </Section>
+
+                      <Separator />
+
+                      <Section title="Personal">
+                        <FieldGrid
+                          rows={[
+                            [
+                              "Marital status",
+                              personal.marital_status ??
+                                personal.marital_status_id,
+                            ],
+                            [
+                              "Children count",
+                              personal.children_count ??
+                                personal.number_of_children,
+                            ],
+                            ["Height", personal.height_cm],
+                            ["Weight (kg)", personal.weight_kg],
+                            [
+                              "Complexion",
+                              personal.colour ?? personal.complexion,
+                            ],
+                            ["Blood group", personal.blood_group],
+                          ]}
+                        />
+                      </Section>
+
+                      <Separator />
+
+                      <Section title="Education & career">
+                        <FieldGrid
+                          rows={[
+                            [
+                              "Highest education",
+                              education.highest_education ??
+                                education.highest_education_id,
+                            ],
+                            [
+                              "Subject",
+                              education.education_subject ??
+                                education.education_subject_id,
+                            ],
+                            ["Employment status", education.employment_status],
+                            [
+                              "Occupation",
+                              education.occupation ?? education.occupation_id,
+                            ],
+                            [
+                              "Annual income",
+                              education.annual_income ??
+                                education.annual_income_id,
+                            ],
+                          ]}
+                        />
+                      </Section>
+
+                      {Object.values(photos).some(Boolean) && (
+                        <>
+                          <Separator />
+                          <Section title="Photos">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                              {Object.entries(photos).map(([key, url]) => {
+                                if (!url) return null;
+                                return (
+                                  <a
+                                    key={key}
+                                    href={url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="rounded-md border bg-card p-2 hover:bg-muted/40 transition-colors"
+                                  >
+                                    <p className="text-xs text-muted-foreground mb-2 capitalize">
+                                      {key.replace(/_/g, " ")}
+                                    </p>
+                                    <img
+                                      src={url}
+                                      alt={key}
+                                      className="w-full h-24 object-cover rounded"
+                                    />
+                                  </a>
+                                );
+                              })}
+                            </div>
+                          </Section>
+                        </>
+                      )}
+
+                      {typeof detail.about_me === "string" &&
+                        detail.about_me.trim() !== "" && (
+                          <>
+                            <Separator />
+                            <Section title="About me">
+                              <div className="rounded-md border bg-card p-3">
+                                <p className="text-sm whitespace-pre-wrap">
+                                  {detail.about_me}
+                                </p>
+                              </div>
+                            </Section>
+                          </>
+                        )}
+
+                      {Object.keys(family).length > 0 && (
+                        <>
+                          <Separator />
+                          <Section title="Family">
+                            <FieldGrid
+                              rows={[
+                                ["Father", family.father_name],
+                                ["Father occupation", family.father_occupation],
+                                ["Mother", family.mother_name],
+                                ["Mother occupation", family.mother_occupation],
+                                ["Brothers", family.brothers],
+                                ["Married brothers", family.married_brothers],
+                                ["Sisters", family.sisters],
+                                ["Married sisters", family.married_sisters],
+                                ["About family", family.about_family],
+                              ]}
+                            />
+                          </Section>
+                        </>
+                      )}
+                    </>
+                  );
+                })()}
+
+                <div className="flex gap-2 pt-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      if (!viewProfile) return;
+                      const vp = viewProfile;
+                      setViewProfile(null);
+                      void openEdit(vp);
+                    }}
+                  >
+                    <Edit className="h-3.5 w-3.5 mr-1" /> Edit
+                  </Button>
                 </div>
               </div>
-            );
-          })()}
+            )}
+          </ScrollArea>
         </DialogContent>
       </Dialog>
 
@@ -620,74 +862,153 @@ export default function BranchMyProfiles() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create Profile</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-2">
-            <Input
-              value={createForm.name}
-              onChange={(e) =>
-                setCreateForm((p) => ({ ...p, name: e.target.value }))
+      {/* Edit Profile Wizard (shared) */}
+      <EditProfileWizard
+        open={showEditProfile}
+        onOpenChange={setShowEditProfile}
+        initial={editInitial}
+        submitting={patchMut.isPending}
+        onComplete={(form) => {
+          if (!editProfile) return;
+          patchMut.mutate({
+            matriId: editProfile.matri_id,
+            body: buildProfileEditFormData(form),
+          });
+        }}
+      />
+
+      <AddProfileWizard
+        open={showAddProfile}
+        onOpenChange={setShowAddProfile}
+        submitting={createMut.isPending}
+        onComplete={(form: any) => {
+          const gender =
+            form.gender === "Male" ? "M" : form.gender === "Female" ? "F" : "O";
+          const birthTime = String(form.timeOfBirth ?? "").trim();
+          const birthPlace = String(form.placeOfBirth ?? "").trim();
+          const birthDate = isoToDDMMYYYY(String(form.dob ?? ""));
+          const horoscopeDetails = form.hasHoroscope
+            ? {
+                date_of_birth: birthDate || undefined,
+                pr_dob: birthDate || undefined,
+                time_of_birth: birthTime || undefined,
+                birth_time: birthTime || undefined,
+                pr_tob: birthTime || undefined,
+                country_id: form.countryId ? Number(form.countryId) : undefined,
+                state_id: form.stateId ? Number(form.stateId) : undefined,
+                district_id: form.districtId
+                  ? Number(form.districtId)
+                  : undefined,
+                place_of_birth: birthPlace || undefined,
+                birth_place: birthPlace || undefined,
+                pr_pob: birthPlace || undefined,
+                latitude: form.birthLatitude
+                  ? Number(form.birthLatitude)
+                  : undefined,
+                longitude: form.birthLongitude
+                  ? Number(form.birthLongitude)
+                  : undefined,
+                timezone: form.birthTimezone || undefined,
               }
-              placeholder="Name"
-            />
-            <Input
-              value={createForm.phone_number}
-              onChange={(e) =>
-                setCreateForm((p) => ({ ...p, phone_number: e.target.value }))
-              }
-              placeholder="Phone number"
-            />
-            <Select
-              value={createForm.gender}
-              onValueChange={(v) =>
-                setCreateForm((p) => ({ ...p, gender: v as "M" | "F" | "O" }))
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="M">M</SelectItem>
-                <SelectItem value="F">F</SelectItem>
-                <SelectItem value="O">O</SelectItem>
-              </SelectContent>
-            </Select>
-            <Input
-              value={createForm.dob}
-              onChange={(e) =>
-                setCreateForm((p) => ({ ...p, dob: e.target.value }))
-              }
-              placeholder="DOB (DD-MM-YYYY)"
-            />
-            <Input
-              value={createForm.email}
-              onChange={(e) =>
-                setCreateForm((p) => ({ ...p, email: e.target.value }))
-              }
-              placeholder="Email (optional)"
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={() => createMut.mutate()}
-              disabled={
-                createMut.isPending ||
-                !createForm.name.trim() ||
-                !createForm.phone_number.trim() ||
-                !createForm.dob.trim()
-              }
-            >
-              Create
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            : undefined;
+          const registration = {
+            name: String(form.name ?? form.fullName ?? "").trim(),
+            phone_number: String(form.mobile ?? "").trim(),
+            gender,
+            dob: birthDate,
+            email: form.email ? String(form.email).trim() : undefined,
+            terms_accepted: true,
+            profile_for: String(form.profileFor ?? "myself").toLowerCase(),
+            has_horoscope: !!form.hasHoroscope,
+            horoscope_details: horoscopeDetails,
+            time_of_birth: form.hasHoroscope ? birthTime || undefined : undefined,
+            birth_time: form.hasHoroscope ? birthTime || undefined : undefined,
+            pr_tob: form.hasHoroscope ? birthTime || undefined : undefined,
+            place_of_birth: form.hasHoroscope
+              ? birthPlace || undefined
+              : undefined,
+            birth_place: form.hasHoroscope ? birthPlace || undefined : undefined,
+            pr_pob: form.hasHoroscope ? birthPlace || undefined : undefined,
+            latitude:
+              form.hasHoroscope && form.birthLatitude
+                ? Number(form.birthLatitude)
+                : undefined,
+            longitude:
+              form.hasHoroscope && form.birthLongitude
+                ? Number(form.birthLongitude)
+                : undefined,
+            timezone: form.hasHoroscope
+              ? form.birthTimezone || undefined
+              : undefined,
+            location_details: {
+              country_id: form.countryId ? Number(form.countryId) : undefined,
+              state_id: form.stateId ? Number(form.stateId) : undefined,
+              district_id: form.districtId
+                ? Number(form.districtId)
+                : undefined,
+              city: form.city ? String(form.city).trim() : undefined,
+              address: form.address || undefined,
+            },
+            religion_details: {
+              religion_id: form.religionId ? Number(form.religionId) : undefined,
+              caste_id: form.casteId ? Number(form.casteId) : undefined,
+              mother_tongue_id: form.motherTongueId
+                ? Number(form.motherTongueId)
+                : undefined,
+              partner_preference_type: form.partnerPreferenceType || undefined,
+              partner_religion_ids: Array.isArray(form.partnerReligionIds)
+                ? form.partnerReligionIds
+                    .map((id: unknown) => Number(id))
+                    .filter((n: number) => Number.isFinite(n))
+                : undefined,
+              partner_caste_preference:
+                form.partnerCastePreference || undefined,
+            },
+            personal_details: {
+              marital_status: form.maritalStatus || undefined,
+              height_cm: form.height ? Number(form.height) : undefined,
+              weight_kg: form.weight || undefined,
+              complexion: form.complexion || undefined,
+            },
+            education_details: {
+              highest_education_id: form.highestEducationId
+                ? Number(form.highestEducationId)
+                : undefined,
+              education_subject_id: form.educationSubjectId
+                ? Number(form.educationSubjectId)
+                : undefined,
+              employment_status: form.employmentStatus || undefined,
+              occupation_id: form.occupationId
+                ? Number(form.occupationId)
+                : undefined,
+              annual_income_id: form.annualIncomeId
+                ? Number(form.annualIncomeId)
+                : undefined,
+            },
+            about_me: form.aboutMe || undefined,
+          } as Record<string, unknown>;
+
+          const fd = new FormData();
+          fd.append("registration", JSON.stringify(registration));
+
+          const fileKeys = [
+            "full_photo",
+            "passport_photo",
+            "profile_photo",
+            "selfie_photo",
+            "family_photo",
+            "aadhaar_front",
+            "aadhaar_back",
+          ] as const;
+
+          fileKeys.forEach((k) => {
+            const f = form[k];
+            if (f instanceof File) fd.append(k, f);
+          });
+
+          createMut.mutate(fd);
+        }}
+      />
     </div>
   );
 }

@@ -1,15 +1,29 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQueries } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   fetchDistrictAnalysis,
   fetchDistrictAnalysisGeoJson,
+  type DistrictAnalysisSortBy,
 } from "@/lib/admin-api/district-analysis";
-import { Loader2, MapPin } from "lucide-react";
+import { Loader2, MapPin, Search } from "lucide-react";
+
+const PAGE_SIZE = 12;
 
 export default function DistrictAnalysis() {
   const [stateIdText, setStateIdText] = useState("");
+  const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState<DistrictAnalysisSortBy | "name">("name");
+  const [page, setPage] = useState(1);
 
   const stateId = useMemo(() => {
     const n = Number(stateIdText.trim());
@@ -19,8 +33,12 @@ export default function DistrictAnalysis() {
   const [metricsQ, geoQ] = useQueries({
     queries: [
       {
-        queryKey: ["admin", "district-analysis", "cards", stateId],
-        queryFn: () => fetchDistrictAnalysis({ stateId }),
+        queryKey: ["admin", "district-analysis", "cards", stateId, sortBy],
+        queryFn: () =>
+          fetchDistrictAnalysis({
+            stateId,
+            sortBy: sortBy === "name" ? undefined : sortBy,
+          }),
       },
       {
         queryKey: ["admin", "district-analysis", "geojson", stateId],
@@ -33,6 +51,25 @@ export default function DistrictAnalysis() {
   const err = (metricsQ.error || geoQ.error) as Error | null;
   const districtData = metricsQ.data ?? [];
   const geoFeatures = geoQ.data?.features?.length ?? 0;
+
+  const filtered = useMemo(
+    () =>
+      districtData.filter((d) =>
+        d.district.toLowerCase().includes(search.trim().toLowerCase()),
+      ),
+    [districtData, search],
+  );
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, sortBy, stateId]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   return (
     <div className="space-y-6">
@@ -48,6 +85,30 @@ export default function DistrictAnalysis() {
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative sm:w-52">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search district..."
+              className="pl-9"
+            />
+          </div>
+          <Select
+            value={sortBy}
+            onValueChange={(v) =>
+              setSortBy(v as DistrictAnalysisSortBy | "name")
+            }
+          >
+            <SelectTrigger className="sm:w-44">
+              <SelectValue placeholder="Sort by" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="name">Name</SelectItem>
+              <SelectItem value="registrations">Registrations</SelectItem>
+              <SelectItem value="conversion_rate">Conversion rate</SelectItem>
+            </SelectContent>
+          </Select>
           <Input
             value={stateIdText}
             onChange={(e) => setStateIdText(e.target.value)}
@@ -65,7 +126,7 @@ export default function DistrictAnalysis() {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {districtData.map((d) => (
+        {pageItems.map((d) => (
           <Card key={d.district_id} className="border border-border hover:border-primary/40 transition-colors">
             <CardContent className="p-5">
               <div className="flex items-center gap-2 mb-5">
@@ -86,7 +147,37 @@ export default function DistrictAnalysis() {
           </Card>
         ))}
       </div>
-      {!isLoading && !err && districtData.length === 0 && (
+
+      {!isLoading && !err && filtered.length > 0 && (
+        <div className="flex items-center justify-between pt-2 border-t">
+          <span className="text-xs text-muted-foreground">
+            Showing {pageItems.length} of {filtered.length} districts
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1}
+            >
+              Previous
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              Page {page} of {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((p) => p + 1)}
+              disabled={page >= totalPages}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {!isLoading && !err && filtered.length === 0 && (
         <p className="text-sm text-muted-foreground">No district analytics data found for this filter.</p>
       )}
     </div>

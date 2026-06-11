@@ -98,9 +98,16 @@ export default function SalaryPayroll() {
   const genMut = useMutation({
     mutationFn: () => generatePayroll({ month: genMonth }),
     onSuccess: (r) => {
+      const skipped = r.skipped_existing ?? 0;
+      const description =
+        r.records_created > 0
+          ? `Added ${r.records_created} record(s) for ${r.month}${
+              skipped > 0 ? `. ${skipped} already existed.` : ""
+            }`
+          : `All eligible staff already have records for ${r.month}.`;
       toast({
-        title: "Generated",
-        description: `${r.records_created} records for ${r.month}`,
+        title: r.records_created > 0 ? "Payroll updated" : "No new records",
+        description,
       });
       setShowGenerateDialog(false);
       setPendingAction(null);

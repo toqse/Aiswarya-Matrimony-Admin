@@ -4,6 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { PhoneInput } from "@/components/ui/phone-input";
+import { digitsOnlyMobile, formatPhoneForApi } from "@/lib/phone";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -269,14 +271,11 @@ export default function CashPaymentDashboard() {
 
   const openNewPayment = () => {
     resetWizard();
+    createMut.reset();
     setShowNewPayment(true);
   };
 
-  const normalizeMobileForLookup = (raw: string) => {
-    const digits = String(raw ?? "").replace(/\D/g, "");
-    if (digits.length > 10) return digits.slice(-10);
-    return digits;
-  };
+  const normalizeMobileForLookup = (raw: string) => formatPhoneForApi(digitsOnlyMobile(raw));
 
   const lookupMut = useMutation({
     mutationFn: (params: { matri_id?: string; mobile?: string }) => fetchPaymentCustomerLookup(payRole, params),
@@ -352,8 +351,6 @@ export default function CashPaymentDashboard() {
       queryClient.invalidateQueries({ queryKey: ["payments-summary"] });
       toast({ title: "Payment recorded", description: "The transaction has been saved." });
     },
-    onError: (e: Error) =>
-      toast({ title: "Payment failed", description: e.message, variant: "destructive" }),
   });
 
   const sendOtp = () => {
@@ -506,16 +503,16 @@ export default function CashPaymentDashboard() {
                     }))
                   }
                 />
-                <Input
-                  placeholder="Or enter mobile number"
+                <PhoneInput
                   value={form.mobile}
-                  onChange={(e) =>
+                  onChange={(v) =>
                     setForm((f) => ({
                       ...f,
-                      mobile: e.target.value,
+                      mobile: v,
                       profileId: "",
                     }))
                   }
+                  placeholder="Or enter mobile number"
                 />
               </div>
               <div className="flex items-center justify-end mt-2">
@@ -528,7 +525,7 @@ export default function CashPaymentDashboard() {
                       return;
                     }
                     const m = normalizeMobileForLookup(form.mobile);
-                    if (m.length >= 10) {
+                    if (m.startsWith("+91") && m.length === 13) {
                       lookupMut.mutate({ mobile: m });
                       return;
                     }
@@ -1092,7 +1089,10 @@ export default function CashPaymentDashboard() {
         open={showNewPayment}
         onOpenChange={(o) => {
           setShowNewPayment(o);
-          if (!o) resetWizard();
+          if (!o) {
+            resetWizard();
+            createMut.reset();
+          }
         }}
       >
         <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto p-0">
@@ -1155,11 +1155,24 @@ export default function CashPaymentDashboard() {
 
               <div className="p-6 min-h-[340px]">{renderStep()}</div>
 
+              {createMut.isError && (
+                <div className="px-6 pb-2">
+                  <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                    <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                    <span>
+                      {(createMut.error as Error)?.message ||
+                        "Payment failed. Please try again."}
+                    </span>
+                  </div>
+                </div>
+              )}
+
               <div className="p-4 border-t flex justify-between">
                 <Button
                   variant="outline"
                   onClick={() => {
                     if (paymentRecorded) return;
+                    if (createMut.isError) createMut.reset();
                     if (step === 0) setPaymentMode("");
                     else {
                       setStep(step - 1);

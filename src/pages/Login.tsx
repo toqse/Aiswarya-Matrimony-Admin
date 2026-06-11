@@ -4,6 +4,7 @@ import { useRole, UserRole } from "@/contexts/RoleContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PhoneInput } from "@/components/ui/phone-input";
 import { ShieldCheck, ArrowLeft, Loader2, CheckCircle2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { postSendOtp, postVerifyOtp, getAuthApiErrorMessage } from "@/lib/auth-api";
@@ -49,11 +50,6 @@ export default function Login() {
   }, [step, timer]);
 
   const formatTimer = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
-
-  const handleMobileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const v = e.target.value.replace(/\D/g, "").slice(0, 10);
-    setMobile(v);
-  };
 
   const handleSendOtp = async () => {
     if (mobile.length !== 10) return toast({ title: "Enter valid 10-digit mobile", variant: "destructive" });
@@ -206,19 +202,12 @@ export default function Login() {
                 {/* Mobile Input */}
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-foreground">Mobile Number</label>
-                  <div className="flex gap-2">
-                    <div className="flex items-center px-3 rounded-lg border border-input bg-muted text-sm font-medium text-muted-foreground shrink-0">
-                      +91
-                    </div>
-                    <Input
-                      type="tel"
-                      placeholder="Enter 10-digit mobile"
-                      value={mobile}
-                      onChange={handleMobileChange}
-                      maxLength={10}
-                      className="text-base tracking-wider"
-                    />
-                  </div>
+                  <PhoneInput
+                    value={mobile}
+                    onChange={setMobile}
+                    className="text-base tracking-wider"
+                    placeholder="Enter 10-digit mobile"
+                  />
                   {mobile.length > 0 && mobile.length < 10 && (
                     <p className="text-xs text-destructive">Enter a valid 10-digit number</p>
                   )}

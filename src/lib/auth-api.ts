@@ -30,6 +30,7 @@ export interface VerifyOtpResponseData {
 export interface AuthApiErrorShape {
   code?: number;
   message?: string;
+  details?: Record<string, string[] | string>;
 }
 
 export interface AuthApiEnvelope<T> {

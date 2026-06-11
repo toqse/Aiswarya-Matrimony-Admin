@@ -93,8 +93,8 @@ export async function fetchMySalaryHistory(
   return unwrap(res);
 }
 
-export async function downloadStaffSalarySlip(id: number) {
-  const { ok, blob, filename } = await adminFetchBlob(`v1/staff/salary/${id}/download/`);
+export async function downloadStaffSalarySlip(id: number, scope?: SalaryApiScope) {
+  const { ok, blob, filename } = await adminFetchBlob(`${getSalaryBasePath(scope)}${id}/download/`);
   if (!ok) throw new Error("Download failed");
   downloadBlob(blob, filename || `salary_${id}_slip.pdf`);
 }

@@ -4,6 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { PhoneInput } from "@/components/ui/phone-input";
+import { formatPhoneDisplay, formatPhoneForApi } from "@/lib/phone";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -137,7 +139,7 @@ export default function StaffEnquiries() {
   const addEnquiry = () => {
     createMut.mutate({
       name: newEnquiry.name,
-      phone: newEnquiry.phone,
+      phone: formatPhoneForApi(newEnquiry.phone),
       email: newEnquiry.email || undefined,
       source: newEnquiry.source,
     });
@@ -310,7 +312,7 @@ export default function StaffEnquiries() {
           {showViewLead && (
             <div className="space-y-3 text-sm">
               <div className="grid grid-cols-2 gap-3">
-                <div><Label className="text-muted-foreground">Phone</Label><p className="font-medium">{showViewLead.phone}</p></div>
+                <div><Label className="text-muted-foreground">Phone</Label><p className="font-medium">{formatPhoneDisplay(showViewLead.phone)}</p></div>
                 <div><Label className="text-muted-foreground">Source</Label><p className="font-medium">{showViewLead.source}</p></div>
                 <div><Label className="text-muted-foreground">Status</Label><Badge className="mt-1">{showViewLead.status}</Badge></div>
                 <div><Label className="text-muted-foreground">Assigned To</Label><p className="font-medium">{showViewLead.assignedTo}</p></div>
@@ -329,7 +331,7 @@ export default function StaffEnquiries() {
           <DialogHeader><DialogTitle>Add New Enquiry</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div><Label>Name *</Label><Input value={newEnquiry.name} onChange={(e) => setNewEnquiry({ ...newEnquiry, name: e.target.value })} placeholder="Lead name" /></div>
-            <div><Label>Phone *</Label><Input value={newEnquiry.phone} onChange={(e) => setNewEnquiry({ ...newEnquiry, phone: e.target.value })} placeholder="Phone number" /></div>
+            <div><Label>Phone *</Label><PhoneInput value={newEnquiry.phone} onChange={(v) => setNewEnquiry({ ...newEnquiry, phone: v })} /></div>
             <div><Label>Email</Label><Input value={newEnquiry.email} onChange={(e) => setNewEnquiry({ ...newEnquiry, email: e.target.value })} placeholder="Email (optional)" /></div>
             <div>
               <Label>Source *</Label>
@@ -361,7 +363,7 @@ export default function StaffEnquiries() {
           <div className="space-y-3">
             <div className="bg-muted/50 rounded-lg p-3 text-sm space-y-1">
               <p><span className="text-muted-foreground">Source:</span> {showFollowUp?.source}</p>
-              <p><span className="text-muted-foreground">Phone:</span> {showFollowUp?.phone}</p>
+              <p><span className="text-muted-foreground">Phone:</span> {formatPhoneDisplay(showFollowUp?.phone)}</p>
               <p><span className="text-muted-foreground">Last Note:</span> {showFollowUp?.notes}</p>
             </div>
             <Label>Follow-up Note *</Label>

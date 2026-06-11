@@ -66,7 +66,11 @@ export async function fetchPayrollSummary(params?: { month?: string; branch_id?:
 }
 
 export async function generatePayroll(body: { month: string }) {
-  const res = await adminRequest<{ month: string; records_created: number }>("v1/admin/payroll/generate/", {
+  const res = await adminRequest<{
+    month: string;
+    records_created: number;
+    skipped_existing?: number;
+  }>("v1/admin/payroll/generate/", {
     method: "POST",
     body,
   });

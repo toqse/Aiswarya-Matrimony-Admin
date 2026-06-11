@@ -4,6 +4,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PhoneInput } from "@/components/ui/phone-input";
+import { formatPhoneDisplay, formatPhoneForApi } from "@/lib/phone";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -70,7 +72,7 @@ export default function BranchEnquiryOverview() {
     mutationFn: () =>
       createBranchEnquiry({
         name: createForm.name.trim(),
-        phone: createForm.phone.trim(),
+        phone: formatPhoneForApi(createForm.phone),
         email: createForm.email.trim() || undefined,
         source: createForm.source,
       }),
@@ -153,7 +155,7 @@ export default function BranchEnquiryOverview() {
               {rows.map((r) => (
                 <TableRow key={r.id}>
                   <TableCell className="font-medium">{r.name}</TableCell>
-                  <TableCell>{r.phone}</TableCell>
+                  <TableCell>{formatPhoneDisplay(r.phone)}</TableCell>
                   <TableCell>{r.source}</TableCell>
                   <TableCell>
                     <Badge variant="outline">{r.status}</Badge>
@@ -208,10 +210,9 @@ export default function BranchEnquiryOverview() {
               onChange={(e) => setCreateForm((p) => ({ ...p, name: e.target.value }))}
               placeholder="Name"
             />
-            <Input
+            <PhoneInput
               value={createForm.phone}
-              onChange={(e) => setCreateForm((p) => ({ ...p, phone: e.target.value }))}
-              placeholder="Phone"
+              onChange={(v) => setCreateForm((p) => ({ ...p, phone: v }))}
             />
             <Input
               value={createForm.email}

@@ -76,6 +76,7 @@ function normalizeAuditLogRow(row: unknown, index: number): AuditLogRow {
 
   const target_profile = pickFirstString(
     source.target_profile,
+    source.target_profile_name,
     source.profile_name,
     source.target_name,
     source.subject_name,

@@ -6,6 +6,7 @@ export interface StaffListRow {
   id: number;
   emp_code: string;
   name: string;
+  profile_photo?: string | null;
   branch: number;
   branch_name: string;
   designation: string;
@@ -85,12 +86,12 @@ export interface StaffCreateBody {
   password?: string;
 }
 
-export async function createStaff(body: StaffCreateBody) {
+export async function createStaff(body: StaffCreateBody | FormData) {
   const res = await adminRequest<Record<string, unknown>>("v1/admin/staff/", { method: "POST", body });
   return unwrap(res);
 }
 
-export async function updateStaff(id: number, body: Partial<StaffCreateBody> & Record<string, unknown>) {
+export async function updateStaff(id: number, body: Partial<StaffCreateBody> | FormData) {
   const res = await adminRequest<Record<string, unknown>>(`v1/admin/staff/${id}/`, { method: "PATCH", body });
   return unwrap(res);
 }

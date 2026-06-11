@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { PhoneInput } from "@/components/ui/phone-input";
+import { formatPhoneForApi } from "@/lib/phone";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -78,7 +80,7 @@ export default function BranchStaffPerformance() {
       }
       return createStaff({
         name: addForm.name.trim(),
-        mobile: addForm.mobile.replace(/\D/g, "").slice(0, 10),
+        mobile: formatPhoneForApi(addForm.mobile),
         email: addForm.email.trim() || undefined,
         role: role === "admin" ? addForm.role : "staff",
         branch: branchId,
@@ -319,7 +321,7 @@ export default function BranchStaffPerformance() {
             </div>
             <div className="space-y-1.5">
               <Label>Mobile *</Label>
-              <Input value={addForm.mobile} onChange={(e) => setAddForm((p) => ({ ...p, mobile: e.target.value }))} placeholder="10-digit mobile" />
+              <PhoneInput value={addForm.mobile} onChange={(v) => setAddForm((p) => ({ ...p, mobile: v }))} />
             </div>
             <div className="space-y-1.5">
               <Label>Email</Label>

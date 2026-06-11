@@ -148,6 +148,7 @@ export default function CashPayments() {
   const [dateFilter, setDateFilter] = useState("");
   const [branchIdFilter, setBranchIdFilter] = useState("");
   const [staffIdFilter, setStaffIdFilter] = useState("");
+  const [page, setPage] = useState(1);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
@@ -159,7 +160,8 @@ export default function CashPayments() {
     date: dateFilter || undefined,
     branch_id: branchIdFilter ? Number(branchIdFilter) : undefined,
     staff_id: staffIdFilter ? Number(staffIdFilter) : undefined,
-    page_size: 100,
+    page,
+    page_size: 20,
   };
 
   const listQuery = useQuery({
@@ -209,6 +211,9 @@ export default function CashPayments() {
   });
 
   const rows = listQuery.data?.results ?? [];
+  const totalCount = listQuery.data?.count ?? 0;
+  const canPrev = Boolean(listQuery.data?.previous) && page > 1;
+  const canNext = Boolean(listQuery.data?.next);
   const summary = summaryQuery.data;
   const selectedTxn = detailQuery.data;
 
@@ -362,7 +367,7 @@ export default function CashPayments() {
                     </span>
                   </div>
                   <Badge variant="outline" className="mt-2 text-[10px]">
-                    Today vs previous day
+                    {dateFilter ? "Selected date vs previous day" : "Today vs previous day"}
                   </Badge>
                 </div>
               </div>
@@ -379,7 +384,10 @@ export default function CashPayments() {
             </div>
             <Select
               value={modeFilter}
-              onValueChange={(v) => setModeFilter(v as "all" | PaymentMode)}
+              onValueChange={(v) => {
+                setPage(1);
+                setModeFilter(v as "all" | PaymentMode);
+              }}
             >
               <SelectTrigger className="w-32 h-8 text-xs">
                 <SelectValue placeholder="Mode" />
@@ -394,7 +402,10 @@ export default function CashPayments() {
             </Select>
             <Select
               value={statusFilter}
-              onValueChange={(v) => setStatusFilter(v as "all" | PaymentStatus)}
+              onValueChange={(v) => {
+                setPage(1);
+                setStatusFilter(v as "all" | PaymentStatus);
+              }}
             >
               <SelectTrigger className="w-32 h-8 text-xs">
                 <SelectValue placeholder="Status" />
@@ -410,9 +421,10 @@ export default function CashPayments() {
               <Label className="text-xs text-muted-foreground">Branch ID</Label>
               <Input
                 value={branchIdFilter}
-                onChange={(e) =>
-                  setBranchIdFilter(e.target.value.replace(/\D/g, ""))
-                }
+                onChange={(e) => {
+                  setPage(1);
+                  setBranchIdFilter(e.target.value.replace(/\D/g, ""));
+                }}
                 placeholder="all"
                 className="w-20 h-8 text-xs"
               />
@@ -421,9 +433,10 @@ export default function CashPayments() {
               <Label className="text-xs text-muted-foreground">Staff ID</Label>
               <Input
                 value={staffIdFilter}
-                onChange={(e) =>
-                  setStaffIdFilter(e.target.value.replace(/\D/g, ""))
-                }
+                onChange={(e) => {
+                  setPage(1);
+                  setStaffIdFilter(e.target.value.replace(/\D/g, ""));
+                }}
                 placeholder="all"
                 className="w-20 h-8 text-xs"
               />
@@ -431,7 +444,10 @@ export default function CashPayments() {
             <Input
               type="date"
               value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
+              onChange={(e) => {
+                setPage(1);
+                setDateFilter(e.target.value);
+              }}
               className="w-40 h-8 text-xs"
             />
             <div className="relative flex-1 min-w-[200px]">
@@ -439,7 +455,10 @@ export default function CashPayments() {
               <Input
                 placeholder="Search receipt, customer, or matri ID..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => {
+                  setPage(1);
+                  setSearchTerm(e.target.value);
+                }}
                 className="pl-9 h-8 text-xs"
               />
             </div>
@@ -455,7 +474,7 @@ export default function CashPayments() {
               {rows.length})
             </CardTitle>
             <Badge variant="outline" className="text-xs">
-              {listQuery.data?.count ?? 0} total
+              {totalCount} total
             </Badge>
           </div>
         </CardHeader>
@@ -554,6 +573,30 @@ export default function CashPayments() {
               )}
             </TableBody>
           </Table>
+          <div className="flex items-center justify-between mt-4 pt-2 border-t">
+            <span className="text-xs text-muted-foreground">
+              Showing {rows.length} of {totalCount} transactions
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={!canPrev}
+              >
+                Previous
+              </Button>
+              <span className="text-sm text-muted-foreground">Page {page}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => p + 1)}
+                disabled={!canNext}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

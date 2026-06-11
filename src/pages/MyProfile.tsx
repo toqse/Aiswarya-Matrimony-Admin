@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PhoneInput } from "@/components/ui/phone-input";
+import { formatPhoneForApi } from "@/lib/phone";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useRole } from "@/contexts/RoleContext";
 import { fetchAdminMe, sendChangePhoneOtp, updateAdminMe, verifyChangePhoneOtp } from "@/lib/admin-api/me";
@@ -43,7 +45,7 @@ export default function MyProfile() {
   });
 
   const sendOtpMut = useMutation({
-    mutationFn: () => sendChangePhoneOtp(newMobile.trim()),
+    mutationFn: () => sendChangePhoneOtp(formatPhoneForApi(newMobile)),
     onSuccess: (d) => {
       setOtpSent(true);
       toast({
@@ -55,7 +57,7 @@ export default function MyProfile() {
   });
 
   const verifyOtpMut = useMutation({
-    mutationFn: () => verifyChangePhoneOtp({ new_mobile: newMobile.trim(), otp: otp.trim() }),
+    mutationFn: () => verifyChangePhoneOtp({ new_mobile: formatPhoneForApi(newMobile), otp: otp.trim() }),
     onSuccess: () => {
       toast({ title: "Mobile number updated successfully." });
       setPhoneOpen(false);
@@ -182,11 +184,7 @@ export default function MyProfile() {
             <DialogTitle>Change phone number</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <Input
-              placeholder="New 10-digit mobile"
-              value={newMobile}
-              onChange={(e) => setNewMobile(e.target.value)}
-            />
+            <PhoneInput value={newMobile} onChange={setNewMobile} />
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => sendOtpMut.mutate()} disabled={sendOtpMut.isPending || !newMobile.trim()}>
                 {sendOtpMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send OTP"}

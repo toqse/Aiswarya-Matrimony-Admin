@@ -1,4 +1,4 @@
-import { Search, User, UserCircle, Settings, LogOut } from "lucide-react";
+import { Search, User, UserCircle, LogOut } from "lucide-react";
 import { useRole, UserRole } from "@/contexts/RoleContext";
 import { postAdminLogout } from "@/lib/auth-api";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -50,10 +50,10 @@ export function AppHeader() {
             <UserCircle className="h-4 w-4" />
             My Profile
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => navigate("/settings")} className="cursor-pointer gap-2">
+          {/* <DropdownMenuItem onClick={() => navigate("/settings")} className="cursor-pointer gap-2">
             <Settings className="h-4 w-4" />
             Preferences
-          </DropdownMenuItem>
+          </DropdownMenuItem> */}
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onClick={async () => {

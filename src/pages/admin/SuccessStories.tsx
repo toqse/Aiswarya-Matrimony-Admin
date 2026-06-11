@@ -81,8 +81,38 @@ export default function SuccessStories() {
   const [deleteModal, setDeleteModal] = useState<Story | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm());
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
+
+  const todayISO = new Date().toLocaleDateString("en-CA");
+
+  const setField = <K extends keyof ReturnType<typeof emptyForm>>(
+    key: K,
+    value: ReturnType<typeof emptyForm>[K],
+  ) => {
+    setForm((f) => ({ ...f, [key]: value }));
+    setFieldErrors((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
+  const validate = () => {
+    const errs: Record<string, string> = {};
+    if (!form.groomName.trim()) errs.groomName = "Groom's name is required";
+    if (!form.brideName.trim()) errs.brideName = "Bride's name is required";
+    if (!form.marriageDate) errs.marriageDate = "Marriage date is required";
+    else if (form.marriageDate > todayISO)
+      errs.marriageDate = "Marriage date cannot be in the future";
+    if (!form.location.trim()) errs.location = "Location is required";
+    const story = form.storyText.trim();
+    if (!story) errs.storyText = "Success story is required";
+    else if (story.length < 50)
+      errs.storyText = "Story must be at least 50 characters";
+    return errs;
+  };
   const queryClient = useQueryClient();
 
   const { data, isLoading, error } = useQuery({
@@ -107,7 +137,7 @@ export default function SuccessStories() {
         brideName: row.couple_name_2,
         marriageDate: row.wedding_date,
         location: row.location,
-        storyText: row.story_text ?? "",
+        storyText: row.story_text ?? row.description ?? "",
         photo: row.couple_photo,
         status: row.status === "published" ? "Published" : "Draft",
         featured: row.is_featured,
@@ -128,6 +158,7 @@ export default function SuccessStories() {
   const openAdd = () => {
     setEditingId(null);
     setForm(emptyForm());
+    setFieldErrors({});
     setPhotoPreview(null);
     setPhotoFile(null);
     setModalOpen(true);
@@ -144,6 +175,7 @@ export default function SuccessStories() {
       status: s.status,
       featured: s.featured,
     });
+    setFieldErrors({});
     setPhotoPreview(s.photo);
     setPhotoFile(null);
     setModalOpen(true);
@@ -222,19 +254,9 @@ export default function SuccessStories() {
   });
 
   const handleSave = () => {
-    if (
-      !form.groomName ||
-      !form.brideName ||
-      !form.marriageDate ||
-      !form.storyText
-    ) {
-      toast({
-        title: "Missing fields",
-        description: "Please fill all required fields",
-        variant: "destructive",
-      });
-      return;
-    }
+    const errs = validate();
+    setFieldErrors(errs);
+    if (Object.keys(errs).length > 0) return;
     saveMut.mutate();
   };
 
@@ -403,11 +425,7 @@ export default function SuccessStories() {
               <p className="text-sm text-muted-foreground line-clamp-3">
                 {story.storyText}
               </p>
-              <div className="flex items-center justify-between pt-2 border-t border-border/50">
-                <span className="text-xs text-muted-foreground flex items-center gap-1">
-                  <Eye className="h-3 w-3" />
-                  {story.views} views
-                </span>
+              <div className="flex items-center justify-end pt-2 border-t border-border/50">
                 <div className="flex gap-1">
                   <Button
                     size="sm"
@@ -449,7 +467,10 @@ export default function SuccessStories() {
 
       {/* Add/Edit Modal */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent
+          className="max-w-2xl max-h-[90vh] overflow-y-auto"
+          onInteractOutside={(e) => e.preventDefault()}
+        >
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Heart className="h-5 w-5 text-primary" />
@@ -461,47 +482,84 @@ export default function SuccessStories() {
           </DialogHeader>
           <div className="grid gap-4">
             <div className="grid grid-cols-2 gap-4">
-              <div>
+              <div className="space-y-1">
                 <Label>Groom's Name *</Label>
                 <Input
                   value={form.groomName}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, groomName: e.target.value }))
-                  }
+                  onChange={(e) => setField("groomName", e.target.value)}
                   placeholder="Enter groom's name"
+                  className={
+                    fieldErrors.groomName
+                      ? "border-destructive focus-visible:ring-destructive"
+                      : ""
+                  }
+                  aria-invalid={Boolean(fieldErrors.groomName)}
                 />
+                {fieldErrors.groomName && (
+                  <p className="text-xs text-destructive">
+                    {fieldErrors.groomName}
+                  </p>
+                )}
               </div>
-              <div>
+              <div className="space-y-1">
                 <Label>Bride's Name *</Label>
                 <Input
                   value={form.brideName}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, brideName: e.target.value }))
-                  }
+                  onChange={(e) => setField("brideName", e.target.value)}
                   placeholder="Enter bride's name"
+                  className={
+                    fieldErrors.brideName
+                      ? "border-destructive focus-visible:ring-destructive"
+                      : ""
+                  }
+                  aria-invalid={Boolean(fieldErrors.brideName)}
                 />
+                {fieldErrors.brideName && (
+                  <p className="text-xs text-destructive">
+                    {fieldErrors.brideName}
+                  </p>
+                )}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <div>
+              <div className="space-y-1">
                 <Label>Marriage Date *</Label>
                 <Input
                   type="date"
                   value={form.marriageDate}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, marriageDate: e.target.value }))
+                  max={todayISO}
+                  onChange={(e) => setField("marriageDate", e.target.value)}
+                  className={
+                    fieldErrors.marriageDate
+                      ? "border-destructive focus-visible:ring-destructive"
+                      : ""
                   }
+                  aria-invalid={Boolean(fieldErrors.marriageDate)}
                 />
+                {fieldErrors.marriageDate && (
+                  <p className="text-xs text-destructive">
+                    {fieldErrors.marriageDate}
+                  </p>
+                )}
               </div>
-              <div>
-                <Label>Location</Label>
+              <div className="space-y-1">
+                <Label>Location *</Label>
                 <Input
                   value={form.location}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, location: e.target.value }))
-                  }
+                  onChange={(e) => setField("location", e.target.value)}
                   placeholder="City"
+                  className={
+                    fieldErrors.location
+                      ? "border-destructive focus-visible:ring-destructive"
+                      : ""
+                  }
+                  aria-invalid={Boolean(fieldErrors.location)}
                 />
+                {fieldErrors.location && (
+                  <p className="text-xs text-destructive">
+                    {fieldErrors.location}
+                  </p>
+                )}
               </div>
             </div>
             <div>
@@ -531,19 +589,27 @@ export default function SuccessStories() {
                 />
               </div>
             </div>
-            <div>
+            <div className="space-y-1">
               <Label>Success Story *</Label>
               <Textarea
                 value={form.storyText}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, storyText: e.target.value }))
-                }
+                onChange={(e) => setField("storyText", e.target.value)}
                 placeholder="Write the couple's success story..."
                 rows={5}
+                className={
+                  fieldErrors.storyText
+                    ? "border-destructive focus-visible:ring-destructive"
+                    : ""
+                }
+                aria-invalid={Boolean(fieldErrors.storyText)}
               />
-              <p className="text-xs text-muted-foreground mt-1">
-                {form.storyText.length} characters · 150-300 words recommended
-              </p>
+              {fieldErrors.storyText ? (
+                <p className="text-xs text-destructive">{fieldErrors.storyText}</p>
+              ) : (
+                <p className="text-xs text-muted-foreground mt-1">
+                  {form.storyText.length} characters · 150-300 words recommended
+                </p>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>

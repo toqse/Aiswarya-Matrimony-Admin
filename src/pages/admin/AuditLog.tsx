@@ -63,8 +63,7 @@ function rowAccentClass(tone: ReturnType<typeof getAuditVerbTone>): string {
 export default function AuditLog() {
   const [search, setSearch] = useState("");
   const [actionFilter, setActionFilter] = useState("all");
-  // Default: hide admin logs (non-admin only)
-  const [roleFilter, setRoleFilter] = useState<"non_admin" | "all" | "admin" | "branch_manager" | "staff">("non_admin");
+  const [roleFilter, setRoleFilter] = useState<"non_admin" | "all" | "admin" | "branch_manager" | "staff">("all");
   const [branchFilter, setBranchFilter] = useState("all");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -124,7 +123,7 @@ export default function AuditLog() {
       <div>
         <h1 className="text-2xl font-bold">Audit Log</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Immutable system audit trail for admin actions
+          Immutable audit trail for admin, branch manager, and staff actions
         </p>
       </div>
 
@@ -225,23 +224,6 @@ export default function AuditLog() {
                 setEndDate(e.target.value);
               }}
             />
-            <Select
-              value={pageSize}
-              onValueChange={(value) => {
-                setPage(1);
-                setPageSize(value);
-              }}
-            >
-              <SelectTrigger className="w-[120px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="10">10 / page</SelectItem>
-                <SelectItem value="20">20 / page</SelectItem>
-                <SelectItem value="50">50 / page</SelectItem>
-                <SelectItem value="100">100 / page</SelectItem>
-              </SelectContent>
-            </Select>
             {isLogsFetching && <Loader2 className="h-4 w-4 animate-spin" />}
           </div>
         </CardHeader>
@@ -344,6 +326,23 @@ export default function AuditLog() {
               Showing {rows.length} of {total} records
             </p>
             <div className="flex items-center gap-2">
+              <Select
+                value={pageSize}
+                onValueChange={(value) => {
+                  setPage(1);
+                  setPageSize(value);
+                }}
+              >
+                <SelectTrigger className="w-[120px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10 / page</SelectItem>
+                  <SelectItem value="20">20 / page</SelectItem>
+                  <SelectItem value="50">50 / page</SelectItem>
+                  <SelectItem value="100">100 / page</SelectItem>
+                </SelectContent>
+              </Select>
               <Button
                 variant="outline"
                 size="sm"

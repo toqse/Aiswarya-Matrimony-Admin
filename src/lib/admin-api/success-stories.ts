@@ -9,6 +9,7 @@ export interface SuccessStoryRow {
   wedding_date: string;
   location: string;
   story_text?: string;
+  description?: string;
   couple_photo: string | null;
   status: "draft" | "published";
   is_featured: boolean;

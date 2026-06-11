@@ -41,6 +41,19 @@ export interface BranchMyProfilesSummary {
   incomplete_message?: string;
 }
 
+export interface MatchRow {
+  matri_id: string;
+  name: string;
+  age: number | null;
+  gender: string;
+  religion: string | null;
+  caste: string | null;
+  marital_status: string | null;
+  match_percentage: number;
+  admin_verified: boolean;
+  profile_photo: string | null;
+}
+
 export interface StaffMyProfilesSummary {
   total_profiles: number;
   verified: number;
@@ -55,7 +68,14 @@ export type ProfilesQuery = {
   /** Explicit phone filter — sent alongside `search` for phone-like queries so backends that don't
    * cover phone in `search` still return matches. */
   phone?: string;
-  filter?: "all" | "incomplete" | "complete" | "subscribed" | "unsubscribed" | "verified" | "unverified";
+  filter?:
+    | "all"
+    | "incomplete"
+    | "complete"
+    | "subscribed"
+    | "unsubscribed"
+    | "verified"
+    | "unverified";
   gender?: "M" | "F" | "O";
   religion_id?: number;
   plan?: string;
@@ -80,7 +100,8 @@ function buildProfilesQuery(params?: ProfilesQuery): string {
   }
   if (params.filter) q.set("filter", params.filter);
   if (params.gender) q.set("gender", params.gender);
-  if (params.religion_id != null) q.set("religion_id", String(params.religion_id));
+  if (params.religion_id != null)
+    q.set("religion_id", String(params.religion_id));
   if (params.plan) q.set("plan", params.plan);
   if (params.verified != null) q.set("verified", String(params.verified));
   if (params.staff_id != null) q.set("staff_id", String(params.staff_id));
@@ -107,248 +128,411 @@ export function normalizePhoneQuery(input: string): string {
 }
 
 export async function fetchAdminProfiles(params?: ProfilesQuery) {
-  const res = await adminRequest<ProfileListData>(`v1/admin/profiles/${buildProfilesQuery(params)}`);
+  const res = await adminRequest<ProfileListData>(
+    `v1/admin/profiles/${buildProfilesQuery(params)}`,
+  );
   return unwrap(res);
 }
 
 export async function fetchStaffProfiles(params?: ProfilesQuery) {
-  const res = await adminRequest<ProfileListData>(`v1/staff/profiles/${buildProfilesQuery(params)}`);
+  const res = await adminRequest<ProfileListData>(
+    `v1/staff/profiles/${buildProfilesQuery(params)}`,
+  );
   return unwrap(res);
 }
 
 export async function fetchStaffMyProfilesSummary() {
-  const res = await adminRequest<StaffMyProfilesSummary>("v1/staff/profiles/summary/");
+  const res = await adminRequest<StaffMyProfilesSummary>(
+    "v1/staff/profiles/summary/",
+  );
   return unwrap(res);
 }
 
 export async function fetchAdminProfileDetail(matriId: string) {
-  const res = await adminRequest<Record<string, unknown>>(`v1/admin/profiles/${encodeURIComponent(matriId)}/`);
+  const res = await adminRequest<Record<string, unknown>>(
+    `v1/admin/profiles/${encodeURIComponent(matriId)}/`,
+  );
   return unwrap(res);
 }
 
 export async function fetchStaffProfileDetail(matriId: string) {
-  const res = await adminRequest<Record<string, unknown>>(`v1/staff/profiles/${encodeURIComponent(matriId)}/`);
+  const res = await adminRequest<Record<string, unknown>>(
+    `v1/staff/profiles/${encodeURIComponent(matriId)}/`,
+  );
   return unwrap(res);
 }
 
-export async function patchAdminProfile(matriId: string, body: Record<string, unknown> | FormData) {
-  const res = await adminRequest<Record<string, unknown>>(`v1/admin/profiles/${encodeURIComponent(matriId)}/`, {
-    method: "PATCH",
-    body,
-  });
+export async function fetchStaffProfileMatches(matriId: string, limit = 20) {
+  const res = await adminRequest<{ matches: MatchRow[] }>(
+    `v1/staff/profiles/${encodeURIComponent(matriId)}/matches/?limit=${limit}`,
+  );
+  const data = unwrap(res);
+  return data.matches ?? [];
+}
+
+export async function fetchStaffProfilePublicDetail(matriId: string) {
+  const res = await adminRequest<Record<string, unknown>>(
+    `v1/staff/profiles/${encodeURIComponent(matriId)}/public-detail/`,
+  );
+  return unwrap(res);
+}
+
+export async function patchAdminProfile(
+  matriId: string,
+  body: Record<string, unknown> | FormData,
+) {
+  const res = await adminRequest<Record<string, unknown>>(
+    `v1/admin/profiles/${encodeURIComponent(matriId)}/`,
+    {
+      method: "PATCH",
+      body,
+    },
+  );
   return unwrap(res);
 }
 
 /** Section-wise admin profile updates: `PATCH /api/v1/admin/profiles/{matri_id}/{section}/`. */
 function adminProfileSectionPath(
   matriId: string,
-  section: "basic" | "location" | "religion" | "personal" | "education" | "about" | "photos",
+  section:
+    | "basic"
+    | "location"
+    | "religion"
+    | "personal"
+    | "education"
+    | "about"
+    | "photos",
 ) {
   return `v1/admin/profiles/${encodeURIComponent(matriId)}/${section}/`;
 }
 
-export async function patchAdminProfileBasic(matriId: string, body: Record<string, unknown>) {
-  const res = await adminRequest<Record<string, unknown>>(adminProfileSectionPath(matriId, "basic"), {
-    method: "PATCH",
-    body,
-  });
+export async function patchAdminProfileBasic(
+  matriId: string,
+  body: Record<string, unknown>,
+) {
+  const res = await adminRequest<Record<string, unknown>>(
+    adminProfileSectionPath(matriId, "basic"),
+    {
+      method: "PATCH",
+      body,
+    },
+  );
   return unwrap(res);
 }
 
-export async function patchAdminProfileLocation(matriId: string, body: Record<string, unknown>) {
-  const res = await adminRequest<Record<string, unknown>>(adminProfileSectionPath(matriId, "location"), {
-    method: "PATCH",
-    body,
-  });
+export async function patchAdminProfileLocation(
+  matriId: string,
+  body: Record<string, unknown>,
+) {
+  const res = await adminRequest<Record<string, unknown>>(
+    adminProfileSectionPath(matriId, "location"),
+    {
+      method: "PATCH",
+      body,
+    },
+  );
   return unwrap(res);
 }
 
-export async function patchAdminProfileReligion(matriId: string, body: Record<string, unknown>) {
-  const res = await adminRequest<Record<string, unknown>>(adminProfileSectionPath(matriId, "religion"), {
-    method: "PATCH",
-    body,
-  });
+export async function patchAdminProfileReligion(
+  matriId: string,
+  body: Record<string, unknown>,
+) {
+  const res = await adminRequest<Record<string, unknown>>(
+    adminProfileSectionPath(matriId, "religion"),
+    {
+      method: "PATCH",
+      body,
+    },
+  );
   return unwrap(res);
 }
 
-export async function patchAdminProfilePersonal(matriId: string, body: Record<string, unknown>) {
-  const res = await adminRequest<Record<string, unknown>>(adminProfileSectionPath(matriId, "personal"), {
-    method: "PATCH",
-    body,
-  });
+export async function patchAdminProfilePersonal(
+  matriId: string,
+  body: Record<string, unknown>,
+) {
+  const res = await adminRequest<Record<string, unknown>>(
+    adminProfileSectionPath(matriId, "personal"),
+    {
+      method: "PATCH",
+      body,
+    },
+  );
   return unwrap(res);
 }
 
-export async function patchAdminProfileEducation(matriId: string, body: Record<string, unknown>) {
-  const res = await adminRequest<Record<string, unknown>>(adminProfileSectionPath(matriId, "education"), {
-    method: "PATCH",
-    body,
-  });
+export async function patchAdminProfileEducation(
+  matriId: string,
+  body: Record<string, unknown>,
+) {
+  const res = await adminRequest<Record<string, unknown>>(
+    adminProfileSectionPath(matriId, "education"),
+    {
+      method: "PATCH",
+      body,
+    },
+  );
   return unwrap(res);
 }
 
-export async function patchAdminProfileAbout(matriId: string, body: Record<string, unknown>) {
-  const res = await adminRequest<Record<string, unknown>>(adminProfileSectionPath(matriId, "about"), {
-    method: "PATCH",
-    body,
-  });
+export async function patchAdminProfileAbout(
+  matriId: string,
+  body: Record<string, unknown>,
+) {
+  const res = await adminRequest<Record<string, unknown>>(
+    adminProfileSectionPath(matriId, "about"),
+    {
+      method: "PATCH",
+      body,
+    },
+  );
   return unwrap(res);
 }
 
-export async function patchAdminProfilePhotos(matriId: string, formData: FormData) {
-  const res = await adminRequest<Record<string, unknown>>(adminProfileSectionPath(matriId, "photos"), {
-    method: "PATCH",
-    body: formData,
-  });
+export async function patchAdminProfilePhotos(
+  matriId: string,
+  formData: FormData,
+) {
+  const res = await adminRequest<Record<string, unknown>>(
+    adminProfileSectionPath(matriId, "photos"),
+    {
+      method: "PATCH",
+      body: formData,
+    },
+  );
   return unwrap(res);
 }
 
-export async function patchStaffProfile(matriId: string, body: Record<string, unknown> | FormData) {
-  const res = await adminRequest<Record<string, unknown>>(`v1/staff/profiles/${encodeURIComponent(matriId)}/`, {
-    method: "PATCH",
-    body,
-  });
+export async function patchStaffProfile(
+  matriId: string,
+  body: Record<string, unknown> | FormData,
+) {
+  const res = await adminRequest<Record<string, unknown>>(
+    `v1/staff/profiles/${encodeURIComponent(matriId)}/`,
+    {
+      method: "PATCH",
+      body,
+    },
+  );
   return unwrap(res);
 }
 
 export async function patchProfileVerify(matriId: string, verified?: boolean) {
   const body = verified == null ? {} : { verified };
-  const res = await adminRequest<Record<string, unknown>>(`v1/admin/profiles/${encodeURIComponent(matriId)}/verify/`, {
-    method: "PATCH",
-    body,
-  });
+  const res = await adminRequest<Record<string, unknown>>(
+    `v1/admin/profiles/${encodeURIComponent(matriId)}/verify/`,
+    {
+      method: "PATCH",
+      body,
+    },
+  );
   return unwrap(res);
 }
 
-export async function patchProfileAssignStaff(matriId: string, staffId: number) {
-  const res = await adminRequest<Record<string, unknown>>(`v1/admin/profiles/${encodeURIComponent(matriId)}/assign-staff/`, {
-    method: "PATCH",
-    body: { staff_id: staffId },
-  });
+export async function patchProfileAssignStaff(
+  matriId: string,
+  staffId: number,
+) {
+  const res = await adminRequest<Record<string, unknown>>(
+    `v1/admin/profiles/${encodeURIComponent(matriId)}/assign-staff/`,
+    {
+      method: "PATCH",
+      body: { staff_id: staffId },
+    },
+  );
   return unwrap(res);
 }
 
 export async function patchProfileBlock(matriId: string, blocked?: boolean) {
   const body = blocked == null ? {} : { blocked };
-  const res = await adminRequest<Record<string, unknown>>(`v1/admin/profiles/${encodeURIComponent(matriId)}/block/`, {
-    method: "PATCH",
-    body,
-  });
+  const res = await adminRequest<Record<string, unknown>>(
+    `v1/admin/profiles/${encodeURIComponent(matriId)}/block/`,
+    {
+      method: "PATCH",
+      body,
+    },
+  );
   return unwrap(res);
 }
 
 export async function deleteAdminProfile(matriId: string) {
-  const res = await adminRequest<Record<string, unknown>>(`v1/admin/profiles/${encodeURIComponent(matriId)}/`, {
-    method: "DELETE",
-  });
+  const res = await adminRequest<Record<string, unknown>>(
+    `v1/admin/profiles/${encodeURIComponent(matriId)}/`,
+    {
+      method: "DELETE",
+    },
+  );
   return unwrap(res);
 }
 
 export async function fetchBranchMyProfilesSummary() {
-  const res = await adminRequest<BranchMyProfilesSummary>("v1/branch/my-profiles/summary/");
+  const res = await adminRequest<BranchMyProfilesSummary>(
+    "v1/branch/my-profiles/summary/",
+  );
   return unwrap(res);
 }
 
 export async function fetchBranchMyProfiles(params?: ProfilesQuery) {
-  const res = await adminRequest<ProfileListData>(`v1/branch/my-profiles/${buildProfilesQuery(params)}`);
+  const res = await adminRequest<ProfileListData>(
+    `v1/branch/my-profiles/${buildProfilesQuery(params)}`,
+  );
   return unwrap(res);
 }
 
 export async function fetchBranchMyProfileDetail(matriId: string) {
-  const res = await adminRequest<Record<string, unknown>>(`v1/branch/my-profiles/${encodeURIComponent(matriId)}/`);
+  const res = await adminRequest<Record<string, unknown>>(
+    `v1/branch/my-profiles/${encodeURIComponent(matriId)}/`,
+  );
   return unwrap(res);
 }
 
-export async function patchBranchMyProfile(matriId: string, body: Record<string, unknown>) {
-  const res = await adminRequest<Record<string, unknown>>(`v1/branch/my-profiles/${encodeURIComponent(matriId)}/`, {
-    method: "PATCH",
-    body,
-  });
+export async function patchBranchMyProfile(
+  matriId: string,
+  body: Record<string, unknown> | FormData,
+) {
+  const res = await adminRequest<Record<string, unknown>>(
+    `v1/branch/my-profiles/${encodeURIComponent(matriId)}/`,
+    {
+      method: "PATCH",
+      body,
+    },
+  );
   return unwrap(res);
 }
 
-export async function patchBranchMyProfileVerify(matriId: string, verified?: boolean) {
+export async function patchBranchMyProfileVerify(
+  matriId: string,
+  verified?: boolean,
+) {
   const body = verified == null ? {} : { verified };
-  const res = await adminRequest<Record<string, unknown>>(`v1/branch/my-profiles/${encodeURIComponent(matriId)}/verify/`, {
-    method: "PATCH",
-    body,
-  });
+  const res = await adminRequest<Record<string, unknown>>(
+    `v1/branch/my-profiles/${encodeURIComponent(matriId)}/verify/`,
+    {
+      method: "PATCH",
+      body,
+    },
+  );
   return unwrap(res);
 }
 
-export async function createBranchMyProfile(body: {
-  name: string;
-  phone_number: string;
-  gender: "M" | "F" | "O";
-  dob: string;
-  email?: string;
-}) {
-  const res = await adminRequest<Record<string, unknown>>("v1/branch/my-profiles/create/", {
-    method: "POST",
-    body,
-  });
+export async function createBranchMyProfile(
+  body: FormData | Record<string, unknown>,
+) {
+  const res = await adminRequest<Record<string, unknown>>(
+    "v1/branch/my-profiles/create/",
+    {
+      method: "POST",
+      body,
+    },
+  );
   return unwrap(res);
 }
 
 export async function refreshBranchMyProfile(matriId: string) {
-  const res = await adminRequest<Record<string, unknown>>(`v1/branch/my-profiles/${encodeURIComponent(matriId)}/refresh/`, {
-    method: "PATCH",
-  });
+  const res = await adminRequest<Record<string, unknown>>(
+    `v1/branch/my-profiles/${encodeURIComponent(matriId)}/refresh/`,
+    {
+      method: "PATCH",
+    },
+  );
   return unwrap(res);
 }
 
 export async function toggleBranchMyProfileWishlist(matriId: string) {
-  const res = await adminRequest<Record<string, unknown>>(`v1/branch/my-profiles/${encodeURIComponent(matriId)}/wishlist/`, {
-    method: "POST",
-  });
+  const res = await adminRequest<Record<string, unknown>>(
+    `v1/branch/my-profiles/${encodeURIComponent(matriId)}/wishlist/`,
+    {
+      method: "POST",
+    },
+  );
   return unwrap(res);
 }
 
 export async function fetchBranchMyProfileDocuments(matriId: string) {
-  const res = await adminRequest<Record<string, unknown>>(`v1/branch/my-profiles/${encodeURIComponent(matriId)}/documents/`);
+  const res = await adminRequest<Record<string, unknown>>(
+    `v1/branch/my-profiles/${encodeURIComponent(matriId)}/documents/`,
+  );
   return unwrap(res);
 }
 
-export async function sendBranchMyProfileEmail(matriId: string, body: { template_id: number }) {
-  const res = await adminRequest<Record<string, unknown>>(`v1/branch/my-profiles/${encodeURIComponent(matriId)}/send-email/`, {
-    method: "POST",
-    body,
-  });
+export async function sendBranchMyProfileEmail(
+  matriId: string,
+  body: { template_id: number },
+) {
+  const res = await adminRequest<Record<string, unknown>>(
+    `v1/branch/my-profiles/${encodeURIComponent(matriId)}/send-email/`,
+    {
+      method: "POST",
+      body,
+    },
+  );
   return unwrap(res);
 }
 
 export async function refreshStaffProfile(matriId: string) {
-  const res = await adminRequest<Record<string, unknown>>(`v1/staff/profiles/${encodeURIComponent(matriId)}/refresh/`, {
-    method: "PATCH",
-  });
+  const res = await adminRequest<Record<string, unknown>>(
+    `v1/staff/profiles/${encodeURIComponent(matriId)}/refresh/`,
+    {
+      method: "PATCH",
+    },
+  );
   return unwrap(res);
 }
 
 export async function toggleStaffProfileWishlist(matriId: string) {
-  const res = await adminRequest<Record<string, unknown>>(`v1/staff/profiles/${encodeURIComponent(matriId)}/wishlist/`, {
-    method: "POST",
-  });
+  const res = await adminRequest<Record<string, unknown>>(
+    `v1/staff/profiles/${encodeURIComponent(matriId)}/wishlist/`,
+    {
+      method: "POST",
+    },
+  );
   return unwrap(res);
 }
 
-export async function sendStaffProfileEmail(matriId: string, body: { template_id: number }) {
-  const res = await adminRequest<Record<string, unknown>>(`v1/staff/profiles/${encodeURIComponent(matriId)}/send-email/`, {
-    method: "POST",
-    body,
-  });
+export async function sendStaffProfileEmail(
+  matriId: string,
+  body: { template_id: number },
+) {
+  const res = await adminRequest<Record<string, unknown>>(
+    `v1/staff/profiles/${encodeURIComponent(matriId)}/send-email/`,
+    {
+      method: "POST",
+      body,
+    },
+  );
   return unwrap(res);
 }
 
 export async function fetchStaffProfileDocuments(matriId: string) {
-  const res = await adminRequest<Record<string, unknown>>(`v1/staff/profiles/${encodeURIComponent(matriId)}/documents/`);
+  const res = await adminRequest<Record<string, unknown>>(
+    `v1/staff/profiles/${encodeURIComponent(matriId)}/documents/`,
+  );
   return unwrap(res);
 }
 
-export async function createStaffProfile(body: Record<string, unknown> | FormData) {
-  const res = await adminRequest<Record<string, unknown>>("v1/staff/profiles/create/", {
-    method: "POST",
-    body,
-  });
+export async function createStaffProfile(
+  body: Record<string, unknown> | FormData,
+) {
+  const res = await adminRequest<Record<string, unknown>>(
+    "v1/staff/profiles/create/",
+    {
+      method: "POST",
+      body,
+    },
+  );
   return unwrap(res);
 }
 
+export async function createAdminProfile(
+  body: Record<string, unknown> | FormData,
+) {
+  const res = await adminRequest<Record<string, unknown>>(
+    "v1/admin/profiles/create/",
+    {
+      method: "POST",
+      body,
+    },
+  );
+  return unwrap(res);
+}

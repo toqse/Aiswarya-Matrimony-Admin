@@ -4,6 +4,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { PhoneInput } from "@/components/ui/phone-input";
+import { formatPhoneDisplay, formatPhoneForApi, isValidIndianMobile } from "@/lib/phone";
 import {
   Select,
   SelectContent,
@@ -92,8 +94,58 @@ export default function EnquiryOverview() {
     branch: "",
     assigned_to: "",
   });
+  const [formErrors, setFormErrors] = useState<{
+    name?: string;
+    phone?: string;
+    email?: string;
+  }>({});
   const qc = useQueryClient();
   const { toast } = useToast();
+
+  const updateForm = (patch: Partial<typeof form>) => {
+    setForm((p) => ({ ...p, ...patch }));
+    setFormErrors((prev) => {
+      const next = { ...prev };
+      for (const key of Object.keys(patch)) {
+        delete next[key as keyof typeof next];
+      }
+      return next;
+    });
+  };
+
+  const validateCreate = () => {
+    const errs: { name?: string; phone?: string; email?: string } = {};
+    if (!form.name.trim()) errs.name = "Name is required";
+    if (!form.phone.trim()) errs.phone = "Phone number is required";
+    else if (!isValidIndianMobile(form.phone))
+      errs.phone = "Enter a valid 10-digit Indian mobile number";
+    if (
+      form.email.trim() &&
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())
+    )
+      errs.email = "Enter a valid email address";
+    return errs;
+  };
+
+  const handleCreate = () => {
+    const errs = validateCreate();
+    setFormErrors(errs);
+    if (Object.keys(errs).length > 0) return;
+    createMut.mutate();
+  };
+
+  const openCreate = () => {
+    setForm({
+      name: "",
+      phone: "",
+      email: "",
+      source: "website",
+      branch: "",
+      assigned_to: "",
+    });
+    setFormErrors({});
+    setCreateOpen(true);
+  };
 
   const listParams = {
     search: search.trim() || undefined,
@@ -137,7 +189,7 @@ export default function EnquiryOverview() {
     mutationFn: () =>
       createAdminEnquiry({
         name: form.name.trim(),
-        phone: form.phone.trim(),
+        phone: formatPhoneForApi(form.phone),
         email: form.email.trim() || undefined,
         source: form.source,
         branch: form.branch ? Number(form.branch) : undefined,
@@ -239,7 +291,7 @@ export default function EnquiryOverview() {
           </p>
         </div>
         <div className="flex gap-2 items-center">
-          <Button className="gap-1" onClick={() => setCreateOpen(true)}>
+          <Button className="gap-1" onClick={openCreate}>
             <Plus className="h-4 w-4" /> Add Enquiry
           </Button>
         </div>
@@ -337,7 +389,7 @@ export default function EnquiryOverview() {
               {listRows.map((e) => (
                 <TableRow key={e.id}>
                   <TableCell className="font-medium">{e.name}</TableCell>
-                  <TableCell>{e.phone}</TableCell>
+                  <TableCell>{formatPhoneDisplay(e.phone)}</TableCell>
                   <TableCell>
                     <Badge variant="outline">{e.source}</Badge>
                   </TableCell>
@@ -423,30 +475,53 @@ export default function EnquiryOverview() {
       </Card>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent>
+        <DialogContent onInteractOutside={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>Add Enquiry</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <Input
-              placeholder="Name"
-              value={form.name}
-              onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-            />
-            <Input
-              placeholder="Phone (10 digits)"
-              value={form.phone}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, phone: e.target.value }))
-              }
-            />
-            <Input
-              placeholder="Email (optional)"
-              value={form.email}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, email: e.target.value }))
-              }
-            />
+            <div className="space-y-1">
+              <Input
+                placeholder="Name"
+                value={form.name}
+                onChange={(e) => updateForm({ name: e.target.value })}
+                className={
+                  formErrors.name
+                    ? "border-destructive focus-visible:ring-destructive"
+                    : ""
+                }
+                aria-invalid={Boolean(formErrors.name)}
+              />
+              {formErrors.name && (
+                <p className="text-xs text-destructive">{formErrors.name}</p>
+              )}
+            </div>
+            <div className="space-y-1">
+              <PhoneInput
+                value={form.phone}
+                onChange={(v) => updateForm({ phone: v })}
+                invalid={Boolean(formErrors.phone)}
+              />
+              {formErrors.phone && (
+                <p className="text-xs text-destructive">{formErrors.phone}</p>
+              )}
+            </div>
+            <div className="space-y-1">
+              <Input
+                placeholder="Email (optional)"
+                value={form.email}
+                onChange={(e) => updateForm({ email: e.target.value })}
+                className={
+                  formErrors.email
+                    ? "border-destructive focus-visible:ring-destructive"
+                    : ""
+                }
+                aria-invalid={Boolean(formErrors.email)}
+              />
+              {formErrors.email && (
+                <p className="text-xs text-destructive">{formErrors.email}</p>
+              )}
+            </div>
             <Select
               value={form.source}
               onValueChange={(v: EnquirySource) =>
@@ -506,10 +581,7 @@ export default function EnquiryOverview() {
             <Button variant="outline" onClick={() => setCreateOpen(false)}>
               Cancel
             </Button>
-            <Button
-              onClick={() => createMut.mutate()}
-              disabled={createMut.isPending}
-            >
+            <Button onClick={handleCreate} disabled={createMut.isPending}>
               {createMut.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (

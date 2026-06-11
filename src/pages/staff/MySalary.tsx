@@ -13,6 +13,7 @@ import {
 } from "@/lib/admin-api/staff-salary";
 import { fetchStaffCommissions } from "@/lib/admin-api/scoped";
 import { useRole } from "@/contexts/RoleContext";
+import { useToast } from "@/hooks/use-toast";
 import { IndianRupee, TrendingUp, Wallet, Calendar, Download, Loader2 } from "lucide-react";
 
 const statusColors: Record<string, string> = {
@@ -23,8 +24,26 @@ const statusColors: Record<string, string> = {
 
 export default function MySalary() {
   const { role } = useRole();
+  const { toast } = useToast();
   const salaryScope = role === "branch-manager" ? "branch-manager" : "staff";
   const [year, setYear] = useState(() => new Date().getFullYear());
+  const [downloadingId, setDownloadingId] = useState<number | null>(null);
+
+  const handleDownload = async (id: number) => {
+    if (downloadingId !== null) return;
+    setDownloadingId(id);
+    try {
+      await downloadStaffSalarySlip(id, salaryScope);
+    } catch {
+      toast({
+        title: "Download failed",
+        description: "Could not download the salary slip. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setDownloadingId(null);
+    }
+  };
   const today = useMemo(() => new Date(), []);
   const currentMonthKey = useMemo(
     () => `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`,
@@ -219,11 +238,19 @@ export default function MySalary() {
                         variant="outline"
                         size="sm"
                         className="h-8"
-                        disabled={r.status === "draft"}
-                        onClick={() => downloadStaffSalarySlip(r.id)}
+                        disabled={r.status === "draft" || downloadingId !== null}
+                        onClick={() => handleDownload(r.id)}
                         title={r.status === "draft" ? "Available only for approved/paid" : "Download PDF"}
                       >
-                        <Download className="h-4 w-4 mr-1" /> Download
+                        {downloadingId === r.id ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-1 animate-spin" /> Downloading...
+                          </>
+                        ) : (
+                          <>
+                            <Download className="h-4 w-4 mr-1" /> Download
+                          </>
+                        )}
                       </Button>
                     </TableCell>
                   </TableRow>

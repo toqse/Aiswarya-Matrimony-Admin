@@ -25,6 +25,7 @@ import {
   type MyPlanDetails,
 } from "@/lib/plansApi";
 import { formatDateDdMmYyyy } from "@/lib/utils";
+import { getDisplayErrorMessage } from "@/lib/apiErrors";
 
 /* ─── Styling map by plan name ──────────────────────────────── */
 type PlanStyle = {
@@ -413,11 +414,7 @@ const PlanPage = () => {
       setMyPlan(myRes.value.data);
       setMyPlanError(null);
     } else {
-      setMyPlanError(
-        myRes.reason instanceof Error
-          ? myRes.reason.message
-          : "Could not load your plan",
-      );
+      setMyPlanError(getDisplayErrorMessage(myRes.reason));
     }
   }, []);
 
@@ -436,20 +433,12 @@ const PlanPage = () => {
         if (plansRes.status === "fulfilled") {
           setApiPlans(plansRes.value.data.plans);
         } else {
-          setError(
-            plansRes.reason instanceof Error
-              ? plansRes.reason.message
-              : "Failed to load plans",
-          );
+          setError(getDisplayErrorMessage(plansRes.reason));
         }
         if (myRes.status === "fulfilled") {
           setMyPlan(myRes.value.data);
         } else {
-          setMyPlanError(
-            myRes.reason instanceof Error
-              ? myRes.reason.message
-              : "Could not load your plan",
-          );
+          setMyPlanError(getDisplayErrorMessage(myRes.reason));
           setMyPlan(null);
         }
       } finally {

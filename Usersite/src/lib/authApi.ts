@@ -1,4 +1,5 @@
 import { BASE_URL } from "./config";
+import { ApiError, fetchWithTimeout } from "./apiErrors";
 
 type ApiErrorPayload = {
   detail?: string | string[];
@@ -126,14 +127,15 @@ export async function register(body: RegisterBody): Promise<unknown> {
   const url = `${BASE_URL}v1/auth/register/`;
   const payload = buildRegisterPayload(body);
   console.log("[authApi] register request body:", payload);
-  const res = await fetch(url, {
+  const res = await fetchWithTimeout(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
   const data = await res.json().catch(() => ({}));
   console.log("[authApi] register response:", { status: res.status, data });
-  if (!res.ok) throw new Error(getErrorMessage(data, "Registration failed"));
+  if (!res.ok)
+    throw new ApiError(getErrorMessage(data, "Registration failed"), res.status);
   return data;
 }
 
@@ -153,7 +155,7 @@ export async function verifyOtp(
 ): Promise<VerifyOtpResponse> {
   const url = `${BASE_URL}v1/auth/verify-otp/`;
   console.log("[authApi] verifyOtp request body:", body);
-  const res = await fetch(url, {
+  const res = await fetchWithTimeout(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -161,7 +163,10 @@ export async function verifyOtp(
   const data = (await res.json().catch(() => ({}))) as VerifyOtpResponse;
   console.log("[authApi] verifyOtp response:", { status: res.status, data });
   if (!res.ok)
-    throw new Error(getErrorMessage(data, "OTP verification failed"));
+    throw new ApiError(
+      getErrorMessage(data, "OTP verification failed"),
+      res.status,
+    );
   return data;
 }
 
@@ -186,13 +191,14 @@ export async function resendOtp(
   const url = `${BASE_URL}v1/auth/resend-otp/`;
   const payload = { phone_number: body.phone_number.trim() };
   console.log("[authApi] resend-otp request body:", payload);
-  const res = await fetch(url, {
+  const res = await fetchWithTimeout(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
   const data = (await res.json().catch(() => ({}))) as ResendOtpResponse;
-  if (!res.ok) throw new Error(getErrorMessage(data, "Failed to resend OTP"));
+  if (!res.ok)
+    throw new ApiError(getErrorMessage(data, "Failed to resend OTP"), res.status);
   return data;
 }
 
@@ -286,7 +292,7 @@ export async function registerMobile(
 ): Promise<RegisterMobileResponse> {
   const url = `${BASE_URL}v1/auth/register/mobile/`;
   console.log("[authApi] registerMobile request body:", body);
-  const res = await fetch(url, {
+  const res = await fetchWithTimeout(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -296,7 +302,8 @@ export async function registerMobile(
     status: res.status,
     data,
   });
-  if (!res.ok) throw new Error(getErrorMessage(data, "Failed to send OTP"));
+  if (!res.ok)
+    throw new ApiError(getErrorMessage(data, "Failed to send OTP"), res.status);
   return data;
 }
 
@@ -306,14 +313,15 @@ export async function verifyMobile(
 ): Promise<VerifyMobileResponse> {
   const url = `${BASE_URL}v1/auth/verify/mobile/`;
   console.log("[authApi] verifyMobile request body:", body);
-  const res = await fetch(url, {
+  const res = await fetchWithTimeout(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
   const data = (await res.json().catch(() => ({}))) as VerifyMobileResponse;
   console.log("[authApi] verifyMobile response:", { status: res.status, data });
-  if (!res.ok) throw new Error(getErrorMessage(data, "Failed to verify OTP"));
+  if (!res.ok)
+    throw new ApiError(getErrorMessage(data, "Failed to verify OTP"), res.status);
   return data;
 }
 
@@ -360,7 +368,7 @@ export async function postMemberTokenRefresh(
     typeof refreshToken === "string" && refreshToken.trim()
       ? { refresh: refreshToken.trim() }
       : {};
-  const res = await fetch(url, {
+  const res = await fetchWithTimeout(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
@@ -382,7 +390,7 @@ export async function authLogout(
   const url = `${BASE_URL}v1/auth/logout/`;
   const body: Record<string, string> = {};
   if (refreshToken) body.refresh_token = refreshToken;
-  const res = await fetch(url, {
+  const res = await fetchWithTimeout(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

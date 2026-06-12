@@ -11,6 +11,7 @@ import { Heart, Sparkles, Inbox, Filter, Check, Clock, X, Loader2 } from "lucide
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { getReceivedInterests, respondInterest, type InterestCard } from "@/lib/interestsApi";
+import { getDisplayErrorMessage } from "@/lib/apiErrors";
 import type { Profile } from "@/components/FeaturedProfiles";
 import type { InterestStatus } from "@/stores/interestStore";
 import { useAuthStore } from "@/stores/authStore";
@@ -58,7 +59,7 @@ const InterestReceived = () => {
         setTotal(res.data.total);
         setList((prev) => (append ? [...prev, ...res.data.results] : res.data.results));
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Failed to load interests");
+        toast.error(getDisplayErrorMessage(e));
         if (!append) setList([]);
       } finally {
         setLoading(false);
@@ -102,7 +103,7 @@ const InterestReceived = () => {
         description: "You can start chatting when available from your dashboard.",
       });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to accept");
+      toast.error(getDisplayErrorMessage(e));
     } finally {
       setBusyId(null);
     }
@@ -117,7 +118,7 @@ const InterestReceived = () => {
       );
       toast.info(res.message || `Declined ${profileName}'s interest`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to decline");
+      toast.error(getDisplayErrorMessage(e));
     } finally {
       setBusyId(null);
     }

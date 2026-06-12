@@ -41,7 +41,7 @@ const baseSidebarLinks = [
   { name: "Profile", href: "/dashboard/profile", icon: User },
   { name: "Interests", href: "/dashboard/interests", icon: Heart },
   { name: "Chat List", href: "/dashboard/chat-list", icon: MessageCircle },
-  { name: "Horoscope", href: "/dashboard/jathagam", icon: Sparkles },
+  //{ name: "Horoscope", href: "/dashboard/jathagam", icon: Sparkles },
   { name: "Plans and Pricing", href: "/dashboard/plan", icon: Crown },
   { name: "Transactions", href: "/dashboard/transactions", icon: Receipt },
   { name: "Settings", href: "/dashboard/settings", icon: Settings },

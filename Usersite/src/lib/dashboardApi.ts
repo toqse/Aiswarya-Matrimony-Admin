@@ -40,6 +40,22 @@ async function authedGet<T>(path: string): Promise<T> {
 
 // ---- Types ----
 
+export interface DashboardPlan {
+  is_plan_active: boolean;
+  plan_name: string;
+  valid_until?: string | null;
+  profile_views_remaining?: number;
+  interests_remaining?: number;
+  chat_remaining?: number;
+  contact_view_remaining?: number;
+  horoscope_remaining?: number;
+  service_charge?: number;
+  plan_price?: number;
+  total_price?: number;
+  service_charge_remaining?: number;
+  service_charge_paid?: number;
+}
+
 export interface DashboardSummary {
   matri_id: string;
   profile_completion: number;
@@ -48,6 +64,7 @@ export interface DashboardSummary {
   interests_received: number;
   interests_sent: number;
   new_matches: number;
+  plan?: DashboardPlan | null;
 }
 
 export interface DashboardSummaryResponse {

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Check, Crown, Sparkles, Star, Zap, Heart, Shield, ArrowRight, HelpCircle, ChevronDown, Award } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { getWebsitePlans, type WebsitePlan } from "@/lib/plansApi";
+import { getDisplayErrorMessage } from "@/lib/apiErrors";
 import { WEBSITE_PLANS_FALLBACK } from "@/lib/websitePlansFallback";
 
 const faqs: { question: string; answer: string | string[] }[] = [
@@ -104,7 +105,7 @@ const MembershipPage = () => {
         if (!cancelled) {
           setPlans(WEBSITE_PLANS_FALLBACK);
           setFallbackNotice(
-            e instanceof Error ? e.message : "Could not load plans from the server. Showing default pricing."
+            getDisplayErrorMessage(e)
           );
         }
       } finally {

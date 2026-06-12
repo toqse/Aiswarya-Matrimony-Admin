@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { getChatList, type ChatListItem } from "@/lib/chatApi";
 import { BASE_URL } from "@/lib/config";
+import { getDisplayErrorMessage } from "@/lib/apiErrors";
 import { parseApiDate } from "@/lib/utils";
 
 function getAvatarUrl(path: string | null | undefined): string {
@@ -32,7 +33,7 @@ const ChatListPage = () => {
         if (mounted) setConversations(res.data.conversations);
       } catch (e) {
         if (mounted)
-          setError(e instanceof Error ? e.message : "Failed to load chats");
+          setError(getDisplayErrorMessage(e));
       } finally {
         if (mounted) setLoading(false);
       }

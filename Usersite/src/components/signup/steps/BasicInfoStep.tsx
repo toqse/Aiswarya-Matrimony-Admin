@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { User, Phone, Mail, Calendar, ArrowRight } from "lucide-react";
+import { User, Phone, Mail, Calendar, ArrowRight, Loader2 } from "lucide-react";
 import { SelectField } from "../SignupFormFields";
 import { Button } from "@/components/ui/button";
 import { getGenderFromProfileFor } from "@/lib/profileForGender";
@@ -21,7 +21,9 @@ interface Props {
   resendOtpLoading?: boolean;
   phoneVerified: boolean;
   canSendOtp?: boolean;
+  sendingOtp?: boolean;
   fieldErrors?: { email?: string; dob?: string; phone?: string; general?: string };
+  onTermsClick?: () => void;
 }
 
 const apiErrorBanner = (message: string) => (
@@ -50,7 +52,9 @@ const BasicInfoStep = ({
   resendOtpLoading = false,
   phoneVerified,
   canSendOtp = false,
+  sendingOtp = false,
   fieldErrors,
+  onTermsClick,
 }: Props) => {
   const { locked: genderLocked, gender: profileLockedGender } =
     getGenderFromProfileFor(profileFor);
@@ -140,7 +144,7 @@ const BasicInfoStep = ({
           <SelectField
             label="Gender"
             name="gender"
-            options={["Male", "Female", "Other"]}
+            options={["Male", "Female"]}
             value={genderSelectValue}
             onChange={onChange}
             disabled={genderLocked}
@@ -155,16 +159,25 @@ const BasicInfoStep = ({
             />
             <label htmlFor="agreeTerms" className="text-sm text-muted-foreground cursor-pointer">
               I agree to the{" "}
-              <Link href="/terms-conditions" onClick={(e) => e.stopPropagation()} className="text-primary font-medium underline hover:no-underline">
+              <Link href="/terms-conditions" onClick={(e) => { e.stopPropagation(); onTermsClick?.(); }} className="text-primary font-medium underline hover:no-underline">
                 Terms & Conditions
               </Link>{" "}
               and Privacy Policy
             </label>
           </div>
           {registerApiMessage && apiErrorBanner(registerApiMessage)}
-          <Button type="button" variant="hero" size="lg" className="w-full gap-2" onClick={onSendOtp} disabled={!canSendOtp}>
-            Send OTP
-            <ArrowRight className="w-5 h-5" />
+          <Button type="button" variant="hero" size="lg" className="w-full gap-2" onClick={onSendOtp} disabled={!canSendOtp || sendingOtp}>
+            {sendingOtp ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Sending OTP...
+              </>
+            ) : (
+              <>
+                Send OTP
+                <ArrowRight className="w-5 h-5" />
+              </>
+            )}
           </Button>
         </div>
       </>
@@ -202,7 +215,7 @@ const BasicInfoStep = ({
           <SelectField
             label="Gender"
             name="gender"
-            options={["Male", "Female", "Other"]}
+            options={["Male", "Female"]}
             value={genderSelectValue}
             onChange={onChange}
             disabled={genderLocked}
@@ -217,7 +230,7 @@ const BasicInfoStep = ({
             />
             <label htmlFor="agreeTermsVerified" className="text-sm text-muted-foreground cursor-pointer">
               I agree to the{" "}
-              <Link href="/terms-conditions" onClick={(e) => e.stopPropagation()} className="text-primary font-medium underline hover:no-underline">
+              <Link href="/terms-conditions" onClick={(e) => { e.stopPropagation(); onTermsClick?.(); }} className="text-primary font-medium underline hover:no-underline">
                 Terms & Conditions
               </Link>{" "}
               and Privacy Policy

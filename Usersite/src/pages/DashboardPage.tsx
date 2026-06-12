@@ -8,6 +8,7 @@ import {
   Eye,
   Send,
   Star,
+  Crown,
   IndianRupee,
   Lock,
   Sparkles,
@@ -37,6 +38,7 @@ import {
   type ProfilePreviewData,
 } from "@/lib/matchesApi";
 import { BASE_URL } from "@/lib/config";
+import { getDisplayErrorMessage } from "@/lib/apiErrors";
 import { cn } from "@/lib/utils";
 
 /** In-session cache so returning to /dashboard does not blank the whole UI while refetching. */
@@ -341,7 +343,7 @@ const DashboardPage = () => {
     } catch (err) {
       console.error("Dashboard load error:", err);
       const msg =
-        err instanceof Error ? err.message : "Failed to load dashboard";
+        getDisplayErrorMessage(err);
       if (hasDashboardDataRef.current) {
         toast.error(msg);
       } else {
@@ -363,7 +365,7 @@ const DashboardPage = () => {
       setPreviewData(res.data);
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : "Could not load profile",
+        getDisplayErrorMessage(err),
       );
     } finally {
       setPreviewLoading(false);
@@ -377,7 +379,7 @@ const DashboardPage = () => {
       toast.success(res.message || "Interest sent!");
     } catch (err) {
       const msg =
-        err instanceof Error ? err.message : "Failed to send interest";
+        getDisplayErrorMessage(err);
       if ((err as { status?: number }).status === 403) {
         toast.info("Please upgrade your plan to continue.");
         router.push("/dashboard/plan");
@@ -427,7 +429,9 @@ const DashboardPage = () => {
   ];
 
   const displayLocation = summary?.location || user?.location || "";
-  const displayMatriId = summary?.matri_id || user?.matriId || "";
+  const planActive = summary?.plan?.is_plan_active ?? hasPaidPlan();
+  const planName =
+    summary?.plan?.plan_name || (planActive ? "Premium Member" : "Free Member");
 
   if (loading) {
     return (
@@ -472,15 +476,16 @@ const DashboardPage = () => {
                 Welcome back, {user?.name || "User"}
               </h1>
               <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs opacity-95 sm:text-sm sm:gap-3">
+                <span className="inline-flex items-center gap-1 rounded-full bg-white/20 px-2.5 py-0.5 font-semibold">
+                  <Crown className="h-3.5 w-3.5" />
+                  {planName}
+                </span>
+                <span className="opacity-70">|</span>
                 <span>Profile: {profileCompletion}% Complete</span>
-                {(displayMatriId || displayLocation) && (
+                {displayLocation && (
                   <>
                     <span className="opacity-70">|</span>
-                    <span className="min-w-0 break-words">
-                      {[displayMatriId, displayLocation]
-                        .filter(Boolean)
-                        .join(" – ")}
-                    </span>
+                    <span className="min-w-0 break-words">{displayLocation}</span>
                   </>
                 )}
               </div>

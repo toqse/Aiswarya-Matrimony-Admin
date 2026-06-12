@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect, useCallback, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { cn, formatDateDdMmYyyy, parseApiDate } from "@/lib/utils";
+import { getDisplayErrorMessage } from "@/lib/apiErrors";
 import {
   Send,
   Clock,
@@ -244,7 +245,7 @@ function MatchesOpenFromQuery({
       } catch (e) {
         if (!cancelled) {
           toast.error(
-            e instanceof Error ? e.message : "Failed to load profile",
+            getDisplayErrorMessage(e),
           );
           router.replace("/dashboard/matches", { scroll: false });
         }
@@ -491,7 +492,7 @@ const MatchesPage = () => {
           return next;
         });
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Failed to load matches");
+        setError(getDisplayErrorMessage(e));
         setProfiles([]);
       } finally {
         setLoading(false);
@@ -588,7 +589,7 @@ const MatchesPage = () => {
         };
         await completeMatchPreviewOpen(mergedPreview);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Failed to load profile");
+        toast.error(getDisplayErrorMessage(e));
       } finally {
         setActionLoading(null);
       }
@@ -649,7 +650,6 @@ const MatchesPage = () => {
       setActionLoading(matriId);
       try {
         const res = await startChatApi(matriId);
-        toast.success("Chat started.");
         const convoId = res.data.conversation_id;
         if (convoId) {
           router.push(`/chat/${convoId}`);
@@ -657,7 +657,7 @@ const MatchesPage = () => {
           router.push("/dashboard/chat-list");
         }
       } catch (e) {
-        const msg = e instanceof Error ? e.message : "Failed to start chat";
+        const msg = getDisplayErrorMessage(e);
         if (
           msg.toLowerCase().includes("plan") ||
           msg.toLowerCase().includes("upgrade") ||
@@ -697,7 +697,7 @@ const MatchesPage = () => {
         return next;
       });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to update wishlist");
+      toast.error(getDisplayErrorMessage(e));
     } finally {
       setActionLoading(null);
     }

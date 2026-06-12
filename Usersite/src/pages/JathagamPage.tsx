@@ -35,6 +35,7 @@ import {
   updateBirthDetails,
 } from "@/lib/profileApi";
 import { getMyPlan, type MyPlanDetails } from "@/lib/plansApi";
+import { getDisplayErrorMessage } from "@/lib/apiErrors";
 import {
   getMyHoroscope,
   postGenerateHoroscope,
@@ -452,7 +453,7 @@ export default function JathagamPage() {
             nextCandidates = [];
             resolvedSelected = "";
             nextCandError =
-              e instanceof Error ? e.message : "Could not load candidates.";
+              getDisplayErrorMessage(e);
             setCandidates([]);
             setSelectedMatriId("");
             setCandidatesError(nextCandError);
@@ -482,7 +483,7 @@ export default function JathagamPage() {
         candidatesError: nextCandError,
       });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to load page data.");
+      toast.error(getDisplayErrorMessage(e));
     } finally {
       setLoadingInitial(false);
     }
@@ -521,7 +522,7 @@ export default function JathagamPage() {
       setPlaceOfBirth(res.data?.place_of_birth?.trim() ?? place);
     } catch (e) {
       toast.error(
-        e instanceof Error ? e.message : "Could not save birth details.",
+        getDisplayErrorMessage(e),
       );
     } finally {
       setSavingBirthDetails(false);
@@ -536,7 +537,7 @@ export default function JathagamPage() {
       setMatchResponseData(null);
       setMatchBlock(null);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Could not load horoscope.";
+      const msg = getDisplayErrorMessage(e);
       toast.error(msg);
     } finally {
       setGeneratingChart(false);
@@ -578,7 +579,7 @@ export default function JathagamPage() {
         // banner may stay stale; non-fatal
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not check match.");
+      toast.error(getDisplayErrorMessage(e));
     } finally {
       setCheckingMatch(false);
     }
@@ -608,7 +609,7 @@ export default function JathagamPage() {
       toast.success("Match report downloaded.");
     } catch (e) {
       toast.error(
-        e instanceof Error ? e.message : "Could not generate match report PDF.",
+        getDisplayErrorMessage(e),
       );
     } finally {
       setDownloadingMatchPdf(false);

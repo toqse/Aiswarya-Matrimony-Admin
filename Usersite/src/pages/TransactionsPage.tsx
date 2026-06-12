@@ -33,6 +33,7 @@ import {
   type TransactionStatus,
 } from "@/lib/transactionsApi";
 import { formatDateDdMmYyyy } from "@/lib/utils";
+import { getDisplayErrorMessage } from "@/lib/apiErrors";
 
 // ---- Config maps ----
 
@@ -101,7 +102,7 @@ const DetailModal = ({ transactionId, onClose }: DetailModalProps) => {
     getTransactionDetail(transactionId)
       .then((res) => setDetail(res.data))
       .catch((err) =>
-        setError(err instanceof Error ? err.message : "Failed to load details"),
+        setError(getDisplayErrorMessage(err)),
       )
       .finally(() => setLoading(false));
   }, [transactionId]);
@@ -251,7 +252,7 @@ const TransactionsPage = () => {
       setTotalCount(countRes.data.total_transactions);
     } catch (err) {
       setLoadError(
-        err instanceof Error ? err.message : "Failed to load transactions",
+        getDisplayErrorMessage(err),
       );
     } finally {
       setLoading(false);

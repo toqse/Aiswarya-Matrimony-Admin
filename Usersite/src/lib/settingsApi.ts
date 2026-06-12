@@ -1,4 +1,5 @@
 import { BASE_URL } from "./config";
+import { GENERIC_ERROR_MESSAGE } from "@/lib/apiErrors";
 import { memberFetchWithAuthRetry } from "@/lib/memberAuthedFetch";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -61,9 +62,13 @@ async function request<T>(
   if (_body !== undefined) console.log("[settingsApi] Body:", _body);
 
   const res = await memberFetchWithAuthRetry(url, fetchOptions);
-  const json = await res.json();
+  const json = await res.json().catch(() => null);
 
   console.log("[settingsApi] Response:", json);
+
+  if (!json || typeof json !== "object") {
+    throw new Error(GENERIC_ERROR_MESSAGE);
+  }
 
   if (!res.ok || json.success === false) {
     const msg =

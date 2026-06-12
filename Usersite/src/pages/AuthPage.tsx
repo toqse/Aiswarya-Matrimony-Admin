@@ -28,6 +28,7 @@ import {
   type VerifyMobileProfile,
 } from "@/lib/authApi";
 import { getGenderFromProfileFor } from "@/lib/profileForGender";
+import { ApiError, getDisplayErrorMessage } from "@/lib/apiErrors";
 import {
   postLocation,
   postReligion,
@@ -54,6 +55,7 @@ import PhotosStep from "@/components/signup/steps/PhotosStep";
 
 type AuthMode = "login" | "signup";
 const SIGNUP_DRAFT_STORAGE_KEY = "matrimony_signup_draft_v1";
+const AUTH_RETURN_STATE_STORAGE_KEY = "matrimony_auth_return_state_v1";
 
 const stepVariants = {
   enter: (dir: number) => ({ x: dir > 0 ? 80 : -80, opacity: 0 }),
@@ -397,6 +399,7 @@ const AuthPage = () => {
   const [interCaste, setInterCaste] = useState(false);
   const [phoneVerified, setPhoneVerified] = useState(false);
   const [signupOtpSent, setSignupOtpSent] = useState(false);
+  const [signupSendingOtp, setSignupSendingOtp] = useState(false);
   const [signupOtp, setSignupOtp] = useState(["", "", "", "", "", ""]);
   const [photos, setPhotos] = useState<
     Record<string, { file: File; previewUrl: string }>
@@ -484,6 +487,35 @@ const AuthPage = () => {
       }
     } catch {
       // ignore malformed draft data
+    }
+
+    try {
+      const rawReturnState = sessionStorage.getItem(
+        AUTH_RETURN_STATE_STORAGE_KEY,
+      );
+      if (!rawReturnState) return;
+      sessionStorage.removeItem(AUTH_RETURN_STATE_STORAGE_KEY);
+      const parsedReturnState = JSON.parse(rawReturnState) as {
+        mode?: AuthMode;
+        signupStep?: number;
+        agreeTerms?: boolean;
+        phoneVerified?: boolean;
+      };
+      if (parsedReturnState.mode !== "signup") return;
+      const nextSignupStep =
+        typeof parsedReturnState.signupStep === "number"
+          ? Math.min(
+              Math.max(0, parsedReturnState.signupStep),
+              SIGNUP_STEPS.length - 1,
+            )
+          : 1;
+      setMode("signup");
+      setDirection(1);
+      setSignupStep(nextSignupStep);
+      setAgreeTerms(Boolean(parsedReturnState.agreeTerms));
+      setPhoneVerified(Boolean(parsedReturnState.phoneVerified));
+    } catch {
+      // ignore malformed return state
     }
   }, []);
 
@@ -690,7 +722,7 @@ const AuthPage = () => {
       setOtp(otpDigitsFromResponse(res) ?? ["", "", "", "", "", ""]);
       toast.success("OTP sent to your phone");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to send OTP");
+      toast.error(getDisplayErrorMessage(err));
     }
   };
 
@@ -756,7 +788,7 @@ const AuthPage = () => {
         setHasChildren(prefill.hasChildren);
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to verify OTP");
+      toast.error(getDisplayErrorMessage(err));
     }
   };
 
@@ -787,7 +819,7 @@ const AuthPage = () => {
           : "OTP has been sent to your phone number.",
       );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to resend OTP");
+      toast.error(getDisplayErrorMessage(err));
     } finally {
       setResendOtpLoading(false);
     }
@@ -809,13 +841,14 @@ const AuthPage = () => {
           : "OTP has been sent to your phone number.",
       );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to resend OTP");
+      toast.error(getDisplayErrorMessage(err));
     } finally {
       setResendOtpLoading(false);
     }
   };
 
   const handleSignupSendOtp = async () => {
+    if (signupSendingOtp) return;
     if (!formData.name?.trim()) {
       toast.error("Please enter full name");
       return;
@@ -848,6 +881,7 @@ const AuthPage = () => {
         ? "O"
         : "M";
     const profile_for = normalizeRegisterProfileFor(formData.profileFor);
+    setSignupSendingOtp(true);
     try {
       const res = await registerApi({
         name: formData.name.trim(),
@@ -861,25 +895,33 @@ const AuthPage = () => {
       setSignupOtp(otpDigitsFromResponse(res) ?? ["", "", "", "", "", ""]);
       toast.success("OTP sent to +91 " + formData.phone);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to send OTP";
-      const lower = msg.toLowerCase();
       const nextErrors: {
         email?: string;
         dob?: string;
         phone?: string;
         general?: string;
       } = {};
-      if (lower.includes("email")) nextErrors.email = msg;
-      else if (
-        lower.includes("dob") ||
-        lower.includes("birth") ||
-        lower.includes("age")
-      )
-        nextErrors.dob = msg;
-      else if (lower.includes("phone") || lower.includes("already registered"))
-        nextErrors.phone = msg;
-      else nextErrors.general = msg;
+      if (err instanceof ApiError) {
+        // Actual API error response: map it to the relevant field when possible.
+        const msg = err.message;
+        const lower = msg.toLowerCase();
+        if (lower.includes("email")) nextErrors.email = msg;
+        else if (
+          lower.includes("dob") ||
+          lower.includes("birth") ||
+          lower.includes("age")
+        )
+          nextErrors.dob = msg;
+        else if (lower.includes("phone") || lower.includes("already registered"))
+          nextErrors.phone = msg;
+        else nextErrors.general = msg;
+      } else {
+        // Network/timeout -> "Network error"; anything else -> generic message.
+        nextErrors.general = getDisplayErrorMessage(err);
+      }
       setSignupErrors(nextErrors);
+    } finally {
+      setSignupSendingOtp(false);
     }
   };
 
@@ -905,7 +947,7 @@ const AuthPage = () => {
       setSignupStep(2);
       toast.success("Phone verified!");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to verify OTP");
+      toast.error(getDisplayErrorMessage(err));
     }
   };
 
@@ -981,7 +1023,7 @@ const AuthPage = () => {
         setSignupStep(3);
       } catch (err) {
         toast.error(
-          err instanceof Error ? err.message : "Failed to save location",
+          getDisplayErrorMessage(err),
         );
       }
       return;
@@ -1214,7 +1256,7 @@ const AuthPage = () => {
         setSignupStep(7);
       } catch (err) {
         toast.error(
-          err instanceof Error ? err.message : "Failed to save about me",
+          getDisplayErrorMessage(err),
         );
       }
       return;
@@ -1280,7 +1322,7 @@ const AuthPage = () => {
         router.push("/dashboard");
       } catch (err) {
         toast.error(
-          err instanceof Error ? err.message : "Failed to create account",
+          getDisplayErrorMessage(err),
         );
       } finally {
         if (shouldReset) setIsCreatingAccount(false);
@@ -1307,7 +1349,7 @@ const AuthPage = () => {
       toast.success("Suggestion added. You can edit it.");
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : "Failed to generate about me",
+        getDisplayErrorMessage(err),
       );
     }
   };
@@ -1323,6 +1365,22 @@ const AuthPage = () => {
     if (signupStep > minSignupStep) {
       setDirection(-1);
       setSignupStep(signupStep - 1);
+    }
+  };
+
+  const handleSignupTermsClick = () => {
+    try {
+      sessionStorage.setItem(
+        AUTH_RETURN_STATE_STORAGE_KEY,
+        JSON.stringify({
+          mode: "signup",
+          signupStep,
+          agreeTerms,
+          phoneVerified,
+        }),
+      );
+    } catch {
+      // ignore storage errors
     }
   };
 
@@ -1366,7 +1424,9 @@ const AuthPage = () => {
             resendOtpLoading={resendOtpLoading}
             phoneVerified={phoneVerified}
             canSendOtp={canSendSignupOtp}
+            sendingOtp={signupSendingOtp}
             fieldErrors={signupErrors}
+            onTermsClick={handleSignupTermsClick}
           />
         );
       case 2:

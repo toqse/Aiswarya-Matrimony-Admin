@@ -5,7 +5,18 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useParams, useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Send, Sparkles, Smile, Lock, User } from "lucide-react";
+import {
+  ArrowLeft,
+  Send,
+  Sparkles,
+  Smile,
+  Lock,
+  User,
+  Clock,
+  Check,
+  WifiOff,
+  RotateCw,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
   buildChatWebSocketUrl,
@@ -15,6 +26,7 @@ import {
 } from "@/lib/chatApi";
 import { useAuthStore } from "@/stores/authStore";
 import { BASE_URL } from "@/lib/config";
+import { getDisplayErrorMessage } from "@/lib/apiErrors";
 import { parseApiDate } from "@/lib/utils";
 
 function chatParticipantPhotoUrl(photo: string | null | undefined): string {
@@ -53,6 +65,11 @@ const ChatPage = () => {
   const [ws, setWs] = useState<WebSocket | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [wsStatus, setWsStatus] = useState<
+    "connecting" | "open" | "error"
+  >("connecting");
+  const [reconnectKey, setReconnectKey] = useState(0);
+  const [isReconnecting, setIsReconnecting] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
   /** Header: from GET chat/messages/{id}/ → other_user */
   const [otherUser, setOtherUser] = useState<ChatOtherUser | null>(null);
@@ -77,7 +94,11 @@ const ChatPage = () => {
     const connect = async () => {
       setLoading(true);
       setError(null);
+      setWsStatus("connecting");
       setOtherUser(null);
+
+      // Step 1: call the messages API first. Only connect the socket on success.
+      let apiSucceeded = false;
       try {
         const res = await getChatMessages(idNum, 1, 100);
         if (cancelled) return;
@@ -85,21 +106,51 @@ const ChatPage = () => {
         list.forEach((m) => seenMessageIds.add(m.id));
         setMessages(list);
         if (res.data.other_user) setOtherUser(res.data.other_user);
+        apiSucceeded = true;
       } catch (e) {
-        if (!cancelled)
-          setError(e instanceof Error ? e.message : "Failed to load messages");
+        if (!cancelled) {
+          setError(getDisplayErrorMessage(e));
+          setWsStatus("error");
+          setIsReconnecting(false);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
 
-      if (cancelled) return;
+      if (cancelled || !apiSucceeded) return;
 
+      // Step 2: API succeeded — now open the websocket.
       const url = buildChatWebSocketUrl(idNum);
-      if (!url) return;
+      if (!url) {
+        setWsStatus("error");
+        setIsReconnecting(false);
+        return;
+      }
 
       const socket = new WebSocket(url);
       wsRef.current = socket;
       setWs(socket);
+
+      socket.onopen = () => {
+        if (!cancelled) {
+          setWsStatus("open");
+          setIsReconnecting(false);
+        }
+      };
+
+      socket.onerror = () => {
+        if (!cancelled) {
+          setWsStatus("error");
+          setIsReconnecting(false);
+        }
+      };
+
+      socket.onclose = () => {
+        if (!cancelled) {
+          setWsStatus("error");
+          setIsReconnecting(false);
+        }
+      };
 
       socket.onmessage = (event) => {
         if (cancelled) return;
@@ -161,7 +212,19 @@ const ChatPage = () => {
       wsRef.current = null;
       setWs(null);
     };
-  }, [profileId]);
+  }, [profileId, reconnectKey]);
+
+  const handleRetryConnection = () => {
+    if (isReconnecting) return;
+    setIsReconnecting(true);
+    setWsStatus("connecting");
+    // Bumping the key re-runs the effect: it calls the messages API again and
+    // only re-opens the socket if that API call succeeds.
+    setReconnectKey((k) => k + 1);
+  };
+
+  const isConnected = wsStatus === "open";
+  const connectionLost = wsStatus === "error" || isReconnecting;
 
   if (!profileId) {
     return (
@@ -315,6 +378,57 @@ const ChatPage = () => {
         </div>
       </motion.header>
 
+      {/* Connection lost popup — blocks chat input until reconnected */}
+      <AnimatePresence>
+        {connectionLost && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 12 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 12 }}
+              transition={{ duration: 0.2 }}
+              role="alertdialog"
+              aria-modal="true"
+              className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-elevated"
+            >
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-destructive/10">
+                <WifiOff className="h-7 w-7 text-destructive" />
+              </div>
+              <h3 className="font-serif text-lg font-bold text-foreground">
+                Network error. Connection lost.
+              </h3>
+              <p className="mt-2 text-sm text-muted-foreground">
+                You can&apos;t send messages while disconnected. Retry the
+                connection or refresh the page to continue chatting.
+              </p>
+              <Button
+                variant="hero"
+                onClick={handleRetryConnection}
+                disabled={isReconnecting}
+                className="mt-5 w-full gap-2"
+              >
+                {isReconnecting ? (
+                  <>
+                    <RotateCw className="h-4 w-4 animate-spin" />
+                    Reconnecting...
+                  </>
+                ) : (
+                  <>
+                    <RotateCw className="h-4 w-4" />
+                    Retry
+                  </>
+                )}
+              </Button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Messages Area */}
       <div className="flex-1 pt-24 pb-24 overflow-y-auto">
         <div className="container mx-auto px-4 py-6">
@@ -363,6 +477,12 @@ const ChatPage = () => {
                             return d ? formatTime(d) : "";
                           })()}
                         </span>
+                        {isOwn &&
+                          (message.id < 0 ? (
+                            <Clock className="w-3.5 h-3.5 text-muted-foreground" />
+                          ) : (
+                            <Check className="w-3.5 h-3.5 text-muted-foreground" />
+                          ))}
                       </div>
                     </div>
                   </motion.div>
@@ -393,12 +513,18 @@ const ChatPage = () => {
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
                 onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
-                placeholder="Type a message..."
-                className="w-full px-4 py-3 bg-accent-rose/30 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                placeholder={
+                  isConnected
+                    ? "Type a message..."
+                    : "Connection lost. Reconnect to chat..."
+                }
+                disabled={!isConnected}
+                className="w-full px-4 py-3 bg-accent-rose/30 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all disabled:cursor-not-allowed disabled:opacity-60"
               />
               <Button
                 variant="ghost"
                 size="icon"
+                disabled={!isConnected}
                 className="absolute right-1 top-1/2 -translate-y-1/2 hover:bg-accent-rose/50"
                 onClick={() => setEmojiOpen((v) => !v)}
               >
@@ -488,7 +614,7 @@ const ChatPage = () => {
                 variant="hero"
                 size="icon"
                 onClick={handleSendMessage}
-                disabled={!newMessage.trim()}
+                disabled={!newMessage.trim() || !isConnected}
                 className="rounded-full w-12 h-12"
               >
                 <Send className="w-5 h-5" />

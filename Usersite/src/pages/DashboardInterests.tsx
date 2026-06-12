@@ -13,6 +13,7 @@ import {
   type InterestCard,
 } from "@/lib/interestsApi";
 import { formatDateTimeDdMmYyyy } from "@/lib/utils";
+import { getDisplayErrorMessage } from "@/lib/apiErrors";
 
 type Tab = "received" | "sent";
 
@@ -69,7 +70,7 @@ const DashboardInterests = () => {
       setReceivedTotal(receivedTotal);
       setSentTotal(sentTotal);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load interests");
+      setError(getDisplayErrorMessage(e));
     } finally {
       setLoading(false);
     }
@@ -108,7 +109,7 @@ const DashboardInterests = () => {
       );
       toast.success(res.message || `Accepted ${name}'s interest!`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to accept interest");
+      toast.error(getDisplayErrorMessage(e));
     } finally {
       setBusyId(null);
     }
@@ -125,7 +126,7 @@ const DashboardInterests = () => {
       );
       toast.info(res.message || `Declined ${name}'s interest`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to reject interest");
+      toast.error(getDisplayErrorMessage(e));
     } finally {
       setBusyId(null);
     }
@@ -142,7 +143,7 @@ const DashboardInterests = () => {
       );
       toast.success(res.message || "Interest cancelled.");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not cancel interest");
+      toast.error(getDisplayErrorMessage(e));
     } finally {
       setBusyId(null);
     }

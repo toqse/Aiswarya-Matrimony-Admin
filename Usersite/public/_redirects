@@ -1,9 +1,0 @@
-# Netlify redirects (SPA + 404 handling)
-# Files in public/ are copied to build output by Vite; this file must be in build root.
-
-# Specific redirects first (add any path changes here)
-# /old-path  /new-path  301
-
-# SPA fallback: serve index.html with 200 for all non-file requests.
-# React Router then handles routes; unknown paths show the app’s 404 page.
-/*    /index.html   200

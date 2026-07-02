@@ -3,7 +3,16 @@
  * AddProfileWizard form. Shared by staff "My Profiles" and admin "Profile Admin" so both
  * create flows stay in sync with the backend `registration` contract.
  */
-import { formatPhoneForApi } from "@/lib/phone";
+import { formatPhoneForApi, digitsOnlyMobile } from "@/lib/phone";
+import {
+  EMPTY_FAMILY_FIELDS,
+  type FamilyFormFields,
+} from "@/components/profile/FamilyDetailsSection";
+import {
+  EMPTY_PARTNER_PREFERENCE_FIELDS,
+  type PartnerPreferenceFields,
+  type PartnerPreferenceType,
+} from "@/components/profile/PartnerPreferenceSection";
 
 function isoToDDMMYYYY(iso: string): string {
   // iso expected: YYYY-MM-DD
@@ -21,6 +30,124 @@ const FILE_KEYS = [
   "aadhaar_front",
   "aadhaar_back",
 ] as const;
+
+function parentStatusToApi(ui: string): string | undefined {
+  if (!ui) return undefined;
+  if (ui === "Deceased") return "Late";
+  return ui;
+}
+
+function parentStatusToUi(api: unknown): string {
+  const s = String(api ?? "").trim();
+  if (s === "Late") return "Deceased";
+  return s || "Alive";
+}
+
+function phoneFromApi(value: unknown): string {
+  const s = String(value ?? "").trim();
+  if (!s) return "";
+  return digitsOnlyMobile(s);
+}
+
+export function buildFamilyDetailsPayload(form: FamilyFormFields): Record<string, unknown> {
+  const payload: Record<string, unknown> = {
+    father_name: form.fatherName.trim() || undefined,
+    father_occupation: form.fatherOccupation.trim() || undefined,
+    father_status: parentStatusToApi(form.fatherStatus),
+    mother_name: form.motherName.trim() || undefined,
+    mother_occupation: form.motherOccupation.trim() || undefined,
+    mother_status: parentStatusToApi(form.motherStatus),
+    brothers: form.brothersCount !== "" ? Number(form.brothersCount) : undefined,
+    married_brothers: form.marriedBrothersCount !== "" ? Number(form.marriedBrothersCount) : undefined,
+    sisters: form.sistersCount !== "" ? Number(form.sistersCount) : undefined,
+    married_sisters: form.marriedSistersCount !== "" ? Number(form.marriedSistersCount) : undefined,
+    family_type: form.familyType || undefined,
+    family_status: form.familyStatus || undefined,
+    family_contact: form.familyContact ? formatPhoneForApi(form.familyContact) : undefined,
+    family_contact_2: form.familyContact2 ? formatPhoneForApi(form.familyContact2) : undefined,
+    about_family: form.aboutFamily.trim() || undefined,
+  };
+  return Object.fromEntries(Object.entries(payload).filter(([, v]) => v !== undefined));
+}
+
+export function mapFamilyDetailsToForm(family: Record<string, unknown> | undefined): FamilyFormFields {
+  const f = family ?? {};
+  return {
+    fatherName: String(f.father_name ?? ""),
+    fatherOccupation: String(f.father_occupation ?? ""),
+    fatherStatus: parentStatusToUi(f.father_status),
+    motherName: String(f.mother_name ?? ""),
+    motherOccupation: String(f.mother_occupation ?? ""),
+    motherStatus: parentStatusToUi(f.mother_status),
+    brothersCount: f.brothers != null ? String(f.brothers) : "",
+    marriedBrothersCount: f.married_brothers != null ? String(f.married_brothers) : "",
+    sistersCount: f.sisters != null ? String(f.sisters) : "",
+    marriedSistersCount: f.married_sisters != null ? String(f.married_sisters) : "",
+    familyType: String(f.family_type ?? ""),
+    familyStatus: String(f.family_status ?? ""),
+    familyContact: phoneFromApi(f.family_contact),
+    familyContact2: phoneFromApi(f.family_contact_2),
+    aboutFamily: String(f.about_family ?? ""),
+  };
+}
+
+export { EMPTY_FAMILY_FIELDS, EMPTY_PARTNER_PREFERENCE_FIELDS };
+
+function normalizePartnerCastePreferences(raw: unknown): Record<string, number[]> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const result: Record<string, number[]> = {};
+  for (const [key, val] of Object.entries(raw as Record<string, unknown>)) {
+    if (!Array.isArray(val)) continue;
+    const ids = val.map((v) => Number(v)).filter((n) => Number.isFinite(n) && n > 0);
+    if (ids.length) result[String(key)] = ids;
+  }
+  return result;
+}
+
+export function buildPartnerReligionDetails(form: {
+  religionId: string;
+  partnerPreferenceType: PartnerPreferenceType;
+  partnerReligionIds: string[];
+  partnerCastePreferences: Record<string, number[]>;
+  partnerAgeFrom: string;
+  partnerAgeTo: string;
+}): Record<string, unknown> {
+  const religionId = form.religionId ? Number(form.religionId) : 0;
+  const prefType = form.partnerPreferenceType;
+  const rawCastePreferences = form.partnerCastePreferences ?? {};
+
+  const partnerAgeFrom = form.partnerAgeFrom.trim() ? Number(form.partnerAgeFrom) : undefined;
+  const partnerAgeTo = form.partnerAgeTo.trim() ? Number(form.partnerAgeTo) : undefined;
+
+  let partnerReligionIds: number[] | undefined;
+  let partnerCastePreferences: Record<string, number[]> | undefined;
+
+  if (prefType === "specific_religions") {
+    partnerReligionIds = form.partnerReligionIds
+      .map((id) => Number(id))
+      .filter((n) => Number.isFinite(n) && n > 0);
+    const selectedSet = new Set(partnerReligionIds.map(String));
+    partnerCastePreferences = Object.fromEntries(
+      Object.entries(rawCastePreferences).filter(([key]) => selectedSet.has(String(key))),
+    );
+  } else if (prefType === "own_religion_only") {
+    partnerCastePreferences = Object.fromEntries(
+      Object.entries(rawCastePreferences).filter(([key]) => Number(key) === religionId),
+    );
+  } else {
+    partnerReligionIds = [];
+    partnerCastePreferences = {};
+  }
+
+  const payload: Record<string, unknown> = {
+    partner_preference_type: prefType || undefined,
+    partner_religion_ids: partnerReligionIds,
+    partner_caste_preferences: partnerCastePreferences,
+    partner_age_from: partnerAgeFrom,
+    partner_age_to: partnerAgeTo,
+  };
+  return Object.fromEntries(Object.entries(payload).filter(([, v]) => v !== undefined));
+}
 
 /** Convert the wizard form object into a ready-to-POST FormData (registration JSON + files). */
 export function buildProfileRegistrationFormData(form: Record<string, unknown>): FormData {
@@ -77,17 +204,26 @@ export function buildProfileRegistrationFormData(form: Record<string, unknown>):
       religion_id: form.religionId ? Number(form.religionId) : undefined,
       caste_id: form.casteId ? Number(form.casteId) : undefined,
       mother_tongue_id: form.motherTongueId ? Number(form.motherTongueId) : undefined,
-      partner_preference_type: form.partnerPreferenceType || undefined,
-      partner_religion_ids: Array.isArray(form.partnerReligionIds)
-        ? form.partnerReligionIds.map((id: unknown) => Number(id)).filter((n: number) => Number.isFinite(n))
-        : undefined,
-      partner_caste_preference: form.partnerCastePreference || undefined,
+      ...buildPartnerReligionDetails({
+        religionId: String(form.religionId ?? ""),
+        partnerPreferenceType: (form.partnerPreferenceType as PartnerPreferenceType) ?? "own_religion_only",
+        partnerReligionIds: Array.isArray(form.partnerReligionIds)
+          ? (form.partnerReligionIds as string[])
+          : [],
+        partnerCastePreferences: (form.partnerCastePreferences as Record<string, number[]>) ?? {},
+        partnerAgeFrom: String(form.partnerAgeFrom ?? ""),
+        partnerAgeTo: String(form.partnerAgeTo ?? ""),
+      }),
     },
     personal_details: {
       marital_status: form.maritalStatus || undefined,
       height_cm: form.height ? Number(form.height) : undefined,
       weight_kg: form.weight || undefined,
       complexion: form.complexion || undefined,
+      reason_for_divorce:
+        form.maritalStatus === "Divorced" && form.reasonForDivorce
+          ? String(form.reasonForDivorce).trim()
+          : undefined,
     },
     education_details: {
       highest_education_id: form.highestEducationId ? Number(form.highestEducationId) : undefined,
@@ -96,6 +232,7 @@ export function buildProfileRegistrationFormData(form: Record<string, unknown>):
       occupation_id: form.occupationId ? Number(form.occupationId) : undefined,
       annual_income_id: form.annualIncomeId ? Number(form.annualIncomeId) : undefined,
     },
+    family_details: buildFamilyDetailsPayload(form as unknown as FamilyFormFields),
     about_me: form.aboutMe || undefined,
   } as Record<string, unknown>;
 
@@ -109,7 +246,7 @@ export function buildProfileRegistrationFormData(form: Record<string, unknown>):
 }
 
 /** Shared form shape consumed by the EditProfileWizard. */
-export interface WizardFormValues {
+export interface WizardFormValues extends FamilyFormFields, PartnerPreferenceFields {
   profileFor: string;
   fullName: string;
   mobile: string;
@@ -131,9 +268,7 @@ export interface WizardFormValues {
   casteId: string;
   motherTongueId: string;
   maritalStatus: string;
-  partnerPreferenceType: "own_religion_only" | "open_to_all" | "specific_religions";
-  partnerReligionIds: string[];
-  partnerCastePreference: "any" | "own_caste_only";
+  reasonForDivorce: string;
   hasChildren: boolean;
   numberOfMarriages: string;
   numberOfChildren: string;
@@ -197,6 +332,7 @@ export function mapDetailToWizardForm(
   const religion = (detail.religion_details as Record<string, unknown> | undefined) ?? {};
   const personal = (detail.personal_details as Record<string, unknown> | undefined) ?? {};
   const education = (detail.education_details as Record<string, unknown> | undefined) ?? {};
+  const family = (detail.family_details as Record<string, unknown> | undefined) ?? {};
   const horo = (detail.horoscope_details as Record<string, unknown> | undefined) ?? {};
 
   const partnerType = String(religion.partner_preference_type ?? "own_religion_only");
@@ -243,12 +379,21 @@ export function mapDetailToWizardForm(
     casteId: idToString(religion.caste_id),
     motherTongueId: idToString(religion.mother_tongue_id),
     maritalStatus: String(personal.marital_status ?? ""),
+    reasonForDivorce: String(personal.reason_for_divorce ?? ""),
     partnerPreferenceType:
       partnerType === "open_to_all" || partnerType === "specific_religions"
         ? (partnerType as WizardFormValues["partnerPreferenceType"])
         : "own_religion_only",
     partnerReligionIds,
-    partnerCastePreference: "any",
+    partnerCastePreferences: normalizePartnerCastePreferences(religion.partner_caste_preferences),
+    partnerAgeFrom:
+      religion.partner_age_from != null && String(religion.partner_age_from).trim() !== ""
+        ? String(religion.partner_age_from)
+        : "",
+    partnerAgeTo:
+      religion.partner_age_to != null && String(religion.partner_age_to).trim() !== ""
+        ? String(religion.partner_age_to)
+        : "",
     hasChildren: Boolean(personal.has_children),
     numberOfMarriages: "",
     numberOfChildren:
@@ -264,6 +409,7 @@ export function mapDetailToWizardForm(
     employmentStatus: String(education.employment_status ?? ""),
     occupationId: idToString(education.occupation_id),
     aboutMe: String(detail.about_me ?? ""),
+    ...mapFamilyDetailsToForm(family),
     full_photo: null,
     passport_photo: null,
     profile_photo: null,
@@ -318,12 +464,7 @@ export function buildProfileEditFormData(form: WizardFormValues): FormData {
       religion_id: form.religionId ? Number(form.religionId) : undefined,
       caste_id: form.casteId ? Number(form.casteId) : undefined,
       mother_tongue_id: form.motherTongueId ? Number(form.motherTongueId) : undefined,
-      partner_preference_type: form.partnerPreferenceType || undefined,
-      partner_religion_ids:
-        form.partnerPreferenceType === "specific_religions" && Array.isArray(form.partnerReligionIds)
-          ? form.partnerReligionIds.map((id) => Number(id)).filter((n) => Number.isFinite(n))
-          : undefined,
-      partner_caste_preference: form.partnerCastePreference || undefined,
+      ...buildPartnerReligionDetails(form),
     },
     personal_details: {
       marital_status: form.maritalStatus || undefined,
@@ -332,6 +473,10 @@ export function buildProfileEditFormData(form: WizardFormValues): FormData {
       complexion: form.complexion || undefined,
       has_children: form.hasChildren,
       number_of_children: form.hasChildren && form.numberOfChildren ? Number(form.numberOfChildren) : undefined,
+      reason_for_divorce:
+        form.maritalStatus === "Divorced" && form.reasonForDivorce
+          ? String(form.reasonForDivorce).trim()
+          : undefined,
     },
     education_details: {
       highest_education_id: form.highestEducationId ? Number(form.highestEducationId) : undefined,
@@ -340,6 +485,7 @@ export function buildProfileEditFormData(form: WizardFormValues): FormData {
       occupation_id: form.occupationId ? Number(form.occupationId) : undefined,
       annual_income_id: form.annualIncomeId ? Number(form.annualIncomeId) : undefined,
     },
+    family_details: buildFamilyDetailsPayload(form),
     about_me: form.aboutMe || undefined,
     has_horoscope: !!form.hasHoroscope,
     horoscope_details: horoscopeDetails,

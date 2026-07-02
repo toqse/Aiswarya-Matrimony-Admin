@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { formatDate } from "@/lib/format-date";
 import type { EnquiryRow, EnquirySource, EnquiryStatus } from "@/lib/admin-api/enquiries";
 import {
   addStaffEnquiryNote,
@@ -240,7 +241,7 @@ export default function StaffEnquiries() {
                               {e.source}
                             </div>
                             <p className="text-xs text-muted-foreground">
-                              Last: {(e.updated_at || e.created_at).slice(0, 10)}
+                              Last: {formatDate(e.updated_at || e.created_at)}
                             </p>
                             <div className="flex gap-1 flex-wrap">
                               {/* View button for all stages */}
@@ -294,7 +295,7 @@ export default function StaffEnquiries() {
                       <p className="font-medium text-xs">{e.name}</p>
                       <p className="text-xs text-muted-foreground">{e.notes}</p>
                       <p className="text-[10px] text-muted-foreground mt-0.5">
-                        {(e.updated_at || e.created_at).slice(0, 10)}
+                        {formatDate(e.updated_at || e.created_at)}
                       </p>
                     </div>
                   </div>

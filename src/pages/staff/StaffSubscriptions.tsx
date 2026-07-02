@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { fetchStaffSubscriptions } from "@/lib/admin-api/scoped";
 import { Search, Loader2 } from "lucide-react";
+import { formatDate } from "@/lib/format-date";
 
 const statusColors: Record<string, string> = {
   active: "bg-success text-success-foreground",
@@ -81,7 +82,7 @@ export default function StaffSubscriptions() {
                   <TableCell>₹{Number(s.amount).toLocaleString()}</TableCell>
                   <TableCell>{s.branch}</TableCell>
                   <TableCell className="text-xs">
-                    {s.start_date} → {s.expiry_date}
+                    {formatDate(s.start_date)} → {formatDate(s.expiry_date)}
                   </TableCell>
                   <TableCell>
                     <Badge className={statusColors[s.status] ?? ""}>{s.status}</Badge>

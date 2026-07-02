@@ -14,6 +14,7 @@ import {
   Users, Receipt, Lock, CalendarClock, Building2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { formatDate } from "@/lib/format-date";
 
 const staffData = [
   { name: "Priya Kumar", txns: 28, revenue: 62000, cash: 18000, digital: 44000, target: 70000, achieved: 65100 },
@@ -414,7 +415,7 @@ export default function BranchCashPayments() {
             <div className="space-y-4">
               <div className="bg-muted/50 rounded-lg p-4 font-mono text-xs space-y-1">
                 <p className="font-bold text-sm mb-2">━━━ CHENNAI HQ — DAY-CLOSE ━━━</p>
-                <p>Date: {new Date().toLocaleDateString()}</p>
+                <p>Date: {formatDate(new Date())}</p>
                 <p>Manager: Ramesh Kumar</p>
                 <p className="mt-2 font-bold">CASH RECONCILIATION:</p>
                 <p>Expected: ₹{expectedCash.toLocaleString()}</p>

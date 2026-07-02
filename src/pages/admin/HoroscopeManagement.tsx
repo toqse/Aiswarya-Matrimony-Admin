@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -10,39 +10,53 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Progress } from "@/components/ui/progress";
 import { useRole } from "@/contexts/RoleContext";
-import { cn } from "@/lib/utils";
 import type { UserRole } from "@/types/user-role";
+import { getApiErrorMessage } from "@/lib/admin-api/http";
 import {
   fetchHoroscopeRecordDetail,
   fetchHoroscopeRecords,
   fetchHoroscopeSummary,
-  fetchJathakamPdfs,
   normalizeHoroscopeRecord,
   postHoroscopePorutham,
   postHoroscopeRegenerate,
+  initPoruthamNavFromSelection,
+  advancePoruthamNav,
   type HoroscopeRecordRow,
+  type PoruthamNavSelectionItem,
+  type PoruthamNavWindow,
 } from "@/lib/admin-api/horoscope";
-import { fetchBranchList } from "@/lib/admin-api/branches";
-import { adminFetchBlob, downloadBlob } from "@/lib/api-client";
-import { API_BASE_URL } from "@/lib/config";
 import {
-  Star, Eye, FileText, Download, RefreshCw, Search,
+  Star, Eye, FileText, RefreshCw,
   CheckCircle, Clock, XCircle, AlertTriangle, Heart, Sparkles,
-  Shield, Loader2, ChevronLeft, ChevronRight, ExternalLink, Link2, ChevronsUpDown,
+  Shield, Loader2, ChevronLeft, ChevronRight, ExternalLink, Link2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import HoroscopeSearchFilters from "@/components/horoscope/HoroscopeSearchFilters";
+import PoruthamProfileMultiPicker from "@/components/horoscope/PoruthamProfileMultiPicker";
 import { PoruthamResultView } from "@/components/horoscope/PoruthamResultView";
+import { JathagamTab } from "@/components/horoscope/JathagamTab";
 import {
   HoroscopeChart,
   extractHoroscopeCharts,
   t as horoscopeT,
   MALAYALAM_FONT,
+  type HoroscopeDisplay,
   type HoroscopeLang,
 } from "@/components/horoscope/HoroscopeChart";
-import { signNameFromChartString } from "@/components/horoscope/horoscope-i18n";
+import {
+  signNameFromChartString,
+  nakshatraDisplayFromStar,
+  dasaLordDisplayFromStar,
+  localizeHoroscopeDisplay,
+} from "@/components/horoscope/horoscope-i18n";
+import { formatDate, formatDateTime } from "@/lib/format-date";
+import {
+  EMPTY_HOROSCOPE_SEARCH,
+  horoscopeSearchToQuery,
+  type HoroscopeSearchFiltersState,
+} from "@/lib/horoscopeSearch";
 
 const jathagamStatusConfig: Record<string, { icon: typeof CheckCircle; color: string; label: string }> = {
   generated: { icon: CheckCircle, color: "bg-success/10 text-success", label: "Generated" },
@@ -50,28 +64,6 @@ const jathagamStatusConfig: Record<string, { icon: typeof CheckCircle; color: st
   failed: { icon: XCircle, color: "bg-destructive/10 text-destructive", label: "Failed" },
   "not-applicable": { icon: AlertTriangle, color: "bg-muted text-muted-foreground", label: "N/A" },
 };
-
-function apiPathFromAbsolutePdfUrl(url: string): string | null {
-  if (!url.startsWith("http")) return null;
-  const base = API_BASE_URL.replace(/\/?$/, "/");
-  const idx = url.indexOf("/api/");
-  if (idx === -1) return null;
-  const rest = url.slice(idx + "/api/".length).replace(/^\//, "");
-  if (!rest) return null;
-  return rest;
-}
-
-async function downloadPdfAuthenticated(url: string, fallbackName: string) {
-  const path = apiPathFromAbsolutePdfUrl(url);
-  if (path) {
-    const { ok, blob, filename } = await adminFetchBlob(path);
-    if (ok) {
-      downloadBlob(blob, filename || fallbackName);
-      return;
-    }
-  }
-  if (url.startsWith("http")) window.open(url, "_blank", "noopener,noreferrer");
-}
 
 /** Branch manager / staff: profile list route; admin uses Profile Admin. */
 function profilesListPath(role: "admin" | "staff" | "branch-manager"): string {
@@ -86,138 +78,86 @@ function formatLastEdited(label: string): string {
     const tail = parts[parts.length - 1]!;
     const d = new Date(tail);
     if (!Number.isNaN(d.getTime())) {
-      parts[parts.length - 1] = d.toLocaleString();
+      parts[parts.length - 1] = formatDateTime(tail);
       return parts.join(" · ");
     }
   }
   const d = new Date(label);
-  if (!Number.isNaN(d.getTime())) return d.toLocaleString();
+  if (!Number.isNaN(d.getTime())) return formatDateTime(label);
   return label;
 }
 
-function formatPoruthamOptionLabel(r: HoroscopeRecordRow): string | null {
-  if (r.profile_id == null) return null;
-  return `${r.profile_name || "—"} (${r.matri_id || "—"}) — ${r.profile_id}`;
+function pickPoruthamPair(
+  brides: PoruthamNavSelectionItem[],
+  grooms: PoruthamNavSelectionItem[],
+): { bride: PoruthamNavSelectionItem; groom: PoruthamNavSelectionItem } | null {
+  for (const bride of brides) {
+    for (const groom of grooms) {
+      if (bride.profile_id !== groom.profile_id) {
+        return { bride, groom };
+      }
+    }
+  }
+  return null;
 }
 
-function PoruthamProfilePicker({
-  value,
-  onValueChange,
-  placeholder,
-  role,
-  branchId,
-  tabActive,
-  instanceId,
-}: {
-  value: string;
-  onValueChange: (id: string) => void;
-  placeholder: string;
-  role: UserRole;
-  branchId: number | undefined;
-  tabActive: boolean;
-  instanceId: "bride" | "groom";
-}) {
-  const [open, setOpen] = useState(false);
-  const [searchDraft, setSearchDraft] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [labelSnap, setLabelSnap] = useState<{ id: string; label: string } | null>(null);
+function poruthamNavEligibleCount(
+  window: PoruthamNavWindow | null,
+  excludeProfileId?: number,
+  dismissedIds?: ReadonlySet<number>,
+): number {
+  if (!window) return 0;
+  return window.list.filter((r) => !poruthamProfileSkipped(r.profile_id, excludeProfileId, dismissedIds)).length;
+}
 
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(searchDraft.trim()), 400);
-    return () => clearTimeout(t);
-  }, [searchDraft]);
+function poruthamProfileSkipped(
+  profileId: number | null | undefined,
+  excludeProfileId?: number,
+  dismissedIds?: ReadonlySet<number>,
+): boolean {
+  if (profileId == null) return true;
+  if (excludeProfileId != null && profileId === excludeProfileId) return true;
+  return dismissedIds?.has(profileId) ?? false;
+}
 
-  useEffect(() => {
-    if (!open) setSearchDraft("");
-  }, [open]);
+function poruthamNavCapsWithDismissed(
+  window: PoruthamNavWindow | null,
+  excludeProfileId?: number,
+  dismissedIds?: ReadonlySet<number>,
+): { canPrev: boolean; canNext: boolean } {
+  if (!window || !window.list.length) return { canPrev: false, canNext: false };
+  const skipped = (profileId: number | null | undefined) =>
+    poruthamProfileSkipped(profileId, excludeProfileId, dismissedIds);
+  const canPrev =
+    window.list.slice(0, window.index).some((r) => !skipped(r.profile_id)) || window.hasPrevious;
+  const canNext =
+    window.list.slice(window.index + 1).some((r) => !skipped(r.profile_id)) || window.hasMore;
+  return { canPrev, canNext };
+}
 
-  useEffect(() => {
-    setLabelSnap((prev) => {
-      if (!value) return null;
-      if (prev && prev.id !== value) return null;
-      return prev;
-    });
-  }, [value]);
-
-  const { data, isLoading, isFetching } = useQuery({
-    queryKey: ["horoscope", role, "porutham-picker", instanceId, branchId, debouncedSearch],
-    queryFn: () =>
-      fetchHoroscopeRecords(role, {
-        page: 1,
-        page_size: 100,
-        branch_id: branchId,
-        search: debouncedSearch || undefined,
-      }),
-    enabled: tabActive && open,
-  });
-
-  const rows = (data?.results ?? []).filter((r) => r.profile_id != null);
-  const matchInRows = rows.find((r) => String(r.profile_id) === value);
-  const fromRow = matchInRows ? formatPoruthamOptionLabel(matchInRows) : null;
-  const triggerLabel =
-    fromRow || (labelSnap?.id === value ? labelSnap.label : null) || (value ? `Profile ID ${value}` : null);
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          className="w-full justify-between font-normal h-10 px-3"
-        >
-          <span className="truncate text-left">
-            {triggerLabel ?? <span className="text-muted-foreground">{placeholder}</span>}
-          </span>
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-[var(--radix-popover-trigger-width)] min-w-[280px] p-0" align="start">
-        <div className="flex items-center border-b px-2 py-1.5 gap-2">
-          <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
-          <Input
-            className="h-9 border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
-            placeholder="Search by name…"
-            value={searchDraft}
-            onChange={(e) => setSearchDraft(e.target.value)}
-          />
-        </div>
-        <div className="max-h-[280px] overflow-y-auto p-1">
-          {isLoading || isFetching ? (
-            <div className="flex justify-center py-6 text-muted-foreground">
-              <Loader2 className="h-5 w-5 animate-spin" />
-            </div>
-          ) : rows.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">No profiles found.</p>
-          ) : (
-            rows.map((r) => {
-              const pid = String(r.profile_id);
-              const lab = formatPoruthamOptionLabel(r);
-              if (!lab) return null;
-              return (
-                <button
-                  key={`${instanceId}-${pid}`}
-                  type="button"
-                  className={cn(
-                    "relative flex w-full cursor-default select-none items-center rounded-sm px-2 py-2 text-left text-sm outline-none hover:bg-accent hover:text-accent-foreground",
-                    value === pid && "bg-accent",
-                  )}
-                  onClick={() => {
-                    onValueChange(pid);
-                    setLabelSnap({ id: pid, label: lab });
-                    setOpen(false);
-                  }}
-                >
-                  {lab}
-                </button>
-              );
-            })
-          )}
-        </div>
-      </PopoverContent>
-    </Popover>
-  );
+async function advancePoruthamNavSkippingDismissed(
+  role: UserRole,
+  branchId: number | undefined,
+  input: {
+    gender: "F" | "M";
+    direction: 1 | -1;
+    window: PoruthamNavWindow;
+    excludeProfileId?: number;
+  },
+  dismissedIds: ReadonlySet<number>,
+) {
+  let window = input.window;
+  for (let safety = 0; safety < 200; safety++) {
+    const result = await advancePoruthamNav(role, branchId, { ...input, window });
+    if (!result.row?.profile_id || !dismissedIds.has(result.row.profile_id)) return result;
+    window = result.window;
+  }
+  return {
+    window,
+    row: null,
+    canPrev: poruthamNavCapsWithDismissed(window, input.excludeProfileId, dismissedIds).canPrev,
+    canNext: false,
+  };
 }
 
 export default function HoroscopeManagement() {
@@ -226,52 +166,287 @@ export default function HoroscopeManagement() {
   const queryClient = useQueryClient();
 
   const [activeTab, setActiveTab] = useState("horoscopes");
-  const [searchInput, setSearchInput] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [branchFilter, setBranchFilter] = useState<string>("all");
+  const [filters, setFilters] = useState<HoroscopeSearchFiltersState>(EMPTY_HOROSCOPE_SEARCH);
+  const [applied, setApplied] = useState<HoroscopeSearchFiltersState>(EMPTY_HOROSCOPE_SEARCH);
   const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
 
   const [viewOpen, setViewOpen] = useState(false);
   const [viewUserUuid, setViewUserUuid] = useState<string | null>(null);
+  const [viewRow, setViewRow] = useState<HoroscopeRecordRow | null>(null);
 
+  const [selectedBrides, setSelectedBrides] = useState<PoruthamNavSelectionItem[]>([]);
+  const [selectedGrooms, setSelectedGrooms] = useState<PoruthamNavSelectionItem[]>([]);
   const [poruthamBride, setPoruthamBride] = useState<string>("");
   const [poruthamGroom, setPoruthamGroom] = useState<string>("");
   const [poruthamResultOpen, setPoruthamResultOpen] = useState(false);
   const [poruthamResult, setPoruthamResult] = useState<unknown>(null);
+  const [brideNavWindow, setBrideNavWindow] = useState<PoruthamNavWindow | null>(null);
+  const [groomNavWindow, setGroomNavWindow] = useState<PoruthamNavWindow | null>(null);
+  const [poruthamNavLoading, setPoruthamNavLoading] = useState<"bride" | "groom" | null>(null);
+  const [dismissedBrideProfileIds, setDismissedBrideProfileIds] = useState<Set<number>>(() => new Set());
+  const [dismissedGroomProfileIds, setDismissedGroomProfileIds] = useState<Set<number>>(() => new Set());
+  const [poruthamRemainingCount, setPoruthamRemainingCount] = useState(0);
 
   const isAdmin = role === "admin";
   const isBranchManager = role === "branch-manager";
 
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(searchInput.trim()), 400);
-    return () => clearTimeout(t);
-  }, [searchInput]);
-
-  const branchIdParam = useMemo(() => {
-    if (!isAdmin || branchFilter === "all") return undefined;
-    const n = Number(branchFilter);
-    return Number.isFinite(n) ? n : undefined;
-  }, [isAdmin, branchFilter]);
-
-  /** Admin: from filter. Branch manager: JWT branch (master id) when present. Staff: omit (server scope). */
+  /** Admin: from applied filter. Branch manager: JWT branch (master id) when present. Staff: omit (server scope). */
   const horoscopeBranchId = useMemo(() => {
-    if (isAdmin) return branchIdParam;
+    if (isAdmin && applied.branch_id) {
+      const n = Number(applied.branch_id);
+      return Number.isFinite(n) ? n : undefined;
+    }
     if (isBranchManager && typeof branch?.id === "number" && Number.isFinite(branch.id)) return branch.id;
     return undefined;
-  }, [isAdmin, isBranchManager, branch?.id, branchIdParam]);
+  }, [isAdmin, isBranchManager, branch?.id, applied.branch_id]);
+
+  const poruthamBrideMatri = useMemo(
+    () => selectedBrides.find((s) => String(s.profile_id) === poruthamBride)?.matri_id ?? "",
+    [selectedBrides, poruthamBride],
+  );
+  const poruthamGroomMatri = useMemo(
+    () => selectedGrooms.find((s) => String(s.profile_id) === poruthamGroom)?.matri_id ?? "",
+    [selectedGrooms, poruthamGroom],
+  );
 
   const profilesPath = profilesListPath(role);
 
-  useEffect(() => {
-    setPage(1);
-  }, [debouncedSearch, branchFilter, horoscopeBranchId]);
+  const setupPoruthamNav = useCallback(
+    (
+      brideId: number,
+      groomId: number,
+      resultData: unknown,
+      brideSelections: PoruthamNavSelectionItem[],
+      groomSelections: PoruthamNavSelectionItem[],
+    ) => {
+      try {
+        const brideWin = initPoruthamNavFromSelection(brideSelections, brideId, {
+          matriId: brideSelections.find((s) => s.profile_id === brideId)?.matri_id,
+          profileName: poruthamPersonName(resultData, "bride"),
+        });
+        const groomWin = initPoruthamNavFromSelection(groomSelections, groomId, {
+          matriId: groomSelections.find((s) => s.profile_id === groomId)?.matri_id,
+          profileName: poruthamPersonName(resultData, "groom"),
+        });
+        setBrideNavWindow(brideWin);
+        setGroomNavWindow(groomWin);
+        const brideEligible = poruthamNavEligibleCount(brideWin, groomId, new Set());
+        const groomEligible = poruthamNavEligibleCount(groomWin, brideId, new Set());
+        setPoruthamRemainingCount(brideEligible + groomEligible);
+      } catch {
+        setBrideNavWindow(null);
+        setGroomNavWindow(null);
+      }
+    },
+    [],
+  );
 
-  const { data: branchListData } = useQuery({
-    queryKey: ["admin", "branches", "horoscope-filter"],
-    queryFn: () => fetchBranchList({ page: 1, page_size: 100 }),
-    enabled: isAdmin,
-  });
+  const executePorutham = useCallback(
+    async (brideId: number, groomId: number, navSide?: "bride" | "groom") => {
+      if (navSide) setPoruthamNavLoading(navSide);
+      try {
+        const data = await postHoroscopePorutham(role, {
+          bride_profile_id: brideId,
+          groom_profile_id: groomId,
+        });
+        setPoruthamResult(data);
+        setPoruthamResultOpen(true);
+        queryClient.invalidateQueries({ queryKey: ["horoscope", role, "summary"] });
+        return data;
+      } catch (e) {
+        toast({
+          title: "Porutham failed",
+          description: e instanceof Error ? e.message : "Request failed",
+          variant: "destructive",
+        });
+        throw e;
+      } finally {
+        setPoruthamNavLoading(null);
+      }
+    },
+    [role, queryClient, toast],
+  );
+
+  const resetPoruthamNav = useCallback(() => {
+    setBrideNavWindow(null);
+    setGroomNavWindow(null);
+    setPoruthamNavLoading(null);
+    setDismissedBrideProfileIds(new Set());
+    setDismissedGroomProfileIds(new Set());
+    setPoruthamRemainingCount(0);
+  }, []);
+
+  const handlePoruthamResultOpenChange = useCallback(
+    (open: boolean) => {
+      setPoruthamResultOpen(open);
+      if (!open) resetPoruthamNav();
+    },
+    [resetPoruthamNav],
+  );
+
+  const handleBrideNav = useCallback(
+    async (direction: 1 | -1) => {
+      if (!brideNavWindow || poruthamNavLoading) return;
+      const groomId = Number(poruthamGroom);
+      if (!Number.isFinite(groomId)) return;
+      try {
+        const advanced = await advancePoruthamNavSkippingDismissed(
+          role,
+          horoscopeBranchId,
+          {
+            gender: "F",
+            direction,
+            window: brideNavWindow,
+            excludeProfileId: groomId,
+          },
+          dismissedBrideProfileIds,
+        );
+        if (!advanced.row?.profile_id) return;
+        setBrideNavWindow(advanced.window);
+        setPoruthamBride(String(advanced.row.profile_id));
+        await executePorutham(advanced.row.profile_id, groomId, "bride");
+      } catch {
+        /* toast shown in executePorutham */
+      }
+    },
+    [
+      brideNavWindow,
+      poruthamNavLoading,
+      poruthamGroom,
+      role,
+      horoscopeBranchId,
+      executePorutham,
+      dismissedBrideProfileIds,
+    ],
+  );
+
+  const handleBrideDismiss = useCallback(async () => {
+    if (!brideNavWindow || poruthamNavLoading) return;
+    const brideId = Number(poruthamBride);
+    const groomId = Number(poruthamGroom);
+    if (!Number.isFinite(brideId) || !Number.isFinite(groomId)) return;
+    const nextDismissed = new Set(dismissedBrideProfileIds);
+    nextDismissed.add(brideId);
+    setDismissedBrideProfileIds(nextDismissed);
+    setPoruthamRemainingCount((c) => Math.max(0, c - 1));
+    try {
+      const advanced = await advancePoruthamNavSkippingDismissed(
+        role,
+        horoscopeBranchId,
+        {
+          gender: "F",
+          direction: 1,
+          window: brideNavWindow,
+          excludeProfileId: groomId,
+        },
+        nextDismissed,
+      );
+      if (!advanced.row?.profile_id) return;
+      setBrideNavWindow(advanced.window);
+      setPoruthamBride(String(advanced.row.profile_id));
+      await executePorutham(advanced.row.profile_id, groomId, "bride");
+    } catch {
+      /* toast shown in executePorutham */
+    }
+  }, [
+    brideNavWindow,
+    poruthamNavLoading,
+    poruthamBride,
+    poruthamGroom,
+    dismissedBrideProfileIds,
+    role,
+    horoscopeBranchId,
+    executePorutham,
+  ]);
+
+  const handleGroomNav = useCallback(
+    async (direction: 1 | -1) => {
+      if (!groomNavWindow || poruthamNavLoading) return;
+      const brideId = Number(poruthamBride);
+      if (!Number.isFinite(brideId)) return;
+      try {
+        const advanced = await advancePoruthamNavSkippingDismissed(
+          role,
+          horoscopeBranchId,
+          {
+            gender: "M",
+            direction,
+            window: groomNavWindow,
+            excludeProfileId: brideId,
+          },
+          dismissedGroomProfileIds,
+        );
+        if (!advanced.row?.profile_id) return;
+        setGroomNavWindow(advanced.window);
+        setPoruthamGroom(String(advanced.row.profile_id));
+        await executePorutham(brideId, advanced.row.profile_id, "groom");
+      } catch {
+        /* toast shown in executePorutham */
+      }
+    },
+    [
+      groomNavWindow,
+      poruthamNavLoading,
+      poruthamBride,
+      role,
+      horoscopeBranchId,
+      executePorutham,
+      dismissedGroomProfileIds,
+    ],
+  );
+
+  const handleGroomDismiss = useCallback(async () => {
+    if (!groomNavWindow || poruthamNavLoading) return;
+    const brideId = Number(poruthamBride);
+    const groomId = Number(poruthamGroom);
+    if (!Number.isFinite(brideId) || !Number.isFinite(groomId)) return;
+    const nextDismissed = new Set(dismissedGroomProfileIds);
+    nextDismissed.add(groomId);
+    setDismissedGroomProfileIds(nextDismissed);
+    setPoruthamRemainingCount((c) => Math.max(0, c - 1));
+    try {
+      const advanced = await advancePoruthamNavSkippingDismissed(
+        role,
+        horoscopeBranchId,
+        {
+          gender: "M",
+          direction: 1,
+          window: groomNavWindow,
+          excludeProfileId: brideId,
+        },
+        nextDismissed,
+      );
+      if (!advanced.row?.profile_id) return;
+      setGroomNavWindow(advanced.window);
+      setPoruthamGroom(String(advanced.row.profile_id));
+      await executePorutham(brideId, advanced.row.profile_id, "groom");
+    } catch {
+      /* toast shown in executePorutham */
+    }
+  }, [
+    groomNavWindow,
+    poruthamNavLoading,
+    poruthamBride,
+    poruthamGroom,
+    dismissedGroomProfileIds,
+    role,
+    horoscopeBranchId,
+    executePorutham,
+  ]);
+
+  const groomProfileIdNum = Number(poruthamGroom);
+  const brideProfileIdNum = Number(poruthamBride);
+  const brideNavCaps = poruthamNavCapsWithDismissed(
+    brideNavWindow,
+    Number.isFinite(groomProfileIdNum) ? groomProfileIdNum : undefined,
+    dismissedBrideProfileIds,
+  );
+  const groomNavCaps = poruthamNavCapsWithDismissed(
+    groomNavWindow,
+    Number.isFinite(brideProfileIdNum) ? brideProfileIdNum : undefined,
+    dismissedGroomProfileIds,
+  );
 
   const { data: summary, isLoading: summaryLoading, error: summaryError } = useQuery({
     queryKey: ["horoscope", role, "summary", horoscopeBranchId],
@@ -284,26 +459,15 @@ export default function HoroscopeManagement() {
     isFetching: recordsFetching,
     error: recordsError,
   } = useQuery({
-    queryKey: ["horoscope", role, "records", debouncedSearch, horoscopeBranchId, page, pageSize],
+    queryKey: ["horoscope", role, "records", applied, page, pageSize],
     queryFn: () =>
-      fetchHoroscopeRecords(role, {
-        search: debouncedSearch || undefined,
-        branch_id: horoscopeBranchId,
-        page,
-        page_size: pageSize,
-      }),
+      fetchHoroscopeRecords(role, horoscopeSearchToQuery(applied, { page, page_size: pageSize })),
   });
 
-  const { data: detailPayload, isLoading: detailLoading } = useQuery({
+  const { data: detailPayload, isLoading: detailLoading, error: detailError } = useQuery({
     queryKey: ["horoscope", role, "detail", viewUserUuid],
     queryFn: () => fetchHoroscopeRecordDetail(role, viewUserUuid!),
     enabled: viewOpen && !!viewUserUuid && !viewUserUuid.startsWith("row-"),
-  });
-
-  const { data: jathakamRows, isLoading: jathakamLoading, error: jathakamError } = useQuery({
-    queryKey: ["horoscope", role, "jathakam-pdfs", horoscopeBranchId],
-    queryFn: () => fetchJathakamPdfs(role, { branch_id: horoscopeBranchId }),
-    enabled: activeTab === "jathagam",
   });
 
   const regenerateMut = useMutation({
@@ -319,11 +483,18 @@ export default function HoroscopeManagement() {
 
   const poruthamMut = useMutation({
     mutationFn: (body: { bride_profile_id: number; groom_profile_id: number }) => postHoroscopePorutham(role, body),
-    onSuccess: (data) => {
+    onSuccess: async (data, variables) => {
       setPoruthamResult(data);
       setPoruthamResultOpen(true);
       toast({ title: "Porutham calculated", description: "See result details." });
       queryClient.invalidateQueries({ queryKey: ["horoscope", role, "summary"] });
+      await setupPoruthamNav(
+        variables.bride_profile_id,
+        variables.groom_profile_id,
+        data,
+        selectedBrides,
+        selectedGrooms,
+      );
     },
     onError: (e: Error) => {
       toast({ title: "Porutham failed", description: e.message, variant: "destructive" });
@@ -332,6 +503,7 @@ export default function HoroscopeManagement() {
 
   const openView = (row: HoroscopeRecordRow) => {
     setViewUserUuid(row.user_uuid);
+    setViewRow(row);
     setViewOpen(true);
   };
 
@@ -340,17 +512,29 @@ export default function HoroscopeManagement() {
   const totalPages = Math.max(1, Math.ceil((recordsPage?.count ?? 0) / pageSize));
 
   const handlePoruthamSubmit = () => {
-    const b = Number(poruthamBride);
-    const g = Number(poruthamGroom);
-    if (!Number.isFinite(b) || !Number.isFinite(g)) {
-      toast({ title: "Select profiles", description: "Choose bride and groom profile IDs from the lists.", variant: "destructive" });
+    if (selectedBrides.length === 0 || selectedGrooms.length === 0) {
+      toast({
+        title: "Select profiles",
+        description: "Choose at least one bride and one groom from the lists.",
+        variant: "destructive",
+      });
       return;
     }
-    if (b === g) {
-      toast({ title: "Invalid pair", description: "Bride and groom must be different profiles.", variant: "destructive" });
+    const pair = pickPoruthamPair(selectedBrides, selectedGrooms);
+    if (!pair) {
+      toast({
+        title: "Invalid pair",
+        description: "Bride and groom must be different profiles.",
+        variant: "destructive",
+      });
       return;
     }
-    poruthamMut.mutate({ bride_profile_id: b, groom_profile_id: g });
+    setPoruthamBride(String(pair.bride.profile_id));
+    setPoruthamGroom(String(pair.groom.profile_id));
+    poruthamMut.mutate({
+      bride_profile_id: pair.bride.profile_id,
+      groom_profile_id: pair.groom.profile_id,
+    });
   };
 
   function errMsg(e: unknown): string {
@@ -365,27 +549,26 @@ export default function HoroscopeManagement() {
     if (recordsError) toast({ title: "Records error", description: errMsg(recordsError), variant: "destructive" });
   }, [recordsError, toast]);
 
-  useEffect(() => {
-    if (jathakamError) toast({ title: "Jathakam list error", description: errMsg(jathakamError), variant: "destructive" });
-  }, [jathakamError, toast]);
-
   const kpis = summary
     ? [
         { label: "Total Horoscopes", value: summary.total_horoscopes, icon: Star, color: "text-accent" },
-        { label: "Jathagam Generated", value: summary.jathagam_generated, icon: FileText, color: "text-success" },
+        { label: "Thalakkuri Generated", value: summary.jathagam_generated, icon: FileText, color: "text-success" },
         { label: "Pending Generation", value: summary.pending_generation, icon: Clock, color: "text-warning" },
         { label: "Match Calculations", value: summary.match_calculations, icon: Heart, color: "text-primary" },
         { label: "Mangal Dosham", value: summary.mangal_dosham, icon: AlertTriangle, color: "text-destructive" },
       ]
     : [
         { label: "Total Horoscopes", value: 0, icon: Star, color: "text-accent" },
-        { label: "Jathagam Generated", value: 0, icon: FileText, color: "text-success" },
+        { label: "Thalakkuri Generated", value: 0, icon: FileText, color: "text-success" },
         { label: "Pending Generation", value: 0, icon: Clock, color: "text-warning" },
         { label: "Match Calculations", value: 0, icon: Heart, color: "text-primary" },
         { label: "Mangal Dosham", value: 0, icon: AlertTriangle, color: "text-destructive" },
       ];
 
-  const detailRow = detailPayload ? normalizeHoroscopeRecord(detailPayload, 0) : null;
+  const detailRow = detailPayload
+    ? normalizeHoroscopeRecord(detailPayload, 0)
+    : viewRow;
+  const horoscopeAvailable = !detailError && !!detailPayload;
 
   return (
     <div className="space-y-6">
@@ -438,33 +621,24 @@ export default function HoroscopeManagement() {
         </TabsList>
 
         <TabsContent value="horoscopes" className="space-y-4">
+          <HoroscopeSearchFilters
+            value={filters}
+            onChange={setFilters}
+            onSearch={() => {
+              setApplied({ ...filters });
+              setPage(1);
+            }}
+            onReset={() => {
+              setFilters(EMPTY_HOROSCOPE_SEARCH);
+              setApplied(EMPTY_HOROSCOPE_SEARCH);
+              setPage(1);
+            }}
+            role={role}
+          />
+
           <Card className="shadow-elegant border-0">
             <CardHeader>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <CardTitle className="text-base">Horoscope Records</CardTitle>
-                <div className="flex flex-wrap gap-2">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Search profile, rasi…"
-                      value={searchInput}
-                      onChange={(e) => setSearchInput(e.target.value)}
-                      className="pl-9 w-56"
-                    />
-                  </div>
-                  {isAdmin && (
-                    <Select value={branchFilter} onValueChange={setBranchFilter}>
-                      <SelectTrigger className="w-52"><SelectValue placeholder="All Branches" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Branches</SelectItem>
-                        {(branchListData?.results ?? []).map((b) => (
-                          <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                </div>
-              </div>
+              <CardTitle className="text-base">Horoscope Records</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="rounded-md border overflow-x-auto">
@@ -477,7 +651,6 @@ export default function HoroscopeManagement() {
                       <TableHead>DOB</TableHead>
                       <TableHead>Rasi</TableHead>
                       <TableHead>Nakshatram</TableHead>
-                      <TableHead>Dosham</TableHead>
                       <TableHead>Mangal</TableHead>
                       <TableHead>Jathagam</TableHead>
                       <TableHead>Last Edited</TableHead>
@@ -487,13 +660,13 @@ export default function HoroscopeManagement() {
                   <TableBody>
                     {recordsLoading ? (
                       <TableRow>
-                        <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                           <Loader2 className="h-6 w-6 animate-spin inline mr-2" /> Loading…
                         </TableCell>
                       </TableRow>
                     ) : (recordsPage?.results ?? []).length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">No records</TableCell>
+                        <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">No records</TableCell>
                       </TableRow>
                     ) : (
                       (recordsPage?.results ?? []).map((h) => {
@@ -510,16 +683,9 @@ export default function HoroscopeManagement() {
                             </TableCell>
                             <TableCell className="text-sm">{h.branch || "—"}</TableCell>
                             <TableCell className="text-sm">{h.religion || "—"}</TableCell>
-                            <TableCell className="text-sm">{h.dob || "—"}</TableCell>
+                            <TableCell className="text-sm">{formatDate(h.dob)}</TableCell>
                             <TableCell className="text-sm font-medium">{h.rasi || <span className="text-muted-foreground">—</span>}</TableCell>
                             <TableCell className="text-sm">{h.nakshatram || <span className="text-muted-foreground">—</span>}</TableCell>
-                            <TableCell>
-                              {h.dosham ? (
-                                <Badge className={h.dosham.toLowerCase().includes("no") ? "bg-success/10 text-success text-[10px]" : "bg-warning/10 text-warning text-[10px]"}>
-                                  {h.dosham}
-                                </Badge>
-                              ) : <span className="text-muted-foreground text-xs">—</span>}
-                            </TableCell>
                             <TableCell>
                               {h.mangal ? (
                                 <Badge variant="destructive" className="text-[10px]">Yes</Badge>
@@ -596,50 +762,42 @@ export default function HoroscopeManagement() {
           <Card className="shadow-elegant border-0">
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2"><Heart className="h-4 w-4 text-primary" /> Porutham (compatibility)</CardTitle>
-              <CardDescription>
-                Run a match calculation for two member profiles. Uses POST <code className="text-xs">porutham/</code> with numeric profile IDs from your directory.
-              </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4 max-w-xl">
+            <CardContent className="space-y-4 max-w-3xl">
+              <p className="text-xs text-muted-foreground">
+                Select one or more bride and groom profiles. Porutham results and navigation (prev / next / close) stay
+                within your selected lists only.
+              </p>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>Bride profile ID</Label>
-                  <PoruthamProfilePicker
-                    value={poruthamBride}
-                    onValueChange={setPoruthamBride}
-                    placeholder="Search and select…"
+                  <Label>Bride profiles</Label>
+                  <PoruthamProfileMultiPicker
+                    selected={selectedBrides}
+                    onSelectedChange={setSelectedBrides}
+                    placeholder="Search and select brides…"
                     role={role}
                     branchId={horoscopeBranchId}
                     tabActive={activeTab === "matches"}
                     instanceId="bride"
                   />
-                  <Input
-                    type="number"
-                    placeholder="Or enter bride profile_id"
-                    value={poruthamBride}
-                    onChange={(e) => setPoruthamBride(e.target.value)}
-                  />
                 </div>
                 <div className="space-y-2">
-                  <Label>Groom profile ID</Label>
-                  <PoruthamProfilePicker
-                    value={poruthamGroom}
-                    onValueChange={setPoruthamGroom}
-                    placeholder="Search and select…"
+                  <Label>Groom profiles</Label>
+                  <PoruthamProfileMultiPicker
+                    selected={selectedGrooms}
+                    onSelectedChange={setSelectedGrooms}
+                    placeholder="Search and select grooms…"
                     role={role}
                     branchId={horoscopeBranchId}
                     tabActive={activeTab === "matches"}
                     instanceId="groom"
                   />
-                  <Input
-                    type="number"
-                    placeholder="Or enter groom profile_id"
-                    value={poruthamGroom}
-                    onChange={(e) => setPoruthamGroom(e.target.value)}
-                  />
                 </div>
               </div>
-              <Button onClick={handlePoruthamSubmit} disabled={poruthamMut.isPending}>
+              <Button
+                onClick={handlePoruthamSubmit}
+                disabled={poruthamMut.isPending || selectedBrides.length === 0 || selectedGrooms.length === 0}
+              >
                 {poruthamMut.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                 Calculate porutham
               </Button>
@@ -648,64 +806,17 @@ export default function HoroscopeManagement() {
         </TabsContent>
 
         <TabsContent value="jathagam" className="space-y-4">
-          <Card className="shadow-elegant border-0">
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2"><FileText className="h-4 w-4 text-primary" /> Jathagam PDFs</CardTitle>
-              <CardDescription>From GET <code className="text-xs">jathakam-pdfs/</code></CardDescription>
-            </CardHeader>
-            <CardContent>
-              {jathakamLoading ? (
-                <div className="flex justify-center py-8 text-muted-foreground"><Loader2 className="h-6 w-6 animate-spin" /></div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Profile</TableHead>
-                      <TableHead>Branch</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>URL</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {(jathakamRows ?? []).length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={5} className="text-center text-muted-foreground py-6">No PDF rows returned</TableCell>
-                      </TableRow>
-                    ) : (
-                      (jathakamRows ?? []).map((row, idx) => (
-                        <TableRow key={`${row.matri_id}-${idx}`}>
-                          <TableCell>
-                            <span className="font-medium">{row.profile_name || "—"}</span>
-                            <br /><span className="text-xs font-mono text-muted-foreground">{row.matri_id || "—"}</span>
-                          </TableCell>
-                          <TableCell className="text-sm">{row.branch || "—"}</TableCell>
-                          <TableCell><Badge variant="outline">{row.status}</Badge></TableCell>
-                          <TableCell className="text-xs font-mono max-w-[200px] truncate">{row.pdf_url || "—"}</TableCell>
-                          <TableCell>
-                            {row.pdf_url ? (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                title="Download"
-                                onClick={() => downloadPdfAuthenticated(row.pdf_url, `${row.matri_id || "jathakam"}.pdf`)}
-                              >
-                                <Download className="h-4 w-4" />
-                              </Button>
-                            ) : null}
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+          <div>
+            <h2 className="text-base font-semibold flex items-center gap-2">
+              <FileText className="h-4 w-4 text-primary" /> Jathagam PDFs
+            </h2>
+            <p className="text-xs text-muted-foreground mt-0.5">Download horoscope documents for members</p>
+          </div>
+          <JathagamTab active={activeTab === "jathagam"} role={role} branchId={horoscopeBranchId} />
         </TabsContent>
       </Tabs>
 
-      <Dialog open={viewOpen} onOpenChange={(o) => { setViewOpen(o); if (!o) setViewUserUuid(null); }}>
+      <Dialog open={viewOpen} onOpenChange={(o) => { setViewOpen(o); if (!o) { setViewUserUuid(null); setViewRow(null); } }}>
         <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -718,6 +829,8 @@ export default function HoroscopeManagement() {
             <HoroscopeDetailBody
               detailPayload={detailPayload}
               detailRow={detailRow}
+              detailError={detailError}
+              horoscopeAvailable={horoscopeAvailable}
               profilesPath={profilesPath}
               isAdmin={isAdmin}
             />
@@ -730,14 +843,44 @@ export default function HoroscopeManagement() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={poruthamResultOpen} onOpenChange={setPoruthamResultOpen}>
-        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+      <Dialog open={poruthamResultOpen} onOpenChange={handlePoruthamResultOpenChange}>
+        <DialogContent className="w-[96vw] max-w-6xl max-h-[88vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Porutham result</DialogTitle>
           </DialogHeader>
-          {poruthamResult != null ? <PoruthamResultView result={poruthamResult} /> : null}
+          {poruthamResult != null ? (
+            <PoruthamResultView
+              result={poruthamResult}
+              role={role}
+              brideMatriId={poruthamBrideMatri}
+              groomMatriId={poruthamGroomMatri}
+              remainingCount={poruthamRemainingCount}
+              personNav={
+                brideNavWindow && groomNavWindow
+                  ? {
+                      bride: {
+                        onPrev: () => void handleBrideNav(-1),
+                        onNext: () => void handleBrideNav(1),
+                        onDismiss: () => void handleBrideDismiss(),
+                        canPrev: brideNavCaps.canPrev,
+                        canNext: brideNavCaps.canNext,
+                        loading: poruthamNavLoading === "bride",
+                      },
+                      groom: {
+                        onPrev: () => void handleGroomNav(-1),
+                        onNext: () => void handleGroomNav(1),
+                        onDismiss: () => void handleGroomDismiss(),
+                        canPrev: groomNavCaps.canPrev,
+                        canNext: groomNavCaps.canNext,
+                        loading: poruthamNavLoading === "groom",
+                      },
+                    }
+                  : undefined
+              }
+            />
+          ) : null}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPoruthamResultOpen(false)}>Close</Button>
+            <Button variant="outline" onClick={() => handlePoruthamResultOpenChange(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -748,6 +891,43 @@ export default function HoroscopeManagement() {
 function pickStr(...vals: unknown[]): string {
   for (const v of vals) {
     if (typeof v === "string" && v.trim()) return v;
+  }
+  return "";
+}
+
+function pickPada(...vals: unknown[]): string | number | undefined {
+  for (const v of vals) {
+    if (v == null || v === "") continue;
+    if (typeof v === "number" && Number.isFinite(v)) return v;
+    if (typeof v === "string" && v.trim()) return v.trim();
+  }
+  return undefined;
+}
+
+function poruthamPersonName(data: unknown, side: "bride" | "groom"): string {
+  const unwrap = (v: unknown): Record<string, unknown> => {
+    if (!v || typeof v !== "object" || Array.isArray(v)) return {};
+    const o = v as Record<string, unknown>;
+    if (o.data && typeof o.data === "object" && !Array.isArray(o.data)) {
+      return o.data as Record<string, unknown>;
+    }
+    return o;
+  };
+  const root = unwrap(data);
+  const key = side === "bride" ? "bride_horoscope" : "groom_horoscope";
+  const alt = side === "bride" ? "bride" : "groom";
+  const grahanila =
+    root.grahanila && typeof root.grahanila === "object" && !Array.isArray(root.grahanila)
+      ? (root.grahanila as Record<string, unknown>)
+      : null;
+  const node = root[key] ?? root[alt] ?? grahanila?.[alt];
+  if (node && typeof node === "object" && !Array.isArray(node)) {
+    const o = node as Record<string, unknown>;
+    const horo =
+      o.horoscope && typeof o.horoscope === "object" && !Array.isArray(o.horoscope)
+        ? (o.horoscope as Record<string, unknown>)
+        : o;
+    return pickStr(horo.name, horo.pr_name, horo.profile_name, o.name);
   }
   return "";
 }
@@ -763,13 +943,6 @@ function displayVal(v: unknown): string {
   } catch {
     return String(v);
   }
-}
-
-function formatMaybeDate(v: unknown): string {
-  if (typeof v !== "string" || !v.trim()) return displayVal(v);
-  const d = new Date(v);
-  if (Number.isNaN(d.getTime())) return v;
-  return d.toLocaleString();
 }
 
 function KV({
@@ -807,6 +980,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 interface HoroscopeDetailBodyProps {
   detailPayload: Record<string, unknown> | undefined;
   detailRow: ReturnType<typeof normalizeHoroscopeRecord>;
+  detailError?: unknown;
+  horoscopeAvailable: boolean;
   profilesPath: string;
   isAdmin: boolean;
 }
@@ -814,6 +989,8 @@ interface HoroscopeDetailBodyProps {
 function HoroscopeDetailBody({
   detailPayload,
   detailRow,
+  detailError,
+  horoscopeAvailable,
   profilesPath,
   isAdmin,
 }: HoroscopeDetailBodyProps) {
@@ -826,23 +1003,47 @@ function HoroscopeDetailBody({
     : ({} as Record<string, unknown>));
 
   const charts = extractHoroscopeCharts(horoscope);
-  const dasaFromCharts = charts?.dasa ?? null;
+  // Grid (planet placement) only — star/dasa/lagnam/rasi text is taken from the
+  // backend display fields (with EXE-matched fallbacks) below.
   const chartSource = {
     rasiString: horoscope.pr_rasi ?? record.pr_rasi ?? payload.pr_rasi,
     amsaString: horoscope.pr_amsa ?? record.pr_amsa ?? payload.pr_amsa,
     bhavaString: horoscope.pr_bhav ?? horoscope.pr_bhava ?? record.pr_bhav ?? record.pr_bhava ?? payload.pr_bhav ?? payload.pr_bhava,
-    starNumber: horoscope.pr_star ?? record.pr_star ?? payload.pr_star,
-    starName: record.nakshatram ?? horoscope.star_name ?? record.star_name ?? payload.star_name,
-    pada: horoscope.nakshatra_pada ?? horoscope.pr_pada ?? record.nakshatra_pada ?? record.pr_pada ?? payload.pr_pada,
-    dasaLord: horoscope.pr_dasalord ?? horoscope.pr_dasa_lord ?? horoscope.dasa_lord ?? record.pr_dasalord ?? record.pr_dasa_lord ?? record.dasa_lord ?? payload.pr_dasalord ?? payload.pr_dasa_lord ?? dasaFromCharts?.lord,
-    dasaBalanceDays: horoscope.pr_dasabalance ?? horoscope.pr_dasa_balance ?? record.pr_dasabalance ?? record.pr_dasa_balance ?? payload.pr_dasabalance ?? payload.pr_dasa_balance,
-    dasaBalanceText: dasaFromCharts?.balance_text,
   };
+
   const [lang, setLang] = useState<HoroscopeLang>("ml");
   const mlFont = lang === "ml" ? MALAYALAM_FONT : undefined;
 
+  const starNumber = horoscope.pr_star ?? record.pr_star ?? payload.pr_star;
+  const starPada = pickPada(horoscope.pr_pada, horoscope.nakshatra_pada, record.pr_pada);
+
+  // Prefer the backend's finalized display values; when absent, fall back to the
+  // EXE-matched derivation (star name + Vimshottari lord) so Star/Lord/Lagna/Rasi
+  // still render. The Dasa balance is always taken from the backend (never recomputed).
+  const displayRaw: HoroscopeDisplay = {
+    name: pickStr(record.name, horoscope.pr_name, detailRow.profile_name),
+    date_of_birth: pickStr(record.dob, horoscope.pr_dob),
+    time_of_birth: pickStr(horoscope.pr_tob),
+    star_display: pickStr(horoscope.star_display) || nakshatraDisplayFromStar(starNumber, starPada, lang),
+    nakshatra_pada: starPada ?? pickPada(horoscope.nakshatra_pada, horoscope.pr_pada),
+    dasa_display: pickStr(horoscope.dasa_display),
+    dasa_lord: pickStr(horoscope.dasa_lord) || dasaLordDisplayFromStar(starNumber, lang),
+    lagnam_display: pickStr(horoscope.lagnam_display) || signNameFromChartString(chartSource.rasiString, 0, lang),
+    rasi_display: pickStr(horoscope.rasi_display) || signNameFromChartString(chartSource.rasiString, 2, lang),
+  };
+  const display = localizeHoroscopeDisplay(displayRaw, lang) ?? displayRaw;
+
   return (
     <div className="space-y-5 text-sm">
+      {!horoscopeAvailable ? (
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-950">
+          {getApiErrorMessage(
+            detailError,
+            "Horoscope has not been generated by the Windows EXE yet.",
+          )}
+        </div>
+      ) : null}
+
       <Section title="Profile">
         <KV label="Name" value={displayVal(record.name ?? horoscope.pr_name ?? detailRow.profile_name)} />
         <KV label="Matri ID" value={<span className="font-mono">{displayVal(record.matri_id)}</span>} />
@@ -853,7 +1054,7 @@ function HoroscopeDetailBody({
       </Section>
 
       <Section title="Birth Details">
-        <KV label="Date of birth" value={formatMaybeDate(record.dob ?? horoscope.pr_dob)} />
+        <KV label="Date of birth" value={formatDate(record.dob ?? horoscope.pr_dob)} />
         <KV label="Time of birth" value={displayVal(horoscope.pr_tob)} />
         <KV
           label={horoscopeT(lang, "latitude")}
@@ -873,10 +1074,10 @@ function HoroscopeDetailBody({
       </Section>
 
       <Section title="Astrology">
-        <KV label="Rasi" value={displayVal(record.rasi || horoscope.rasi_sign || signNameFromChartString(chartSource.rasiString, 2, lang))} />
+        <KV label="Rasi" value={displayVal(display.rasi_display)} />
         <KV label="Rasi (input)" value={displayVal(horoscope.pr_rasi)} />
-        <KV label="Lagnam" value={displayVal(horoscope.lagnam || signNameFromChartString(chartSource.rasiString, 0, lang))} />
-        <KV label="Nakshatram" value={displayVal(record.nakshatram || horoscope.star_name)} />
+        <KV label="Lagnam" value={displayVal(display.lagnam_display)} />
+        <KV label="Nakshatram" value={displayVal(display.star_display)} />
         <KV label="Star (input)" value={displayVal(horoscope.pr_star)} />
         <KV label="Nakshatra pada" value={displayVal(horoscope.nakshatra_pada ?? horoscope.pr_pada)} />
         <KV label="Amsa" value={displayVal(horoscope.pr_amsa)} />
@@ -884,7 +1085,8 @@ function HoroscopeDetailBody({
         <KV label="Gana" value={displayVal(horoscope.gana)} />
         <KV label="Yoni" value={displayVal(horoscope.yoni)} />
         <KV label="Rajju" value={displayVal(horoscope.rajju)} />
-        <KV label="Dasa balance" value={displayVal(horoscope.pr_dasabalance)} />
+        <KV label="Dasa" value={displayVal(display.dasa_display)} />
+        <KV label="Dasa Lord" value={displayVal(display.dasa_lord)} />
       </Section>
 
       <Section title="Dosham & Jathagam">
@@ -903,31 +1105,37 @@ function HoroscopeDetailBody({
         <KV label="Jathagam" value={<Badge variant="outline" className="text-[10px]">{displayVal(record.jathagam)}</Badge>} />
       </Section>
 
-      <Section title="Calculation & Timestamps">
-        <KV
-          label="Is calculated"
-          value={
-            <Badge
-              variant={horoscope.is_calculated ? "default" : "outline"}
-              className="text-[10px]"
-            >
-              {displayVal(horoscope.is_calculated)}
-            </Badge>
-          }
-        />
-        <KV label="Calculated at" value={formatMaybeDate(horoscope.calculated_at)} />
-        <KV label="Last edited" value={formatMaybeDate(record.last_edited_at)} />
-        <KV label="Created at" value={formatMaybeDate(horoscope.created_at)} />
-        <KV label="Updated at" value={formatMaybeDate(horoscope.updated_at)} />
-        <KV label="Horoscope ID" value={displayVal(horoscope.id)} />
-      </Section>
+      {horoscopeAvailable ? (
+        <>
+          <Section title="Calculation & Timestamps">
+            <KV
+              label="Is calculated"
+              value={
+                <Badge
+                  variant={horoscope.is_calculated ? "default" : "outline"}
+                  className="text-[10px]"
+                >
+                  {displayVal(horoscope.is_calculated)}
+                </Badge>
+              }
+            />
+            <KV label="Calculated at" value={formatDateTime(horoscope.calculated_at)} />
+            <KV label="Last edited" value={formatDateTime(record.last_edited_at)} />
+            <KV label="Created at" value={formatDateTime(horoscope.created_at)} />
+            <KV label="Updated at" value={formatDateTime(horoscope.updated_at)} />
+            <KV label="Horoscope ID" value={displayVal(horoscope.id)} />
+          </Section>
 
-      <div className="pt-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-          Horoscope chart
-        </h3>
-        <HoroscopeChart charts={charts} source={chartSource} lang={lang} onLangChange={setLang} />
-      </div>
+          <div className="pt-2">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+              Horoscope chart
+            </h3>
+            <HoroscopeChart charts={charts} source={chartSource} display={display} lang={lang} onLangChange={setLang} />
+          </div>
+        </>
+      ) : (
+        <KV label="Last edited" value={formatDateTime(record.last_edited_at)} />
+      )}
 
       {detailRow.matri_id ? (
         <Button variant="outline" size="sm" asChild>
@@ -937,13 +1145,6 @@ function HoroscopeDetailBody({
           </Link>
         </Button>
       ) : null}
-
-      <details className="text-xs">
-        <summary className="cursor-pointer text-muted-foreground">Raw JSON</summary>
-        <pre className="mt-2 p-2 rounded bg-muted overflow-x-auto max-h-60">
-          {JSON.stringify(detailPayload, null, 2)}
-        </pre>
-      </details>
     </div>
   );
 }

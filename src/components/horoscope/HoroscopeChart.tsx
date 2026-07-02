@@ -13,10 +13,11 @@ import {
   type ChartKind,
   type HoroscopeChartSource,
   type HoroscopeCharts,
+  type HoroscopeDisplay,
   type HoroscopeLang,
 } from "./horoscope-i18n";
 
-export type { HoroscopeLang, HoroscopeCharts, HoroscopeChartSource } from "./horoscope-i18n";
+export type { HoroscopeLang, HoroscopeCharts, HoroscopeChartSource, HoroscopeDisplay } from "./horoscope-i18n";
 export {
   MALAYALAM_FONT,
   extractHoroscopeCharts,
@@ -26,10 +27,13 @@ export {
 export interface HoroscopeChartProps {
   charts: HoroscopeCharts | null | undefined;
   /**
-   * Raw pr_rasi/pr_amsa/pr_bhav strings + star/dasa fields. When present, the
-   * chart is built from these (EXE-matched) instead of `charts`.
+   * Raw pr_rasi/pr_amsa/pr_bhav strings used to build the grid (planet
+   * placement). When present, the grid is built from these (EXE-matched)
+   * instead of `charts`. No star/dasa values are derived here.
    */
   source?: HoroscopeChartSource | null;
+  /** Finalized backend display strings (star/dasa/lord) for the center panel. */
+  display?: HoroscopeDisplay | null;
   /** Controlled language. If omitted, the component manages its own (default Malayalam). */
   lang?: HoroscopeLang;
   onLangChange?: (lang: HoroscopeLang) => void;
@@ -43,6 +47,7 @@ export interface HoroscopeChartProps {
 export function HoroscopeChart({
   charts,
   source,
+  display,
   lang: controlledLang,
   onLangChange,
   showLanguageToggle = true,
@@ -56,20 +61,20 @@ export function HoroscopeChart({
   };
   const mlFont = lang === "ml" ? MALAYALAM_FONT : undefined;
 
-  // Prefer EXE-matched pr_* strings; fall back to backend-built `charts`.
+  // Prefer EXE-matched pr_* strings for the grid; fall back to backend `charts`.
   const effectiveCharts = useMemo<HoroscopeCharts | null | undefined>(() => {
-    if (hasChartSource(source)) return buildChartsFromSource(source!, lang);
+    if (hasChartSource(source)) return buildChartsFromSource(source!);
     return charts;
-  }, [source, charts, lang]);
+  }, [source, charts]);
 
   const renderActiveChart = () => {
     switch (active) {
       case "amsa":
-        return <AmsaChart charts={effectiveCharts} lang={lang} />;
+        return <AmsaChart charts={effectiveCharts} display={display} lang={lang} />;
       case "bhava":
-        return <BhavaChart charts={effectiveCharts} lang={lang} />;
+        return <BhavaChart charts={effectiveCharts} display={display} lang={lang} />;
       default:
-        return <RasiChart charts={effectiveCharts} lang={lang} />;
+        return <RasiChart charts={effectiveCharts} display={display} lang={lang} />;
     }
   };
 

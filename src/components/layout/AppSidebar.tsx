@@ -27,6 +27,7 @@ import {
   GraduationCap,
   BookOpen,
   Briefcase,
+  Smartphone,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -55,6 +56,8 @@ const adminItems = [
   { title: "Horoscope", url: "/horoscope", icon: Sparkles },
   { title: "Bulk Upload", url: "/bulk-upload", icon: Upload },
   { title: "Enquiries", url: "/enquiries", icon: MessageSquare },
+  { title: "Newsletter", url: "/newsletter", icon: Mail },
+  { title: "App Versions", url: "/app-config", icon: Smartphone },
   { title: "Cash Payments", url: "/cash-payments", icon: Banknote },
   { title: "Success Stories", url: "/success-stories", icon: FileText },
   { title: "Reports", url: "/reports", icon: BarChart3 },

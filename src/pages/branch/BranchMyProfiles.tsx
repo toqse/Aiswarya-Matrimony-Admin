@@ -3,11 +3,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { formatPhoneDisplay } from "@/lib/phone";
+import { formatDate } from "@/lib/format-date";
+import ProfileSearchFilters from "@/components/profile/ProfileSearchFilters";
+import { EMPTY_PROFILE_SEARCH, profileSearchToQuery } from "@/lib/profileSearch";
 import AddProfileWizard from "@/components/profile/AddProfileWizard";
 import EditProfileWizard from "@/components/profile/EditProfileWizard";
 import {
+  buildPartnerReligionDetails,
   buildProfileEditFormData,
   mapDetailToWizardForm,
   type WizardFormValues,
@@ -49,7 +52,6 @@ import {
   patchProfileAssignStaff,
   patchBranchMyProfileVerify,
   type ProfileListRow,
-  type ProfilesQuery,
 } from "@/lib/admin-api/profiles";
 import { fetchBranchStaffList } from "@/lib/admin-api/staff";
 import { cn } from "@/lib/utils";
@@ -78,9 +80,8 @@ function showValue(value: unknown) {
 }
 
 export default function BranchMyProfiles() {
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] =
-    useState<NonNullable<ProfilesQuery["filter"]>>("all");
+  const [filters, setFilters] = useState(EMPTY_PROFILE_SEARCH);
+  const [applied, setApplied] = useState(EMPTY_PROFILE_SEARCH);
   const [page, setPage] = useState(1);
   const [viewProfile, setViewProfile] = useState<ProfileListRow | null>(null);
   const [docId, setDocId] = useState<string | null>(null);
@@ -98,14 +99,11 @@ export default function BranchMyProfiles() {
     queryFn: () => fetchBranchMyProfilesSummary(),
   });
   const listQ = useQuery({
-    queryKey: ["branch", "my-profiles", "list", search, filter, page],
+    queryKey: ["branch", "my-profiles", "list", applied, page],
     queryFn: () =>
-      fetchBranchMyProfiles({
-        search: search.trim() || undefined,
-        filter,
-        page,
-        page_size: 20,
-      }),
+      fetchBranchMyProfiles(
+        profileSearchToQuery(applied, { page, page_size: 20 }),
+      ),
   });
 
   const viewDetailQ = useQuery({
@@ -278,38 +276,24 @@ export default function BranchMyProfiles() {
         </Card>
       )}
 
+      <ProfileSearchFilters
+        value={filters}
+        onChange={setFilters}
+        onSearch={() => {
+          setApplied(filters);
+          setPage(1);
+        }}
+        onReset={() => {
+          setFilters(EMPTY_PROFILE_SEARCH);
+          setApplied(EMPTY_PROFILE_SEARCH);
+          setPage(1);
+        }}
+        role="branch-manager"
+      />
+
       <Card className="shadow-elegant border-0">
         <CardContent className="pt-6 space-y-4">
-          <div className="flex items-center gap-2 flex-wrap">
-            <Input
-              value={search}
-              onChange={(e) => {
-                setPage(1);
-                setSearch(e.target.value);
-              }}
-              placeholder="Search name or matri ID..."
-              className="max-w-sm"
-            />
-            <Select
-              value={filter}
-              onValueChange={(v) => {
-                setPage(1);
-                setFilter(v as NonNullable<ProfilesQuery["filter"]>);
-              }}
-            >
-              <SelectTrigger className="w-[180px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">all</SelectItem>
-                <SelectItem value="incomplete">incomplete</SelectItem>
-                <SelectItem value="complete">complete</SelectItem>
-                <SelectItem value="subscribed">subscribed</SelectItem>
-                <SelectItem value="unsubscribed">unsubscribed</SelectItem>
-                <SelectItem value="verified">verified</SelectItem>
-                <SelectItem value="unverified">unverified</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="flex items-center gap-2 flex-wrap justify-end">
             <Button onClick={() => setShowAddProfile(true)}>Add Profile</Button>
             {(listQ.isLoading || summaryQ.isLoading) && (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -580,7 +564,7 @@ export default function BranchMyProfiles() {
                           rows={[
                             ["Name", basic.name],
                             ["Gender", basic.gender],
-                            ["Date of birth", basic.dob],
+                            ["Date of birth", formatDate(basic.dob)],
                             ["Age", basic.age],
                             ["Email", basic.email],
                             ["Phone", formatPhoneDisplay(basic.phone)],
@@ -751,13 +735,19 @@ export default function BranchMyProfiles() {
                             <FieldGrid
                               rows={[
                                 ["Father", family.father_name],
+                                ["Father status", family.father_status === "Late" ? "Deceased" : family.father_status],
                                 ["Father occupation", family.father_occupation],
                                 ["Mother", family.mother_name],
+                                ["Mother status", family.mother_status === "Late" ? "Deceased" : family.mother_status],
                                 ["Mother occupation", family.mother_occupation],
                                 ["Brothers", family.brothers],
                                 ["Married brothers", family.married_brothers],
                                 ["Sisters", family.sisters],
                                 ["Married sisters", family.married_sisters],
+                                ["Family type", family.family_type],
+                                ["Family status", family.family_status],
+                                ["Family contact", family.family_contact],
+                                ["Family contact 2", family.family_contact_2],
                                 ["About family", family.about_family],
                               ]}
                             />
@@ -955,20 +945,26 @@ export default function BranchMyProfiles() {
               mother_tongue_id: form.motherTongueId
                 ? Number(form.motherTongueId)
                 : undefined,
-              partner_preference_type: form.partnerPreferenceType || undefined,
-              partner_religion_ids: Array.isArray(form.partnerReligionIds)
-                ? form.partnerReligionIds
-                    .map((id: unknown) => Number(id))
-                    .filter((n: number) => Number.isFinite(n))
-                : undefined,
-              partner_caste_preference:
-                form.partnerCastePreference || undefined,
+              ...buildPartnerReligionDetails({
+                religionId: String(form.religionId ?? ""),
+                partnerPreferenceType: form.partnerPreferenceType ?? "own_religion_only",
+                partnerReligionIds: Array.isArray(form.partnerReligionIds)
+                  ? form.partnerReligionIds.map(String)
+                  : [],
+                partnerCastePreferences: form.partnerCastePreferences ?? {},
+                partnerAgeFrom: String(form.partnerAgeFrom ?? ""),
+                partnerAgeTo: String(form.partnerAgeTo ?? ""),
+              }),
             },
             personal_details: {
               marital_status: form.maritalStatus || undefined,
               height_cm: form.height ? Number(form.height) : undefined,
               weight_kg: form.weight || undefined,
               complexion: form.complexion || undefined,
+              reason_for_divorce:
+                form.maritalStatus === "Divorced" && form.reasonForDivorce
+                  ? String(form.reasonForDivorce).trim()
+                  : undefined,
             },
             education_details: {
               highest_education_id: form.highestEducationId

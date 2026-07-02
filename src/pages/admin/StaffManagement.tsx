@@ -61,6 +61,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { formatDate } from "@/lib/format-date";
 import { API_BASE_URL } from "@/lib/config";
 
 interface StaffForm {
@@ -1326,12 +1327,7 @@ export default function StaffManagement() {
                           />
                           <ViewField
                             label="Joining Date"
-                            value={
-                              String(viewDetail.joining_date ?? "").slice(
-                                0,
-                                10,
-                              ) || null
-                            }
+                            value={formatDate(viewDetail.joining_date)}
                           />
                           <ViewField
                             label="Basic Salary"

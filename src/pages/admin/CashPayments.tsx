@@ -45,6 +45,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { formatDate, formatDateTime, formatTime } from "@/lib/format-date";
 import {
   fetchPaymentDetail,
   fetchPayments,
@@ -102,16 +103,8 @@ function paymentRowDateTime(row: PaymentListRow, dateFilterYmd: string) {
     const d = new Date(row.created_at);
     if (!Number.isNaN(d.getTime())) {
       return {
-        dateLine: d.toLocaleDateString(undefined, {
-          day: "2-digit",
-          month: "short",
-          year: "numeric",
-        }),
-        timeLine: d.toLocaleTimeString(undefined, {
-          hour: "numeric",
-          minute: "2-digit",
-          hour12: true,
-        }),
+        dateLine: formatDate(d),
+        timeLine: formatTime(d),
       };
     }
   }
@@ -119,11 +112,7 @@ function paymentRowDateTime(row: PaymentListRow, dateFilterYmd: string) {
     const d = new Date(`${dateFilterYmd}T12:00:00`);
     if (!Number.isNaN(d.getTime())) {
       return {
-        dateLine: d.toLocaleDateString(undefined, {
-          day: "2-digit",
-          month: "short",
-          year: "numeric",
-        }),
+        dateLine: formatDate(dateFilterYmd),
         timeLine: row.time,
       };
     }
@@ -703,7 +692,7 @@ export default function CashPayments() {
                     Created At
                   </span>
                   <p className="font-medium">
-                    {new Date(selectedTxn.created_at).toLocaleString()}
+                    {formatDateTime(selectedTxn.created_at)}
                   </p>
                 </div>
               </div>

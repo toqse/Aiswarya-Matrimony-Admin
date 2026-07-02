@@ -1,21 +1,22 @@
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
-import { Search, Eye, Trash2, Ban, Loader2, UserPlus, Edit, Plus } from "lucide-react";
+import { Eye, Trash2, Ban, Loader2, UserPlus, Edit, Plus } from "lucide-react";
+import { nakshatraDisplayFromStar } from "@/components/horoscope/horoscope-i18n";
+import ProfileSearchFilters from "@/components/profile/ProfileSearchFilters";
+import { EMPTY_PROFILE_SEARCH, profileSearchToQuery } from "@/lib/profileSearch";
 import { useToast } from "@/hooks/use-toast";
-import { formatPhoneDisplay } from "@/lib/phone";
 import { useRole } from "@/contexts/RoleContext";
 import AddProfileWizard from "@/components/profile/AddProfileWizard";
 import EditProfileWizard from "@/components/profile/EditProfileWizard";
+import { ProfileDetailPanel, displayOrDash } from "@/components/profile/ProfileDetailPanel";
 import {
   buildProfileEditFormData,
   buildProfileRegistrationFormData,
@@ -27,8 +28,6 @@ import {
   deleteAdminProfile,
   fetchAdminProfileDetail,
   fetchAdminProfiles,
-  looksLikePhone,
-  normalizePhoneQuery,
   patchAdminProfile,
   patchProfileAssignStaff,
   fetchStaffProfiles,
@@ -49,18 +48,18 @@ import {
 
 type PendingAction = { kind: "block"; row: ProfileListRow } | { kind: "delete"; row: ProfileListRow } | null;
 
-function displayOrDash(v: unknown): string {
-  if (v == null || v === "") return "-";
-  if (typeof v === "boolean") return v ? "Yes" : "No";
-  if (Array.isArray(v)) return v.length ? v.join(", ") : "-";
-  return String(v);
+function displayStar(row: ProfileListRow): string {
+  if (row.star?.trim()) return row.star.trim();
+  const fromNumber = nakshatraDisplayFromStar(row.pr_star, null, "ml");
+  return fromNumber || "—";
 }
 
 export default function ProfileAdmin() {
   const { role } = useRole();
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [search, setSearch] = useState("");
+  const [filters, setFilters] = useState(EMPTY_PROFILE_SEARCH);
+  const [applied, setApplied] = useState(EMPTY_PROFILE_SEARCH);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState("20");
   const [viewProfile, setViewProfile] = useState<ProfileListRow | null>(null);
@@ -74,16 +73,12 @@ export default function ProfileAdmin() {
   const [editInitial, setEditInitial] = useState<WizardFormValues | null>(null);
 
   const listQuery = useQuery({
-    queryKey: ["admin", "profiles", role, search, page, pageSize],
+    queryKey: ["admin", "profiles", role, applied, page, pageSize],
     queryFn: () => {
-      const trimmed = search.trim();
-      const phone = normalizePhoneQuery(trimmed);
-      const args = {
-        search: trimmed || undefined,
-        phone: phone || undefined,
+      const args = profileSearchToQuery(applied, {
         page,
         page_size: Number(pageSize),
-      };
+      });
       return role === "staff" ? fetchStaffProfiles(args) : fetchAdminProfiles(args);
     },
   });
@@ -186,38 +181,6 @@ export default function ProfileAdmin() {
   };
 
   const detail = viewDetail ?? {};
-  const basic = (detail.basic_details as Record<string, unknown> | undefined) ?? {};
-  const photos = (detail.photos as Record<string, string | null> | undefined) ?? {};
-  const religion = (detail.religion_details as Record<string, unknown> | undefined) ?? {};
-  const personal = (detail.personal_details as Record<string, unknown> | undefined) ?? {};
-  const location = (detail.location_details as Record<string, unknown> | undefined) ?? {};
-  const education = (detail.education_details as Record<string, unknown> | undefined) ?? {};
-  const family = (detail.family_details as Record<string, unknown> | undefined) ?? {};
-  const admin = (detail.admin as Record<string, unknown> | undefined) ?? {};
-
-  const showValue = (value: unknown) => displayOrDash(value);
-
-  function Section({ title, children }: { title: string; children: ReactNode }) {
-    return (
-      <div className="space-y-2">
-        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
-        {children}
-      </div>
-    );
-  }
-
-  function FieldGrid({ rows }: { rows: [string, unknown][] }) {
-    return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        {rows.map(([k, v]) => (
-          <div key={k} className="rounded-md border bg-card p-3">
-            <p className="text-xs text-muted-foreground">{k}</p>
-            <p className="font-medium text-sm break-words">{showValue(v)}</p>
-          </div>
-        ))}
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">
@@ -238,31 +201,23 @@ export default function ProfileAdmin() {
 
       {listQuery.error && <p className="text-destructive text-sm">{(listQuery.error as Error).message}</p>}
 
+      <ProfileSearchFilters
+        value={filters}
+        onChange={setFilters}
+        onSearch={() => {
+          setApplied({ ...filters });
+          setPage(1);
+        }}
+        onReset={() => {
+          setFilters(EMPTY_PROFILE_SEARCH);
+          setApplied(EMPTY_PROFILE_SEARCH);
+          setPage(1);
+        }}
+        role={role}
+      />
+
       <Card className="shadow-elegant border-0">
-        <CardHeader className="pb-3">
-          <div className="space-y-1.5 max-w-sm">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by name, Matrimony ID, or phone…"
-                value={search}
-                onChange={(e) => {
-                  setPage(1);
-                  setSearch(e.target.value);
-                }}
-                className="pl-9"
-              />
-            </div>
-            {looksLikePhone(search.trim()) ? (
-              <p className="text-[11px] text-muted-foreground pl-1">
-                Searching by phone — if there are no matches, the backend may need to include
-                <code className="mx-1 px-1 rounded bg-muted text-[10px]">phone</code>
-                in its profile search/filter fields.
-              </p>
-            ) : null}
-          </div>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           <Table>
             <TableHeader>
               <TableRow>
@@ -272,6 +227,7 @@ export default function ProfileAdmin() {
                 <TableHead>Age</TableHead>
                 <TableHead>Religion</TableHead>
                 <TableHead>Caste</TableHead>
+                <TableHead>Star</TableHead>
                 <TableHead>Plan</TableHead>
                 <TableHead>Assigned Staff</TableHead>
                 <TableHead>Complete</TableHead>
@@ -282,21 +238,14 @@ export default function ProfileAdmin() {
             <TableBody>
               {listQuery.isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={11} className="text-center text-muted-foreground">
+                  <TableCell colSpan={12} className="text-center text-muted-foreground">
                     Loading profiles...
                   </TableCell>
                 </TableRow>
               ) : rows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={11} className="text-center text-muted-foreground py-6">
+                  <TableCell colSpan={12} className="text-center text-muted-foreground py-6">
                     <p>No profiles found.</p>
-                    {looksLikePhone(search.trim()) ? (
-                      <p className="text-xs mt-2">
-                        Phone search returned 0 results. Confirm the backend allows phone in its
-                        profile search/filter fields (e.g. add <code className="px-1 rounded bg-muted">"phone"</code> to
-                        the ViewSet&apos;s <code className="px-1 rounded bg-muted">search_fields</code>).
-                      </p>
-                    ) : null}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -308,6 +257,7 @@ export default function ProfileAdmin() {
                   <TableCell>{p.age}</TableCell>
                   <TableCell>{p.religion}</TableCell>
                   <TableCell>{p.caste}</TableCell>
+                  <TableCell>{displayStar(p)}</TableCell>
                   <TableCell><Badge variant="outline">{p.plan || "—"}</Badge></TableCell>
                   <TableCell>{p.assigned_staff || "—"}</TableCell>
                   <TableCell>{p.completion_percent}%</TableCell>
@@ -426,150 +376,7 @@ export default function ProfileAdmin() {
                     Loading profile from GET v1/admin/profiles/&lt;matri_id&gt;/…
                   </div>
                 )}
-                {viewDetail && (
-                  <>
-                    <Section title="Basic details">
-                      <FieldGrid
-                        rows={[
-                          ["Name", basic.name],
-                          ["Gender", basic.gender],
-                          ["Date of birth", basic.dob],
-                          ["Email", basic.email],
-                          ["Phone", formatPhoneDisplay(basic.phone)],
-                          ["Profile for", basic.profile_for],
-                        ]}
-                      />
-                    </Section>
-
-                    <Separator />
-
-                    <Section title="Photos">
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                        {Object.entries(photos).map(([key, url]) => {
-                          if (!url) return null;
-                          const label = key.replace(/_/g, " ");
-                          return (
-                            <div key={key} className="rounded-md border overflow-hidden bg-muted/30">
-                              <p className="text-xs text-muted-foreground px-2 pt-2 capitalize">{label}</p>
-                              <a href={url} target="_blank" rel="noopener noreferrer" className="block p-2">
-                                <img
-                                  src={url}
-                                  alt={label}
-                                  className="w-full max-h-36 object-contain rounded"
-                                />
-                              </a>
-                            </div>
-                          );
-                        })}
-                      </div>
-                      {Object.values(photos).every((u) => !u) && (
-                        <p className="text-muted-foreground text-sm">No photos uploaded.</p>
-                      )}
-                    </Section>
-
-                    <Separator />
-
-                    <Section title="Religion & partner preference">
-                      <FieldGrid
-                        rows={[
-                          ["Religion", religion.religion ?? religion.religion_id],
-                          ["Caste", religion.caste ?? religion.caste_id],
-                          ["Mother tongue", religion.mother_tongue ?? religion.mother_tongue_id],
-                          ["Partner religion preference", religion.partner_religion_preference],
-                          ["Partner preference type", religion.partner_preference_type],
-                          ["Partner religion IDs", religion.partner_religion_ids],
-                          ["Partner caste preference", religion.partner_caste_preference],
-                        ]}
-                      />
-                    </Section>
-
-                    <Separator />
-
-                    <Section title="Personal">
-                      <FieldGrid
-                        rows={[
-                          ["Marital status", personal.marital_status ?? personal.marital_status_id],
-                          ["Children count", personal.children_count ?? personal.number_of_children],
-                          ["Height", personal.height_cm],
-                          ["Weight (kg)", personal.weight_kg],
-                          ["Complexion", personal.colour ?? personal.complexion],
-                          ["Blood group", personal.blood_group],
-                        ]}
-                      />
-                    </Section>
-
-                    <Separator />
-
-                    <Section title="Location">
-                      <FieldGrid
-                        rows={[
-                          ["Country", location.country ?? location.country_id],
-                          ["State", location.state ?? location.state_id],
-                          ["District", location.district ?? location.district_id],
-                          ["City", location.city ?? location.city_id],
-                          ["Address", location.address],
-                        ]}
-                      />
-                    </Section>
-
-                    <Separator />
-
-                    <Section title="Education & career">
-                      <FieldGrid
-                        rows={[
-                          ["Highest education", education.highest_education ?? education.highest_education_id],
-                          ["Subject", education.education_subject ?? education.education_subject_id],
-                          ["Employment status", education.employment_status],
-                          ["Occupation", education.occupation ?? education.occupation_id],
-                          ["Annual income", education.annual_income ?? education.annual_income_id],
-                        ]}
-                      />
-                    </Section>
-
-                    <Separator />
-
-                    <Section title="Family">
-                      <FieldGrid
-                        rows={[
-                          ["Father", family.father_name],
-                          ["Father occupation", family.father_occupation],
-                          ["Mother", family.mother_name],
-                          ["Mother occupation", family.mother_occupation],
-                          ["Brothers", family.brothers],
-                          ["Married brothers", family.married_brothers],
-                          ["Sisters", family.sisters],
-                          ["Married sisters", family.married_sisters],
-                          ["About family", family.about_family],
-                        ]}
-                      />
-                    </Section>
-
-                    {detail.about_me != null && String(detail.about_me).trim() !== "" && (
-                      <>
-                        <Separator />
-                        <Section title="About me">
-                          <div className="rounded-md border bg-card p-3">
-                            <p className="text-sm whitespace-pre-wrap leading-relaxed">{String(detail.about_me)}</p>
-                          </div>
-                        </Section>
-                      </>
-                    )}
-
-                    <Separator />
-
-                    <Section title="Admin">
-                      <FieldGrid
-                        rows={[
-                          ["Profile status", admin.profile_status],
-                          ["Completion %", admin.profile_completion_percentage],
-                          ["Admin verified", admin.admin_verified],
-                          ["Horoscope available", admin.has_horoscope],
-                          ["Blocked", admin.is_blocked],
-                        ]}
-                      />
-                    </Section>
-                  </>
-                )}
+                {viewDetail && <ProfileDetailPanel detail={detail} showAdmin />}
 
                 {!viewDetail && viewProfile && (
                   <div className="grid grid-cols-2 gap-3 opacity-80">
@@ -579,6 +386,7 @@ export default function ProfileAdmin() {
                       ["Age", viewProfile.age],
                       ["Religion", viewProfile.religion],
                       ["Caste", viewProfile.caste],
+                      ["Star", displayStar(viewProfile)],
                       ["Marital status", viewProfile.marital_status],
                       ["Plan", displayOrDash(viewProfile.plan)],
                       ["Assigned staff", displayOrDash(viewProfile.assigned_staff)],

@@ -10,6 +10,18 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown, Loader2, Sparkles } from "lucide-react";
 import PlacesAutocomplete from "@/components/profile/PlacesAutocomplete";
+import { TimeOfBirthPicker } from "@/components/profile/TimeOfBirthPicker";
+import FormSectionCard from "@/components/profile/FormSectionCard";
+import FamilyDetailsSection, {
+  EMPTY_FAMILY_FIELDS,
+  validateFamilyFields,
+  type FamilyFormFields,
+} from "@/components/profile/FamilyDetailsSection";
+import PartnerPreferenceSection, {
+  EMPTY_PARTNER_PREFERENCE_FIELDS,
+  validatePartnerPreference,
+  type PartnerPreferenceFields,
+} from "@/components/profile/PartnerPreferenceSection";
 import { useToast } from "@/hooks/use-toast";
 import type { WizardFormValues } from "@/lib/admin-api/profile-registration";
 import {
@@ -127,9 +139,8 @@ function emptyForm(): WizardFormValues {
     casteId: "",
     motherTongueId: "",
     maritalStatus: "",
-    partnerPreferenceType: "own_religion_only",
-    partnerReligionIds: [],
-    partnerCastePreference: "any",
+    reasonForDivorce: "",
+    ...EMPTY_PARTNER_PREFERENCE_FIELDS,
     hasChildren: false,
     numberOfMarriages: "",
     numberOfChildren: "",
@@ -150,6 +161,7 @@ function emptyForm(): WizardFormValues {
     aadhaar_front: null,
     aadhaar_back: null,
     existingPhotos: {},
+    ...EMPTY_FAMILY_FIELDS,
   };
 }
 
@@ -183,14 +195,13 @@ export default function EditProfileWizard({
   const update = <K extends keyof WizardFormValues>(field: K, value: WizardFormValues[K]) =>
     setForm((prev) => ({ ...prev, [field]: value }));
 
-  const togglePartnerReligion = (id: string, checked: boolean) => {
-    setForm((p) => {
-      const next = new Set(p.partnerReligionIds);
-      if (checked) next.add(id);
-      else next.delete(id);
-      return { ...p, partnerReligionIds: Array.from(next) };
-    });
-  };
+  const updatePartnerPreference = <K extends keyof PartnerPreferenceFields>(
+    field: K,
+    value: PartnerPreferenceFields[K],
+  ) => setForm((prev) => ({ ...prev, [field]: value }));
+
+  const batchPartnerPreference = (updates: Partial<PartnerPreferenceFields>) =>
+    setForm((prev) => ({ ...prev, ...updates }));
 
   const horoscopeValid =
     !form.hasHoroscope || (!!form.dob && !!form.timeOfBirth && !!form.placeOfBirth);
@@ -277,7 +288,34 @@ export default function EditProfileWizard({
     enabled: open,
   });
 
+  const activeReligionName =
+    (religionsQ.data?.results ?? []).find((r) => String(r.id) === form.religionId)?.name ?? "";
+
+  const updateFamily = <K extends keyof FamilyFormFields>(field: K, value: FamilyFormFields[K]) =>
+    setForm((prev) => ({ ...prev, [field]: value }));
+
   const submit = () => {
+    const familyError = validateFamilyFields(form);
+    if (familyError) {
+      toast({ title: "Family details", description: familyError, variant: "destructive" });
+      return;
+    }
+    const partnerError = validatePartnerPreference(form, form.religionId);
+    if (partnerError) {
+      toast({ title: "Partner preference", description: partnerError, variant: "destructive" });
+      return;
+    }
+    if (
+      form.maritalStatus === "Divorced" &&
+      !form.reasonForDivorce.trim()
+    ) {
+      toast({
+        title: "Missing fields",
+        description: "Reason for divorce is required when marital status is Divorced.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (!canSubmit) {
       const description =
         form.hasHoroscope && !horoscopeValid
@@ -441,6 +479,7 @@ export default function EditProfileWizard({
                     casteId: "",
                     partnerReligionIds:
                       p.partnerPreferenceType === "specific_religions" ? [] : p.partnerReligionIds,
+                    partnerCastePreferences: {},
                   }))
                 }
               >
@@ -486,9 +525,23 @@ export default function EditProfileWizard({
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <FormSectionCard title="Personal Details">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label>Marital Status *</Label>
-              <Select value={form.maritalStatus} onValueChange={(v) => update("maritalStatus", v)}>
+              <Select
+                value={form.maritalStatus}
+                onValueChange={(v) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    maritalStatus: v,
+                    reasonForDivorce:
+                      v === "Divorced" ? prev.reasonForDivorce : "",
+                  }))
+                }
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select status" />
                 </SelectTrigger>
@@ -501,56 +554,14 @@ export default function EditProfileWizard({
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <Label>Partner Preference Type</Label>
-              <Select
-                value={form.partnerPreferenceType}
-                onValueChange={(v) => {
-                  const nv = v as WizardFormValues["partnerPreferenceType"];
-                  setForm((p) => ({
-                    ...p,
-                    partnerPreferenceType: nv,
-                    partnerReligionIds: nv === "specific_religions" ? p.partnerReligionIds : [],
-                  }));
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select preference" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="own_religion_only">Own religion only</SelectItem>
-                  <SelectItem value="open_to_all">Open to all</SelectItem>
-                  <SelectItem value="specific_religions">Specific religions</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Partner Caste Preference</Label>
-              <Select value={form.partnerCastePreference} onValueChange={(v) => update("partnerCastePreference", v as WizardFormValues["partnerCastePreference"])}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select preference" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="any">Any</SelectItem>
-                  <SelectItem value="own_caste_only">Own caste only</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {form.partnerPreferenceType === "specific_religions" && (
-              <div className="sm:col-span-2 border rounded-md p-3 space-y-2">
-                <p className="text-sm font-medium">Partner Religions</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-auto pr-1">
-                  {(religionsQ.data?.results ?? []).map((r) => {
-                    const checked = form.partnerReligionIds.includes(String(r.id));
-                    return (
-                      <label key={r.id} className="flex items-center gap-2 text-sm cursor-pointer select-none">
-                        <Checkbox checked={checked} onCheckedChange={(v) => togglePartnerReligion(String(r.id), !!v)} />
-                        <span>{r.name}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-                <p className="text-xs text-muted-foreground">Selected: {form.partnerReligionIds.length}</p>
+            {form.maritalStatus === "Divorced" && (
+              <div className="sm:col-span-2">
+                <Label>Reason for Divorce *</Label>
+                <Input
+                  value={form.reasonForDivorce}
+                  onChange={(e) => update("reasonForDivorce", e.target.value)}
+                  placeholder="e.g. Mutual consent"
+                />
               </div>
             )}
             {CHILDREN_MARITAL.includes(form.maritalStatus) && (
@@ -677,7 +688,20 @@ export default function EditProfileWizard({
                 </SelectContent>
               </Select>
             </div>
-          </div>
+            </div>
+          </FormSectionCard>
+
+          <FamilyDetailsSection values={form} onChange={updateFamily} />
+
+          <PartnerPreferenceSection
+            religionId={form.religionId}
+            casteId={form.casteId}
+            religionName={activeReligionName}
+            religions={religionsQ.data?.results ?? []}
+            values={form}
+            onChange={updatePartnerPreference}
+            onBatchChange={batchPartnerPreference}
+          />
 
           {form.hasHoroscope && (
             <Collapsible
@@ -704,10 +728,9 @@ export default function EditProfileWizard({
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <Label>Time of Birth *</Label>
-                      <Input
-                        type="time"
+                      <TimeOfBirthPicker
                         value={form.timeOfBirth}
-                        onChange={(e) => update("timeOfBirth", e.target.value)}
+                        onChange={(v) => update("timeOfBirth", v)}
                       />
                     </div>
                     <div className="sm:col-span-2">

@@ -16,6 +16,8 @@ import SalaryPayroll from "@/pages/admin/SalaryPayroll";
 import ProfileAdmin from "@/pages/admin/ProfileAdmin";
 import BulkUpload from "@/pages/admin/BulkUpload";
 import EnquiryOverview from "@/pages/admin/EnquiryOverview";
+import NewsletterSubscribers from "@/pages/admin/NewsletterSubscribers";
+import AppConfig from "@/pages/admin/AppConfig";
 import CashPayments from "@/pages/admin/CashPayments";
 import Reports from "@/pages/admin/Reports";
 import EmailTemplates from "@/pages/admin/EmailTemplates";
@@ -64,6 +66,8 @@ const Index = () => {
         <Route path="/profiles" element={<ProfileAdmin />} />
         <Route path="/bulk-upload" element={<BulkUpload />} />
         <Route path="/enquiries" element={<EnquiryOverview />} />
+        <Route path="/newsletter" element={<NewsletterSubscribers />} />
+        <Route path="/app-config" element={<AppConfig />} />
         <Route path="/cash-payments" element={<CashPayments />} />
         <Route path="/success-stories" element={<SuccessStories />} />
         <Route path="/reports" element={<Reports />} />

@@ -8,6 +8,14 @@ export const MAROON = "#7a1f3d";
 /** Noto Sans Malayalam (loaded in index.html) for crisp Malayalam glyphs. */
 export const MALAYALAM_FONT = "'Noto Sans Malayalam', sans-serif";
 
+/**
+ * Traditional Malayalam font for chart cells — matches the EXE's old-style
+ * glyph forms (Anjali Old Lipi / Karthika family). Used only inside chart
+ * cells so planet abbreviations visually match the desktop EXE output.
+ */
+export const MALAYALAM_CHART_FONT =
+  "'Anjali Old Lipi', 'AnjaliOldLipi', 'Rachana', 'Meera', 'Karthika', 'ML-TT Karthika', 'Noto Sans Malayalam', serif";
+
 export type HoroscopeLang = "en" | "ml";
 
 export type ChartKind = "rasi" | "amsa" | "bhava";
@@ -40,6 +48,27 @@ export interface DasaInfo {
   balance_text?: string;
 }
 
+/**
+ * Finalized display strings produced by the backend. The UI renders these
+ * verbatim — it never recomputes star/dasa/lagnam/rasi values. Backend is the
+ * single source of truth.
+ */
+export interface HoroscopeDisplay {
+  /** Profile name shown at top of chart centre panel. */
+  name?: string;
+  /** ISO or yyyy-mm-dd date of birth. */
+  date_of_birth?: string;
+  /** Birth time (24h HH:MM[:SS] or display string). */
+  time_of_birth?: string;
+  star_display?: string;
+  /** Nakshatra pada (1–4) for centre-panel formatting. */
+  nakshatra_pada?: number | string;
+  dasa_display?: string;
+  dasa_lord?: string;
+  lagnam_display?: string;
+  rasi_display?: string;
+}
+
 export interface HoroscopeCharts {
   rasi?: ChartGrid | null;
   amsa?: ChartGrid | null;
@@ -62,10 +91,10 @@ export const PLANET_ML: Record<string, string> = {
   budhan: "ബു",
   guru: "ഗു",
   sukran: "ശു",
-  sani: "ശ",
-  rahu: "രാ",
-  kethu: "കേ",
-  maandi: "മ",
+  sani: "മ",
+  rahu: "സ",
+  kethu: "ശി",
+  maandi: "മാ",
   // Legacy / backend aliases
   la: "ല",
   su: "ര",
@@ -80,12 +109,12 @@ export const PLANET_ML: Record<string, string> = {
   jupiter: "ഗു",
   ve: "ശു",
   venus: "ശു",
-  sa: "ശ",
-  saturn: "ശ",
-  ra: "രാ",
-  ke: "കേ",
-  gulika: "മ",
-  md: "മ",
+  sa: "മ",
+  saturn: "മ",
+  ra: "സ",
+  ke: "ശി",
+  gulika: "മാ",
+  md: "മാ",
 };
 
 /**
@@ -150,6 +179,11 @@ export const HOROSCOPE_LABELS: Record<HoroscopeLang, Record<string, string>> = {
     pada: "Pada",
     dasa: "Dasa",
     lord: "Lord",
+    center_dob: "DOB",
+    center_tob: "Time",
+    center_nathan: "Lord",
+    center_lagna: "Lagna",
+    center_rasi: "Rasi",
     latitude: "Latitude",
     longitude: "Longitude",
     time_zone: "Time Zone",
@@ -157,6 +191,15 @@ export const HOROSCOPE_LABELS: Record<HoroscopeLang, Record<string, string>> = {
     not_calculated_hint: "The chart will appear here once the horoscope has been calculated.",
     asc: "Asc",
     chart_type: "Chart type",
+    overall_match: "Overall match",
+    porutham_details: "Porutham Details",
+    uthamam: "Uthamam",
+    madhyamam: "Madhyamam",
+    adhamam: "Adhamam",
+    dosham_compatibility: "Dosham & Compatibility",
+    bride: "Bride",
+    groom: "Groom",
+    remaining: "Remaining",
   },
   ml: {
     rasi: "രാശി",
@@ -166,6 +209,11 @@ export const HOROSCOPE_LABELS: Record<HoroscopeLang, Record<string, string>> = {
     pada: "പാദം",
     dasa: "ദശ",
     lord: "ദശാനാഥൻ",
+    center_dob: "ജനന തീയതി",
+    center_tob: "ജനന സമയം",
+    center_nathan: "നാഥൻ",
+    center_lagna: "ലഗ്നം",
+    center_rasi: "രാശി",
     latitude: "അക്ഷാംശം",
     longitude: "രേഖാംശം",
     time_zone: "സമയ മേഖല",
@@ -173,8 +221,147 @@ export const HOROSCOPE_LABELS: Record<HoroscopeLang, Record<string, string>> = {
     not_calculated_hint: "ജാതകം കണക്കാക്കിയ ശേഷം ചാർട്ട് ഇവിടെ കാണാം.",
     asc: "ലഗ്നം",
     chart_type: "ചാർട്ട് തരം",
+    overall_match: "മൊത്തം പൊരുത്തം",
+    porutham_details: "പൊരുത്തം വിശദാംശങ്ങൾ",
+    uthamam: "ഉത്തമം",
+    madhyamam: "മധ്യമം",
+    adhamam: "അധമം",
+    dosham_compatibility: "ദോഷം & പൊരുത്തം",
+    bride: "വധു",
+    groom: "വരൻ",
+    remaining: "ബാക്കി",
   },
 };
+
+export function poruthamsMatchedSummary(
+  lang: HoroscopeLang,
+  matched: number,
+  total: number,
+): string {
+  return lang === "ml"
+    ? `${total} ൽ ${matched} പൊരുത്തങ്ങൾ`
+    : `${matched} out of ${total} poruthams matched`;
+}
+
+/** Porutham row labels keyed by normalized API field name (display only). */
+const PORUTHAM_ROW_LABELS: Record<HoroscopeLang, Record<string, string>> = {
+  en: {
+    dinam: "Dinam",
+    dina: "Dinam",
+    din: "Dinam",
+    ganam: "Ganam",
+    gana: "Ganam",
+    mahendra: "Mahendram",
+    mahendram: "Mahendram",
+    sthree_deerga: "Sthree Deergham",
+    sthree_deergha: "Sthree Deergham",
+    sthreedeergha: "Sthree Deergham",
+    sthree_deergham: "Sthree Deergham",
+    streedeerga: "Sthree Deergham",
+    yoni: "Yoni",
+    yonim: "Yoni",
+    rasi: "Rasi",
+    rashi: "Rasi",
+    rasyadhipam: "Rasyadhipathi",
+    rasi_adhipathi: "Rasyadhipathi",
+    rasiyadhipathy: "Rasyadhipathi",
+    rasiadhipathi: "Rasyadhipathi",
+    rasyadhipathi: "Rasyadhipathi",
+    vasyam: "Vasyam",
+    vasya: "Vasyam",
+    rajju_dosham: "Rajju",
+    rajju: "Rajju",
+    rajjus: "Rajju",
+    vedha_dosham: "Vedha",
+    vedha: "Vedha",
+    vedham: "Vedha",
+  },
+  ml: {
+    dinam: "ദിനം",
+    dina: "ദിനം",
+    din: "ദിനം",
+    ganam: "ഗണം",
+    gana: "ഗണം",
+    mahendra: "മഹേന്ദ്രം",
+    mahendram: "മഹേന്ദ്രം",
+    sthree_deerga: "സ്ത്രീദീർഘം",
+    sthree_deergha: "സ്ത്രീദീർഘം",
+    sthreedeergha: "സ്ത്രീദീർഘം",
+    sthree_deergham: "സ്ത്രീദീർഘം",
+    streedeerga: "സ്ത്രീദീർഘം",
+    yoni: "യോനി",
+    yonim: "യോനി",
+    rasi: "രാശി",
+    rashi: "രാശി",
+    rasyadhipam: "രാശ്യാധിപതി",
+    rasi_adhipathi: "രാശ്യാധിപതി",
+    rasiyadhipathy: "രാശ്യാധിപതി",
+    rasiadhipathi: "രാശ്യാധിപതി",
+    rasyadhipathi: "രാശ്യാധിപതി",
+    vasyam: "വശ്യം",
+    vasya: "വശ്യം",
+    rajju_dosham: "രജ്ജു ദോഷം",
+    rajju: "രജ്ജു ദോഷം",
+    rajjus: "രജ്ജു ദോഷം",
+    vedha_dosham: "വേധം",
+    vedha: "വേധം",
+    vedham: "വേധം",
+    chovva_dosham: "കുജ ദോഷം",
+    kuja_dosham: "കുജ ദോഷം",
+    mangal_dosham: "കുജ ദോഷം",
+    dasa_sandhi: "ദശാ സന്ധി",
+    dasasandhi: "ദശാ സന്ധി",
+    papa_samyam: "പാപം സാമ്യം",
+    papam_samyam: "പാപം സാമ്യം",
+    papam_samyom: "പാപം സാമ്യം",
+  },
+};
+
+/** Dosha / compatibility row labels (display only). */
+export const DOSHA_LABELS_I18N: Record<HoroscopeLang, Record<string, string>> = {
+  en: {
+    chovva_dosham: "Kuja Dosham (Chovva)",
+    papa_samyam: "Papa Samyam",
+    dasa_sandhi: "Dasa Sandhi",
+  },
+  ml: {
+    chovva_dosham: "കുജ ദോഷം",
+    kuja_dosham: "കുജ ദോഷം",
+    mangal_dosham: "കുജ ദോഷം",
+    papa_samyam: "പാപം സാമ്യം",
+    papam_samyam: "പാപം സാമ്യം",
+    dasa_sandhi: "ദശാ സന്ധി",
+  },
+};
+
+function normalizePoruthamKey(key: string): string {
+  return key.toLowerCase().replace(/[^a-z]/g, "");
+}
+
+/** Resolve a porutham row label for the chosen language (no effect on matching logic). */
+export function poruthamRowLabel(
+  lang: HoroscopeLang,
+  key: string,
+  fallback: string,
+): string {
+  const norm = normalizePoruthamKey(key);
+  return (
+    PORUTHAM_ROW_LABELS[lang][norm] ??
+    PORUTHAM_ROW_LABELS[lang][key] ??
+    DOSHA_LABELS_I18N[lang][key] ??
+    DOSHA_LABELS_I18N[lang][norm] ??
+    fallback
+  );
+}
+
+/** Resolve a dosha-check label for the chosen language. */
+export function doshaCheckLabel(
+  lang: HoroscopeLang,
+  key: string,
+  fallback: string,
+): string {
+  return DOSHA_LABELS_I18N[lang][key] ?? fallback;
+}
 
 export const CHART_TABS: Array<{ kind: ChartKind; key: string }> = [
   { kind: "rasi", key: "rasi" },
@@ -202,6 +389,203 @@ export const PERIMETER_SIGNS = [12, 1, 2, 3, 11, 4, 10, 5, 9, 8, 7, 6] as const;
 
 export function t(lang: HoroscopeLang, key: string): string {
   return HOROSCOPE_LABELS[lang]?.[key] ?? HOROSCOPE_LABELS.en[key] ?? key;
+}
+
+function alreadyMalayalamScript(value: string): boolean {
+  return /[\u0D00-\u0D7F]/.test(value);
+}
+
+/** English graha / dasa-lord names → Malayalam (Kerala jathakam style). */
+const GRAHA_EN_TO_ML: Record<string, string> = {
+  sun: "രവി",
+  ravi: "രവി",
+  surya: "രവി",
+  moon: "ചന്ദ്രൻ",
+  chandra: "ചന്ദ്രൻ",
+  chandran: "ചന്ദ്രൻ",
+  mars: "കുജൻ",
+  mangal: "കുജൻ",
+  kuja: "കുജൻ",
+  mercury: "ബുധൻ",
+  budhan: "ബുധൻ",
+  budha: "ബുധൻ",
+  jupiter: "ഗുരു",
+  guru: "ഗുരു",
+  venus: "ശുക്രൻ",
+  sukran: "ശുക്രൻ",
+  shukra: "ശുക്രൻ",
+  saturn: "ശനി",
+  sani: "ശനി",
+  shani: "ശനി",
+  rahu: "രാഹു",
+  ketu: "കേതു",
+  kethu: "കേതു",
+};
+
+/** Extra nakshatra spellings (API / EXE) → STAR_NAMES_EN index. */
+const STAR_ALIAS_TO_INDEX: Record<string, number> = {
+  ashwini: 1,
+  aswini: 1,
+  krithika: 3,
+  krittika: 3,
+  mrigashira: 5,
+  ardra: 6,
+  pushya: 8,
+  pooyam: 8,
+  ashlesha: 9,
+  ayilyam: 9,
+  aayilyam: 9,
+  magha: 10,
+  makam: 10,
+  hasta: 13,
+  atham: 13,
+  chitra: 14,
+  chithira: 14,
+  chithra: 14,
+  swati: 15,
+  chothi: 15,
+  vishakha: 16,
+  vishakham: 16,
+  anuradha: 17,
+  anizham: 17,
+  jyeshtha: 18,
+  jyeshta: 18,
+  thrikketta: 18,
+  mula: 19,
+  moolam: 19,
+  pooradam: 20,
+  uthradam: 21,
+  uthramadam: 21,
+  shravana: 22,
+  sravana: 22,
+  thiruvonam: 22,
+  dhanishta: 23,
+  avittam: 23,
+  shatabhisha: 24,
+  chathayam: 24,
+  revati: 27,
+};
+
+export function localizeStarName(name: string | undefined | null, lang: HoroscopeLang): string {
+  const raw = (name ?? "").trim();
+  if (!raw || lang !== "ml" || alreadyMalayalamScript(raw)) return raw;
+  const base = raw.replace(/\s*\(\d+\)\s*$/, "").trim();
+  const norm = base.toLowerCase();
+  let idx = STAR_NAMES_EN.findIndex((n, i) => i > 0 && n.toLowerCase() === norm);
+  if (idx < 0) idx = STAR_ALIAS_TO_INDEX[norm] ?? 0;
+  if (idx > 0) return STAR_NAMES_ML[idx] ?? raw;
+  return raw;
+}
+
+export function localizeSignName(name: string | undefined | null, lang: HoroscopeLang): string {
+  const raw = (name ?? "").trim();
+  if (!raw || lang !== "ml" || alreadyMalayalamScript(raw)) return raw;
+  const norm = raw.toLowerCase();
+  const idx = SIGN_NAMES_EN.findIndex((n, i) => i > 0 && n.toLowerCase() === norm);
+  if (idx > 0) return SIGN_NAMES_ML[idx] ?? raw;
+  const aliases: Record<string, number> = {
+    karka: 4,
+    karkataka: 4,
+    cancer: 4,
+    simha: 5,
+    leo: 5,
+    kanya: 6,
+    virgo: 6,
+    tula: 7,
+    libra: 7,
+    vrischika: 8,
+    scorpio: 8,
+    dhanus: 9,
+    sagittarius: 9,
+    makaram: 10,
+    capricorn: 10,
+    kumbham: 11,
+    aquarius: 11,
+    meenam: 12,
+    pisces: 12,
+    mesha: 1,
+    aries: 1,
+    vrishabha: 2,
+    taurus: 2,
+    mithuna: 3,
+    gemini: 3,
+    midhunam: 3,
+  };
+  const aliasIdx = aliases[norm];
+  if (aliasIdx) return SIGN_NAMES_ML[aliasIdx] ?? raw;
+  return raw;
+}
+
+export function localizeGrahaName(name: string | undefined | null, lang: HoroscopeLang): string {
+  const raw = (name ?? "").trim();
+  if (!raw || lang !== "ml" || alreadyMalayalamScript(raw)) return raw;
+  const norm = raw.toLowerCase();
+  if (GRAHA_EN_TO_ML[norm]) return GRAHA_EN_TO_ML[norm];
+  const lordKey = Object.entries(DASA_LORDS_EN).find(([, v]) => v.toLowerCase() === norm)?.[0];
+  if (lordKey) return DASA_LORDS_ML[lordKey] ?? raw;
+  return raw;
+}
+
+function formatDasaDurationMalayalam(years: string, months: string, days: string): string {
+  return `${String(years).padStart(2, "0")} വർഷം ${String(months).padStart(2, "0")} മാസം ${String(days).padStart(2, "0")} ദിവസം`;
+}
+
+/** "09y 08m 15d" → "09 വർഷം 08 മാസം 15 ദിവസം" (Kerala jathakam printout). */
+export function localizeDasaDuration(raw: string | undefined | null, lang: HoroscopeLang): string {
+  const s = (raw ?? "").trim();
+  if (!s || lang !== "ml") return s;
+
+  const mlYmd = s.match(/(\d+)\s*വർഷം\s*(\d+)\s*മാസം\s*(\d+)\s*ദിവസം/u);
+  if (mlYmd) {
+    return formatDasaDurationMalayalam(mlYmd[1]!, mlYmd[2]!, mlYmd[3]!);
+  }
+
+  const ymd = s.match(
+    /(\d+)\s*y(?:ears?)?[.\s]*(\d+)\s*m(?:onths?)?[.\s]*(\d+)\s*d(?:ays?)?/i,
+  );
+  if (ymd) {
+    return formatDasaDurationMalayalam(ymd[1]!, ymd[2]!, ymd[3]!);
+  }
+
+  return s;
+}
+
+/** Malayalam centre-panel values when lang is ml (star, lord, dasa, lagnam, rasi). */
+export function localizeHoroscopeDisplay(
+  display: HoroscopeDisplay | null | undefined,
+  lang: HoroscopeLang,
+): HoroscopeDisplay | null {
+  if (!display) return null;
+  if (lang !== "ml") return display;
+  return {
+    ...display,
+    star_display: display.star_display
+      ? localizeStarName(display.star_display, lang)
+      : display.star_display,
+    dasa_lord: display.dasa_lord ? localizeGrahaName(display.dasa_lord, lang) : display.dasa_lord,
+    dasa_display: display.dasa_display
+      ? localizeDasaDuration(display.dasa_display, lang)
+      : display.dasa_display,
+    lagnam_display: display.lagnam_display
+      ? localizeSignName(display.lagnam_display, lang)
+      : display.lagnam_display,
+    rasi_display: display.rasi_display
+      ? localizeSignName(display.rasi_display, lang)
+      : display.rasi_display,
+  };
+}
+
+/** Centre-panel star line: "Rohini - Pada 4" / "രോഹിണി - പാദം 4". */
+export function formatChartStarLine(
+  starDisplay: string | undefined,
+  pada: unknown,
+  lang: HoroscopeLang,
+): string {
+  const star = localizeStarName((starDisplay ?? "").trim(), lang);
+  if (!star) return "";
+  const p = Number(pada);
+  if (!Number.isFinite(p) || p <= 0) return star;
+  return `${star} - ${t(lang, "pada")} ${p}`;
 }
 
 /** Returns the planet abbreviation for the chosen language (EXE-matched). */
@@ -249,10 +633,10 @@ export const PLANET_POSITIONS: ReadonlyArray<{
   { key: "budhan", index: 4, ml: "ബു", en: "Bu" },
   { key: "guru", index: 5, ml: "ഗു", en: "Gu" },
   { key: "sukran", index: 6, ml: "ശു", en: "Sk" },
-  { key: "sani", index: 7, ml: "ശ", en: "Sn" },
-  { key: "rahu", index: 8, ml: "രാ", en: "Ra" },
-  { key: "kethu", index: 9, ml: "കേ", en: "Ke" },
-  { key: "maandi", index: 10, ml: "മ", en: "Md" },
+  { key: "sani", index: 7, ml: "മ", en: "Sn" },
+  { key: "rahu", index: 8, ml: "സ", en: "Ra" },
+  { key: "kethu", index: 9, ml: "ശി", en: "Ke" },
+  { key: "maandi", index: 10, ml: "മാ", en: "Md" },
 ];
 
 /** Zodiac letter (A-L) -> sign/cell number (1-12). */
@@ -280,7 +664,13 @@ export const STAR_NAMES_EN: ReadonlyArray<string> = [
   "Uthuruttathi", "Revathi",
 ];
 
-/** Dasa lord names, keyed by canonical planet key. */
+/** Kerala rasi names 1–12 — index 0 unused (matches backend RASI_NAMES). */
+export const RASI_NAMES_EN: ReadonlyArray<string> = [
+  "", "Medam", "Edavam", "Midhunam", "Kadakam", "Chingam", "Kanni",
+  "Thulam", "Vrischikam", "Dhanu", "Makaram", "Kumbham", "Meenam",
+];
+
+/** Dasa-lord names keyed by canonical planet key (EXE-matched). */
 export const DASA_LORDS_ML: Record<string, string> = {
   kethu: "കേതു",
   sukran: "ശുക്രൻ",
@@ -293,47 +683,23 @@ export const DASA_LORDS_ML: Record<string, string> = {
   budhan: "ബുധൻ",
 };
 
+/** Romanized dasa-lord names (uppercase) — matches the legacy EXE (e.g. RAHU, SANI). */
 export const DASA_LORDS_EN: Record<string, string> = {
-  kethu: "Ketu",
-  sukran: "Venus",
-  ravi: "Sun",
-  chandran: "Moon",
-  kuja: "Mars",
-  rahu: "Rahu",
-  guru: "Jupiter",
-  sani: "Saturn",
-  budhan: "Mercury",
+  kethu: "KETHU",
+  sukran: "SUKRAN",
+  ravi: "RAVI",
+  chandran: "CHANDRAN",
+  kuja: "KUJA",
+  rahu: "RAHU",
+  guru: "GURU",
+  sani: "SANI",
+  budhan: "BUDHAN",
 };
 
-/** Raw chart fields pulled off a horoscope record, used to build the chart. */
-export interface HoroscopeChartSource {
-  rasiString?: unknown;
-  amsaString?: unknown;
-  bhavaString?: unknown;
-  starNumber?: unknown;
-  starName?: unknown;
-  pada?: unknown;
-  dasaLord?: unknown;
-  /** Raw dasa balance in days (e.g. pr_dasabalance = 2384). */
-  dasaBalanceDays?: unknown;
-  /** Pre-formatted dasa balance string (cache); used only if days absent. */
-  dasaBalanceText?: unknown;
-}
-
-/** Zodiac sign names 1-12 — index 0 unused. */
-export const SIGN_NAMES_ML: ReadonlyArray<string> = [
-  "", "മേടം", "ഇടവം", "മിഥുനം", "കർക്കടകം", "ചിങ്ങം", "കന്നി",
-  "തുലാം", "വൃശ്ചികം", "ധനു", "മകരം", "കുംഭം", "മീനം",
-];
-
-export const SIGN_NAMES_EN: ReadonlyArray<string> = [
-  "", "Medam", "Edavam", "Midhunam", "Kadakam", "Chingam", "Kanni",
-  "Thulam", "Vrischikam", "Dhanu", "Makaram", "Kumbham", "Meenam",
-];
-
 /**
- * Vimshottari dasa lord order, starting at Ashwini (star 1). Repeats every 9
- * nakshatras. Used to derive the running dasa lord directly from pr_star.
+ * Vimshottari dasa-lord order starting at Ashwini (star 1), repeating every 9
+ * nakshatras. Used to resolve the running dasa lord directly from the star.
+ * This is a fixed nakshatra→lord lookup, NOT a dasa-balance recomputation.
  */
 const VIMSHOTTARI_LORD_KEYS: ReadonlyArray<string> = [
   "kethu", "sukran", "ravi", "chandran", "kuja", "rahu", "guru", "sani", "budhan",
@@ -347,19 +713,26 @@ export function dasaLordKeyFromStar(starNumber: unknown): string {
 }
 
 /**
- * Formats a raw dasa balance (in days) as "06y 06m 11d".
- * Convention (matches the Windows EXE): 1 year = 365 days, 1 month = 30.5 days.
+ * Raw chart-string fields pulled off a horoscope record, used to build the
+ * South-Indian grid (planet placement) only. Star/Dasa/Lagnam/Rasi text is
+ * never derived here — those come finalized from the backend (HoroscopeDisplay).
  */
-export function formatDasaBalance(daysValue: unknown): string {
-  const days = Number(daysValue);
-  if (!Number.isFinite(days) || days <= 0) return "";
-  const y = Math.floor(days / 365);
-  const rem = days - y * 365;
-  const m = Math.floor(rem / 30.5);
-  const d = Math.round(rem - m * 30.5);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${pad(y)}y ${pad(m)}m ${pad(d)}d`;
+export interface HoroscopeChartSource {
+  rasiString?: unknown;
+  amsaString?: unknown;
+  bhavaString?: unknown;
 }
+
+/** Zodiac sign names 1-12 — index 0 unused. */
+export const SIGN_NAMES_ML: ReadonlyArray<string> = [
+  "", "മേടം", "ഇടവം", "മിഥുനം", "കർക്കടകം", "ചിങ്ങം", "കന്നി",
+  "തുലാം", "വൃശ്ചികം", "ധനു", "മകരം", "കുംഭം", "മീനം",
+];
+
+export const SIGN_NAMES_EN: ReadonlyArray<string> = [
+  "", "Medam", "Edavam", "Midhunam", "Kadakam", "Chingam", "Kanni",
+  "Thulam", "Vrischikam", "Dhanu", "Makaram", "Kumbham", "Meenam",
+];
 
 /**
  * Resolves a zodiac sign name from a pr_* chart string at the given planet
@@ -375,6 +748,33 @@ export function signNameFromChartString(
   const sign = letter ? RASI_CELL[letter] : undefined;
   if (!sign) return "";
   return (lang === "ml" ? SIGN_NAMES_ML : SIGN_NAMES_EN)[sign] ?? "";
+}
+
+/**
+ * Resolves the nakshatra display ("Chothi (2)" / "ചോതി (2)") from a star number
+ * (1-27) and optional pada. Pure name lookup — no dasa-balance computation.
+ */
+export function nakshatraDisplayFromStar(
+  starNumber: unknown,
+  pada: unknown,
+  lang: HoroscopeLang,
+): string {
+  const n = Number(starNumber);
+  if (!Number.isInteger(n) || n < 1 || n > 27) return "";
+  const name = (lang === "ml" ? STAR_NAMES_ML : STAR_NAMES_EN)[n] ?? "";
+  if (!name) return "";
+  const padaNum = Number(pada);
+  return Number.isFinite(padaNum) && padaNum > 0 ? `${name} (${padaNum})` : name;
+}
+
+/** Resolves the dasa-lord display ("RAHU" / "രാഹു") from a star number (1-27). */
+export function dasaLordDisplayFromStar(
+  starNumber: unknown,
+  lang: HoroscopeLang,
+): string {
+  const key = dasaLordKeyFromStar(starNumber);
+  if (!key) return "";
+  return (lang === "ml" ? DASA_LORDS_ML : DASA_LORDS_EN)[key] ?? "";
 }
 
 /**
@@ -407,78 +807,6 @@ export function parseChartGridFromString(chartString: unknown): ChartGrid | null
   return { lagna_sign, houses };
 }
 
-/** Normalizes any spelling of a dasa lord to a canonical planet key. */
-function normalizeDasaKey(value: unknown): string {
-  const s = String(value ?? "").trim().toLowerCase();
-  if (!s) return "";
-  if (/(kethu|ketu)/.test(s)) return "kethu";
-  if (/(sukran|sukra|shukra|venus)/.test(s)) return "sukran";
-  if (/(ravi|surya|soorya|sun)/.test(s)) return "ravi";
-  if (/(chandr|moon)/.test(s)) return "chandran";
-  if (/(kuja|mangal|chevvai|sevvai|mars)/.test(s)) return "kuja";
-  if (/(rahu)/.test(s)) return "rahu";
-  if (/(guru|jupiter|brihaspati|vyaza)/.test(s)) return "guru";
-  if (/(sani|shani|saturn)/.test(s)) return "sani";
-  if (/(budha|mercury)/.test(s)) return "budhan";
-  return s;
-}
-
-/** Formats the star (nakshatra) display for the chosen language. */
-export function formatStarDisplay(
-  source: HoroscopeChartSource,
-  lang: HoroscopeLang,
-): StarInfo | null {
-  const names = lang === "ml" ? STAR_NAMES_ML : STAR_NAMES_EN;
-  const n = Number(source.starNumber);
-  let name = "";
-  let number: number | undefined;
-  if (Number.isInteger(n) && n >= 1 && n <= 27) {
-    name = names[n];
-    number = n;
-  } else if (typeof source.starName === "string" && source.starName.trim()) {
-    name = source.starName.trim();
-  }
-  const padaNum = Number(source.pada);
-  const pada = Number.isFinite(padaNum) && padaNum > 0 ? padaNum : undefined;
-  if (!name && pada === undefined) return null;
-  return { name, number, pada };
-}
-
-/**
- * Formats the dasa balance + lord display for the chosen language.
- * Computes from raw fields first (pr_star -> lord, pr_dasabalance -> balance),
- * falling back to any stored/cached values. Never gated on is_calculated.
- */
-export function formatDasaDisplay(
-  source: HoroscopeChartSource,
-  lang: HoroscopeLang,
-): DasaInfo | null {
-  const map = lang === "ml" ? DASA_LORDS_ML : DASA_LORDS_EN;
-
-  // Lord: prefer Vimshottari derivation from the star; fall back to stored.
-  let lord: string | undefined;
-  const starLordKey = dasaLordKeyFromStar(source.starNumber);
-  if (starLordKey && map[starLordKey]) {
-    lord = map[starLordKey];
-  } else {
-    const key = normalizeDasaKey(source.dasaLord);
-    lord =
-      (key && map[key]) ||
-      (typeof source.dasaLord === "string" && source.dasaLord.trim()
-        ? source.dasaLord.trim()
-        : undefined);
-  }
-
-  // Balance: prefer computing from raw days; fall back to cached text.
-  let balance_text = formatDasaBalance(source.dasaBalanceDays) || undefined;
-  if (!balance_text && typeof source.dasaBalanceText === "string" && source.dasaBalanceText.trim()) {
-    balance_text = source.dasaBalanceText.trim();
-  }
-
-  if (!lord && !balance_text) return null;
-  return { lord, balance_text };
-}
-
 /** True when at least one pr_* chart string is present in the source. */
 export function hasChartSource(source: HoroscopeChartSource | null | undefined): boolean {
   if (!source) return false;
@@ -487,16 +815,17 @@ export function hasChartSource(source: HoroscopeChartSource | null | undefined):
   );
 }
 
-/** Builds the full render-ready charts object from raw pr_* source fields. */
+/**
+ * Builds the render-ready grids (planet placement) from raw pr_* source
+ * strings. Star/Dasa/Lagnam/Rasi text is NOT computed here — those finalized
+ * values come from the backend via HoroscopeDisplay.
+ */
 export function buildChartsFromSource(
   source: HoroscopeChartSource,
-  lang: HoroscopeLang,
 ): HoroscopeCharts {
   return {
     rasi: parseChartGridFromString(source.rasiString),
     amsa: parseChartGridFromString(source.amsaString),
     bhava: parseChartGridFromString(source.bhavaString),
-    star: formatStarDisplay(source, lang),
-    dasa: formatDasaDisplay(source, lang),
   };
 }

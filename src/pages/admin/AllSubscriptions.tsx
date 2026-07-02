@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { exportSubscriptionsCsv, fetchAdminSubscriptions } from "@/lib/admin-api/subscriptions";
 import { Search, Download, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { formatDate } from "@/lib/format-date";
 
 const statusColors: Record<string, string> = {
   active: "bg-success text-success-foreground",
@@ -145,7 +146,7 @@ export default function AllSubscriptions() {
                   <TableCell>{s.staff}</TableCell>
                   <TableCell>{s.branch}</TableCell>
                   <TableCell className="text-xs">
-                    {s.start_date} → {s.expiry_date}
+                    {formatDate(s.start_date)} → {formatDate(s.expiry_date)}
                   </TableCell>
                   <TableCell>
                     <Badge className={statusColors[s.status] ?? ""}>{s.status}</Badge>

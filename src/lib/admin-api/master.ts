@@ -76,6 +76,12 @@ export interface IncomeRangeItem {
   max_value?: number | null;
 }
 
+export interface HeightItem {
+  id: number;
+  value_cm: number;
+  display_label: string;
+}
+
 export interface PaginatedMaster<T> {
   count: number;
   next: string | null;
@@ -361,6 +367,15 @@ export async function fetchIncomeRanges(params?: { page?: number; page_size?: nu
   const qs = q.toString();
   const res = await adminRequest<never>(qs ? `v1/master/income-ranges/?${qs}` : "v1/master/income-ranges/");
   return parsePaginated<IncomeRangeItem>(res);
+}
+
+export async function fetchHeights(params?: { page?: number; page_size?: number }) {
+  const q = new URLSearchParams();
+  if (params?.page) q.set("page", String(params.page));
+  if (params?.page_size) q.set("page_size", String(params.page_size));
+  const qs = q.toString();
+  const res = await adminRequest<never>(qs ? `v1/master/heights/?${qs}` : "v1/master/heights/");
+  return parsePaginated<HeightItem>(res);
 }
 
 export async function fetchMaritalStatuses(params?: { page?: number; page_size?: number }) {

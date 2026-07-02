@@ -4,25 +4,20 @@ import {
   asChartGrid,
   chartHasPlanets,
   type HoroscopeCharts,
+  type HoroscopeDisplay,
   type HoroscopeLang,
 } from "./horoscope-i18n";
 
 export interface ChartViewProps {
   charts: HoroscopeCharts | null | undefined;
+  display?: HoroscopeDisplay | null;
   lang: HoroscopeLang;
 }
 
-export function AmsaChart({ charts, lang }: ChartViewProps) {
+export function AmsaChart({ charts, display, lang }: ChartViewProps) {
   const grid = asChartGrid(charts?.amsa);
   if (!grid || !chartHasPlanets(grid)) {
     return <NotCalculated lang={lang} />;
   }
-  return (
-    <SouthIndianChart
-      grid={grid}
-      star={charts?.star ?? null}
-      dasa={charts?.dasa ?? null}
-      lang={lang}
-    />
-  );
+  return <SouthIndianChart grid={grid} display={display} lang={lang} />;
 }

@@ -1,16 +1,24 @@
+import { formatDateDdMmYyyyDash, formatTimeOfBirthDisplay } from "@/lib/format-date";
 import {
   MAROON,
-  MALAYALAM_FONT,
+  MALAYALAM_CHART_FONT,
   PERIMETER_SIGNS,
+  SIGN_NAMES_EN,
+  SIGN_NAMES_ML,
   SIGN_POSITION,
+  formatChartStarLine,
+  localizeHoroscopeDisplay,
   planetSymbol,
   t,
   type ChartGrid,
   type ChartPlanet,
-  type DasaInfo,
+  type HoroscopeDisplay,
   type HoroscopeLang,
-  type StarInfo,
 } from "./horoscope-i18n";
+
+const PLANET_RED = "#dc2626";
+const GRID_LINE = "#d1d5db";
+const LAGNA_HIGHLIGHT = "rgba(237, 233, 254, 0.55)";
 
 function SignCell({
   sign,
@@ -27,40 +35,35 @@ function SignCell({
 }) {
   const pos = SIGN_POSITION[sign];
   if (!pos) return null;
+  const signLabel =
+    (lang === "ml" ? SIGN_NAMES_ML : SIGN_NAMES_EN)[sign] || signName || String(sign);
   return (
     <div
-      title={signName || undefined}
-      className="relative flex flex-col items-center justify-center gap-0.5 p-0.5 sm:p-1 min-h-[44px] sm:min-h-[58px]"
+      title={signLabel || undefined}
+      className="relative flex min-h-0 min-w-0 flex-col overflow-hidden bg-white p-0.5 sm:p-1 min-h-[44px] sm:min-h-[58px] box-border"
       style={{
         gridColumn: pos.col,
         gridRow: pos.row,
-        border: `1px solid ${MAROON}33`,
-        ...(isLagna
-          ? { boxShadow: `inset 0 0 0 2px ${MAROON}`, background: `${MAROON}0d` }
-          : null),
+        border: `1px solid ${GRID_LINE}`,
+        ...(isLagna ? { background: LAGNA_HIGHLIGHT } : null),
       }}
     >
-      <span className="absolute top-0.5 left-1 text-[8px] sm:text-[9px] leading-none text-muted-foreground">
-        {sign}
+      <span
+        className="absolute top-0.5 left-1 max-w-[72%] truncate text-[7px] sm:text-[8px] leading-none text-muted-foreground"
+        style={{ fontFamily: lang === "ml" ? MALAYALAM_CHART_FONT : undefined }}
+      >
+        {signLabel}
       </span>
-      {isLagna && (
-        <span
-          className="absolute top-0.5 right-1 text-[7px] sm:text-[8px] font-semibold leading-none"
-          style={{ color: MAROON, fontFamily: lang === "ml" ? MALAYALAM_FONT : undefined }}
-        >
-          {t(lang, "asc")}
-        </span>
-      )}
       <div
-        className="flex flex-wrap items-center justify-center gap-x-0.5 sm:gap-x-1 gap-y-0.5 mt-1"
-        style={{ fontFamily: lang === "ml" ? MALAYALAM_FONT : undefined }}
+        className="mt-3 flex min-h-0 min-w-0 max-w-full flex-wrap items-center justify-center gap-x-0.5 gap-y-0.5 overflow-hidden sm:gap-x-1"
+        style={{ fontFamily: lang === "ml" ? MALAYALAM_CHART_FONT : undefined }}
       >
         {planets.map((p, i) => (
           <span
             key={`${p.key}-${i}`}
             title={p.name}
-            className="text-[11px] sm:text-[13px] font-bold leading-none"
-            style={{ color: MAROON }}
+            className="max-w-full truncate text-[11px] font-bold leading-none sm:text-[13px]"
+            style={{ color: PLANET_RED }}
           >
             {planetSymbol(p, lang)}
           </span>
@@ -70,75 +73,149 @@ function SignCell({
   );
 }
 
+function ChartCenterPanel({
+  display,
+  lang,
+}: {
+  display?: HoroscopeDisplay | null;
+  lang: HoroscopeLang;
+}) {
+  const mlFont = lang === "ml" ? MALAYALAM_CHART_FONT : undefined;
+  const panel = localizeHoroscopeDisplay(display, lang);
+  const name = (panel?.name ?? "").trim();
+  const dob = formatDateDdMmYyyyDash(panel?.date_of_birth);
+  const tob = formatTimeOfBirthDisplay(panel?.time_of_birth);
+  const starLine = formatChartStarLine(
+    panel?.star_display,
+    panel?.nakshatra_pada,
+    lang,
+  );
+  const lord = (panel?.dasa_lord ?? "").trim();
+  const dasa = (panel?.dasa_display ?? "").trim();
+  const lagnam = (panel?.lagnam_display ?? "").trim();
+  const rasi = (panel?.rasi_display ?? "").trim();
+
+  const lagnaRasiLine =
+    lagnam || rasi
+      ? [
+          lagnam ? `${t(lang, "center_lagna")}: ${lagnam}` : null,
+          rasi ? `${t(lang, "center_rasi")}: ${rasi}` : null,
+        ]
+          .filter(Boolean)
+          .join(" - ")
+      : "";
+
+  const hasContent = name || dob || tob || starLine || lord || dasa || lagnaRasiLine;
+  if (!hasContent) return null;
+
+  return (
+    <>
+      {name ? (
+        <p
+          className="w-full break-words text-xs sm:text-sm font-bold leading-tight line-clamp-2"
+          style={{ color: MAROON, fontFamily: mlFont }}
+        >
+          {name}
+        </p>
+      ) : null}
+      {dob ? (
+        <p
+          className="text-[10px] sm:text-[11px] leading-tight"
+          style={{ fontFamily: mlFont, color: MAROON }}
+        >
+          {t(lang, "center_dob")}: {dob}
+        </p>
+      ) : null}
+      {tob ? (
+        <p
+          className="text-[10px] sm:text-[11px] leading-tight"
+          style={{ fontFamily: mlFont, color: MAROON }}
+        >
+          {t(lang, "center_tob")}: {tob}
+        </p>
+      ) : null}
+      {starLine ? (
+        <p
+          className="text-[10px] sm:text-[11px] leading-tight"
+          style={{ fontFamily: mlFont, color: MAROON }}
+        >
+          {starLine}
+        </p>
+      ) : null}
+      {lord ? (
+        <p
+          className="text-[10px] sm:text-[11px] leading-tight"
+          style={{ fontFamily: mlFont, color: MAROON }}
+        >
+          {t(lang, "center_nathan")}: {lord}
+        </p>
+      ) : null}
+      {dasa ? (
+        <p
+          className="text-[10px] sm:text-[11px] leading-tight"
+          style={{ fontFamily: mlFont, color: MAROON }}
+        >
+          {t(lang, "dasa")}: {dasa}
+        </p>
+      ) : null}
+      {lagnaRasiLine ? (
+        <p
+          className="text-[10px] sm:text-[11px] leading-tight"
+          style={{ fontFamily: mlFont, color: MAROON }}
+        >
+          {lagnaRasiLine}
+        </p>
+      ) : null}
+    </>
+  );
+}
+
 export interface SouthIndianChartProps {
   grid: ChartGrid;
-  star?: StarInfo | null;
-  dasa?: DasaInfo | null;
+  /** Finalized backend display strings — rendered verbatim in the center panel. */
+  display?: HoroscopeDisplay | null;
   lang: HoroscopeLang;
+  /** Slightly smaller chart — use for Bhava when three charts sit in one row. */
+  compact?: boolean;
 }
 
 /** South Indian (Kerala) 4x4 grid — planets placed by API `houses[signNumber]`. */
-export function SouthIndianChart({ grid, star, dasa, lang }: SouthIndianChartProps) {
+export function SouthIndianChart({ grid, display, lang, compact = false }: SouthIndianChartProps) {
   const houses = grid.houses ?? {};
   const signNames = grid.sign_names ?? {};
   const lagna = typeof grid.lagna_sign === "number" ? grid.lagna_sign : null;
-  const mlFont = lang === "ml" ? MALAYALAM_FONT : undefined;
+  const maxW = compact ? "min(100%,380px)" : "min(100%,420px)";
 
   return (
-    <div
-      className="mx-auto grid aspect-square w-full max-w-[min(100%,420px)] grid-cols-4 grid-rows-4"
-      style={{ border: `3px solid ${MAROON}` }}
-    >
-      {PERIMETER_SIGNS.map((sign) => {
-        const planets = Array.isArray(houses[String(sign)]) ? houses[String(sign)] : [];
-        return (
-          <SignCell
-            key={sign}
-            sign={sign}
-            planets={planets}
-            signName={signNames[String(sign)]}
-            isLagna={lagna === sign}
-            lang={lang}
-          />
-        );
-      })}
-
+    <div className="mx-auto w-full max-w-full overflow-hidden px-0.5 box-border font-ml">
       <div
-        className="flex flex-col items-center justify-center gap-0.5 sm:gap-1 p-1.5 sm:p-2 text-center leading-tight"
-        style={{
-          gridColumn: "2 / span 2",
-          gridRow: "2 / span 2",
-          border: `1px solid ${MAROON}33`,
-          fontFamily: mlFont,
-        }}
+        className="mx-auto grid aspect-square w-full grid-cols-4 grid-rows-4 overflow-hidden bg-white box-border"
+        style={{ border: `1px solid ${GRID_LINE}`, maxWidth: maxW }}
       >
-        {star?.name ? (
-          <p className="text-[10px] sm:text-[11px]">
-            <span className="text-muted-foreground">{t(lang, "star")}: </span>
-            <span className="font-semibold" style={{ color: MAROON }}>
-              {star.name}
-            </span>
-            {typeof star.pada === "number" ? (
-              <span className="text-muted-foreground"> ({star.pada})</span>
-            ) : null}
-          </p>
-        ) : null}
-        {dasa?.balance_text ? (
-          <p className="text-[10px] sm:text-[11px]">
-            <span className="text-muted-foreground">{t(lang, "dasa")}: </span>
-            <span className="font-semibold" style={{ color: MAROON }}>
-              {dasa.balance_text}
-            </span>
-          </p>
-        ) : null}
-        {dasa?.lord ? (
-          <p className="text-[10px] sm:text-[11px]">
-            <span className="text-muted-foreground">{t(lang, "lord")}: </span>
-            <span className="font-semibold" style={{ color: MAROON }}>
-              {dasa.lord}
-            </span>
-          </p>
-        ) : null}
+        {PERIMETER_SIGNS.map((sign) => {
+          const planets = Array.isArray(houses[String(sign)]) ? houses[String(sign)] : [];
+          return (
+            <SignCell
+              key={sign}
+              sign={sign}
+              planets={planets}
+              signName={signNames[String(sign)]}
+              isLagna={lagna === sign}
+              lang={lang}
+            />
+          );
+        })}
+
+        <div
+          className="flex min-h-0 min-w-0 flex-col items-center justify-center gap-0.5 overflow-hidden bg-white p-1.5 text-center leading-tight sm:gap-1 sm:p-2 box-border"
+          style={{
+            gridColumn: "2 / span 2",
+            gridRow: "2 / span 2",
+            border: `1px solid ${GRID_LINE}`,
+          }}
+        >
+          <ChartCenterPanel display={display} lang={lang} />
+        </div>
       </div>
     </div>
   );

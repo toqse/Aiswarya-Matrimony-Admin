@@ -43,6 +43,7 @@ import {
 import { Search, Loader2, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useRole } from "@/contexts/RoleContext";
+import { formatDate, formatDateTime } from "@/lib/format-date";
 
 const statusColors: Record<string, string> = {
   new: "bg-info text-info-foreground",
@@ -179,6 +180,12 @@ export default function EnquiryOverview() {
       fetchAdminEnquiryOptions(
         form.branch ? { branch_id: Number(form.branch) } : undefined,
       ),
+  });
+
+  const { data: assignOptions, isLoading: assignOptionsLoading } = useQuery({
+    enabled: !!assignOpenId,
+    queryKey: ["admin", "enquiries", "options", "assign"],
+    queryFn: () => fetchAdminEnquiryOptions(),
   });
 
   const invalidate = () => {
@@ -398,7 +405,7 @@ export default function EnquiryOverview() {
                   </TableCell>
                   <TableCell>{e.assigned_to_name ?? "—"}</TableCell>
                   <TableCell>{e.branch_name ?? "—"}</TableCell>
-                  <TableCell>{new Date(e.created_at).toLocaleDateString()}</TableCell>
+                  <TableCell>{formatDate(e.created_at)}</TableCell>
                   <TableCell>
                     <div className="flex gap-1">
                       <Select
@@ -597,11 +604,26 @@ export default function EnquiryOverview() {
           <DialogHeader>
             <DialogTitle>Assign Enquiry</DialogTitle>
           </DialogHeader>
-          <Input
-            placeholder="Staff ID"
-            value={assignStaffId}
-            onChange={(e) => setAssignStaffId(e.target.value)}
-          />
+          <Select
+            value={assignStaffId || undefined}
+            onValueChange={setAssignStaffId}
+            disabled={assignOptionsLoading || (assignOptions?.staff ?? []).length === 0}
+          >
+            <SelectTrigger>
+              <SelectValue
+                placeholder={
+                  assignOptionsLoading ? "Loading staff..." : "Select staff"
+                }
+              />
+            </SelectTrigger>
+            <SelectContent>
+              {(assignOptions?.staff ?? []).map((s) => (
+                <SelectItem key={s.id} value={String(s.id)}>
+                  {`${s.name} — ${s.branch_name}`}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAssignOpenId(null)}>
               Cancel
@@ -641,7 +663,7 @@ export default function EnquiryOverview() {
                 <div key={n.id} className="border-b pb-1 last:border-b-0">
                   <p>{n.text}</p>
                   <p className="text-xs text-muted-foreground">
-                    {new Date(n.created_at).toLocaleString()}
+                    {formatDateTime(n.created_at)}
                   </p>
                 </div>
               ))}

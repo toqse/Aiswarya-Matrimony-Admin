@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { PhoneInput } from "@/components/ui/phone-input";
 import { digitsOnlyMobile, formatPhoneForApi } from "@/lib/phone";
+import { formatDateTime } from "@/lib/format-date";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -1039,7 +1040,7 @@ export default function CashPaymentDashboard() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
-                      {p.created_at ? new Date(p.created_at).toLocaleString("en-IN") : "—"}
+                      {p.created_at ? formatDateTime(p.created_at) : "—"}
                     </TableCell>
                     <TableCell>
                       <Badge
@@ -1236,7 +1237,7 @@ export default function CashPaymentDashboard() {
               <div className="grid grid-cols-2 gap-3">
                 {[
                   { l: "Receipt No", v: detailQuery.data.receipt_id },
-                  { l: "Date", v: detailQuery.data.created_at ? new Date(detailQuery.data.created_at).toLocaleString("en-IN") : "—" },
+                  { l: "Date", v: detailQuery.data.created_at ? formatDateTime(detailQuery.data.created_at) : "—" },
                   { l: "Customer", v: detailQuery.data.customer?.name ?? "—" },
                   { l: "Profile ID", v: detailQuery.data.customer?.matri_id ?? "—" },
                   { l: "Plan", v: detailQuery.data.plan?.name ?? "—" },

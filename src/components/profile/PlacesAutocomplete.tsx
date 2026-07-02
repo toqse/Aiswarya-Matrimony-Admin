@@ -228,8 +228,6 @@ export default function PlacesAutocomplete({
             ))}
         </ul>
       )}
-
-      <p className="mt-1 text-[10px] text-muted-foreground">© OpenStreetMap contributors</p>
     </div>
   );
 }

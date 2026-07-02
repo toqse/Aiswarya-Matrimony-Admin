@@ -4,7 +4,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -33,7 +32,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import {
-  Search,
   Plus,
   Eye,
   Edit,
@@ -48,14 +46,18 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatPhoneDisplay } from "@/lib/phone";
+import { formatDate } from "@/lib/format-date";
+import ProfileSearchFilters from "@/components/profile/ProfileSearchFilters";
+import { EMPTY_PROFILE_SEARCH, profileSearchToQuery } from "@/lib/profileSearch";
 import AddProfileWizard from "@/components/profile/AddProfileWizard";
 import EditProfileWizard from "@/components/profile/EditProfileWizard";
 import {
+  buildPartnerReligionDetails,
   buildProfileEditFormData,
   mapDetailToWizardForm,
   type WizardFormValues,
 } from "@/lib/admin-api/profile-registration";
-import type { ProfileListRow, ProfilesQuery } from "@/lib/admin-api/profiles";
+import type { ProfileListRow } from "@/lib/admin-api/profiles";
 import {
   createStaffProfile,
   fetchStaffMyProfilesSummary,
@@ -66,35 +68,6 @@ import {
   patchStaffProfile,
   toggleStaffProfileWishlist,
 } from "@/lib/admin-api/profiles";
-
-const statusFilters = [
-  "All",
-  "Incomplete",
-  "Complete",
-  "Subscribed",
-  "Unsubscribed",
-  "Verified",
-  "Unverified",
-];
-
-function filterToApi(filter: string): ProfilesQuery["filter"] {
-  switch (filter) {
-    case "Incomplete":
-      return "incomplete";
-    case "Complete":
-      return "complete";
-    case "Subscribed":
-      return "subscribed";
-    case "Unsubscribed":
-      return "unsubscribed";
-    case "Verified":
-      return "verified";
-    case "Unverified":
-      return "unverified";
-    default:
-      return "all";
-  }
-}
 
 function isoToDDMMYYYY(iso: string): string {
   // iso expected: YYYY-MM-DD
@@ -111,8 +84,8 @@ function showValue(value: unknown) {
 }
 
 export default function MyProfiles() {
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All");
+  const [filters, setFilters] = useState(EMPTY_PROFILE_SEARCH);
+  const [applied, setApplied] = useState(EMPTY_PROFILE_SEARCH);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState("20");
   const [viewProfile, setViewProfile] = useState<ProfileListRow | null>(null);
@@ -142,22 +115,14 @@ export default function MyProfiles() {
   });
 
   const listQ = useQuery({
-    queryKey: [
-      "staff",
-      "profiles",
-      "list",
-      search,
-      statusFilter,
-      page,
-      pageSize,
-    ],
+    queryKey: ["staff", "profiles", "list", applied, page, pageSize],
     queryFn: () =>
-      fetchStaffProfiles({
-        search: search.trim() || undefined,
-        filter: filterToApi(statusFilter),
-        page,
-        page_size: Number(pageSize),
-      }),
+      fetchStaffProfiles(
+        profileSearchToQuery(applied, {
+          page,
+          page_size: Number(pageSize),
+        }),
+      ),
   });
 
   const profiles = listQ.data?.results ?? [];
@@ -361,40 +326,26 @@ export default function MyProfiles() {
         </Card>
       )}
 
-      {/* Filters */}
+      <ProfileSearchFilters
+        value={filters}
+        onChange={setFilters}
+        onSearch={() => {
+          setApplied(filters);
+          setPage(1);
+        }}
+        onReset={() => {
+          setFilters(EMPTY_PROFILE_SEARCH);
+          setApplied(EMPTY_PROFILE_SEARCH);
+          setPage(1);
+        }}
+        role="staff"
+        showAssignedStaff={false}
+      />
+
+      {/* Profiles table */}
       <Card className="shadow-elegant border-0">
         <CardHeader className="pb-3">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative flex-1 min-w-[200px] max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by name or ID..."
-                value={search}
-                onChange={(e) => {
-                  setPage(1);
-                  setSearch(e.target.value);
-                }}
-                className="pl-9"
-              />
-            </div>
-            <Select
-              value={statusFilter}
-              onValueChange={(v) => {
-                setPage(1);
-                setStatusFilter(v);
-              }}
-            >
-              <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                {statusFilters.map((f) => (
-                  <SelectItem key={f} value={f}>
-                    {f}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="flex flex-wrap items-center gap-3 justify-end">
             <Select
               value={pageSize}
               onValueChange={(v) => {
@@ -669,7 +620,7 @@ export default function MyProfiles() {
                           rows={[
                             ["Name", basic.name],
                             ["Gender", basic.gender],
-                            ["Date of birth", basic.dob],
+                            ["Date of birth", formatDate(basic.dob)],
                             ["Age", basic.age],
                             ["Email", basic.email],
                             ["Phone", formatPhoneDisplay(basic.phone)],
@@ -840,13 +791,19 @@ export default function MyProfiles() {
                             <FieldGrid
                               rows={[
                                 ["Father", family.father_name],
+                                ["Father status", family.father_status === "Late" ? "Deceased" : family.father_status],
                                 ["Father occupation", family.father_occupation],
                                 ["Mother", family.mother_name],
+                                ["Mother status", family.mother_status === "Late" ? "Deceased" : family.mother_status],
                                 ["Mother occupation", family.mother_occupation],
                                 ["Brothers", family.brothers],
                                 ["Married brothers", family.married_brothers],
                                 ["Sisters", family.sisters],
                                 ["Married sisters", family.married_sisters],
+                                ["Family type", family.family_type],
+                                ["Family status", family.family_status],
+                                ["Family contact", family.family_contact],
+                                ["Family contact 2", family.family_contact_2],
                                 ["About family", family.about_family],
                               ]}
                             />
@@ -992,20 +949,26 @@ export default function MyProfiles() {
               mother_tongue_id: form.motherTongueId
                 ? Number(form.motherTongueId)
                 : undefined,
-              partner_preference_type: form.partnerPreferenceType || undefined,
-              partner_religion_ids: Array.isArray(form.partnerReligionIds)
-                ? form.partnerReligionIds
-                    .map((id: unknown) => Number(id))
-                    .filter((n: number) => Number.isFinite(n))
-                : undefined,
-              partner_caste_preference:
-                form.partnerCastePreference || undefined,
+              ...buildPartnerReligionDetails({
+                religionId: String(form.religionId ?? ""),
+                partnerPreferenceType: form.partnerPreferenceType ?? "own_religion_only",
+                partnerReligionIds: Array.isArray(form.partnerReligionIds)
+                  ? form.partnerReligionIds.map(String)
+                  : [],
+                partnerCastePreferences: form.partnerCastePreferences ?? {},
+                partnerAgeFrom: String(form.partnerAgeFrom ?? ""),
+                partnerAgeTo: String(form.partnerAgeTo ?? ""),
+              }),
             },
             personal_details: {
               marital_status: form.maritalStatus || undefined,
               height_cm: form.height ? Number(form.height) : undefined,
               weight_kg: form.weight || undefined,
               complexion: form.complexion || undefined,
+              reason_for_divorce:
+                form.maritalStatus === "Divorced" && form.reasonForDivorce
+                  ? String(form.reasonForDivorce).trim()
+                  : undefined,
             },
             education_details: {
               highest_education_id: form.highestEducationId

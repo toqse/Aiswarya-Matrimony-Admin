@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
+import { formatDate } from "@/lib/format-date";
 import {
   createSuccessStory,
   deleteSuccessStory,
@@ -408,11 +409,7 @@ export default function SuccessStories() {
                 <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
                   <span className="flex items-center gap-1">
                     <Calendar className="h-3 w-3" />
-                    {new Date(story.marriageDate).toLocaleDateString("en-IN", {
-                      day: "numeric",
-                      month: "short",
-                      year: "numeric",
-                    })}
+                    {formatDate(story.marriageDate)}
                   </span>
                   {story.location && (
                     <span className="flex items-center gap-1">
@@ -695,10 +692,7 @@ export default function SuccessStories() {
                 <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground mt-1">
                   <span className="flex items-center gap-1">
                     <Calendar className="h-4 w-4" />
-                    {new Date(viewModal.marriageDate).toLocaleDateString(
-                      "en-IN",
-                      { day: "numeric", month: "long", year: "numeric" },
-                    )}
+                    {formatDate(viewModal.marriageDate)}
                   </span>
                   {viewModal.location && (
                     <span className="flex items-center gap-1">

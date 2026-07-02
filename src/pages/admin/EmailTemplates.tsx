@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { emailTemplates as initialTemplates } from "@/data/mockData";
 import { Edit, Eye } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { formatDate } from "@/lib/format-date";
 
 const templateBodies: Record<string, string> = {
   "Registration Welcome": "Dear {{name}},\n\nWelcome to AIswarya Matrimony! Your profile ID is {{profile_id}}.\n\nWe wish you the best in finding your life partner.\n\nBest regards,\nAIswarya Matrimony Team",
@@ -62,7 +63,7 @@ export default function EmailTemplates() {
                 <TableRow key={t.id}>
                   <TableCell className="font-medium">{t.name}</TableCell>
                   <TableCell>{t.subject}</TableCell>
-                  <TableCell>{t.lastModified}</TableCell>
+                  <TableCell>{formatDate(t.lastModified)}</TableCell>
                   <TableCell><Badge className="bg-success text-success-foreground">{t.status}</Badge></TableCell>
                   <TableCell>
                     <Button variant="ghost" size="icon" onClick={() => openEdit(t)}><Edit className="h-4 w-4" /></Button>

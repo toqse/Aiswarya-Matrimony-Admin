@@ -1,12 +1,39 @@
 import { unwrap } from "@/lib/admin-api/http";
 import { adminFetchBlob, adminRequest, downloadBlob } from "@/lib/api-client";
 
-export async function downloadBulkTemplate(format: "csv" | "xlsx" = "csv") {
+const TEMPLATE_XLSX_FILENAME = "Matrimony_Bulk_Upload_Template.xlsx";
+
+async function downloadPublicTemplateFallback() {
+  const res = await fetch(`/${TEMPLATE_XLSX_FILENAME}`);
+  if (!res.ok) {
+    throw new Error("Template file is not available on the server");
+  }
+  downloadBlob(await res.blob(), TEMPLATE_XLSX_FILENAME);
+}
+
+export async function downloadBulkTemplate(format: "csv" | "xlsx" = "xlsx") {
   const { ok, blob, filename } = await adminFetchBlob(
     `v1/admin/bulk-upload/template/?format=${format}`,
   );
-  if (!ok) throw new Error("Failed to download template");
-  downloadBlob(blob, filename || `bulk_upload_template.${format}`);
+  if (ok) {
+    downloadBlob(
+      blob,
+      filename ||
+        (format === "xlsx" ? TEMPLATE_XLSX_FILENAME : "bulk_upload_template.csv"),
+    );
+    return;
+  }
+
+  if (format === "xlsx") {
+    try {
+      await downloadPublicTemplateFallback();
+      return;
+    } catch {
+      // Fall through to API error below.
+    }
+  }
+
+  throw new Error("Failed to download template");
 }
 
 export interface ValidateBulkResult {

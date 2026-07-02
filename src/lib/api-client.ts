@@ -9,6 +9,33 @@ import {
 
 const LOG_PREFIX = "[admin-api]";
 
+/** Default network timeout for every API call (ms). Requests abort after this. */
+export const API_TIMEOUT_MS = 20_000;
+
+/**
+ * fetch() wrapper that aborts the request after `timeoutMs`. Any caller-supplied
+ * AbortSignal is respected too — aborting either the timeout or the caller's
+ * signal cancels the request.
+ */
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit = {},
+  timeoutMs: number = API_TIMEOUT_MS,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(new DOMException("Request timed out", "TimeoutError")), timeoutMs);
+  const external = init.signal;
+  if (external) {
+    if (external.aborted) controller.abort(external.reason);
+    else external.addEventListener("abort", () => controller.abort(external.reason), { once: true });
+  }
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /**
  * Logging:
  * - Set `VITE_API_DEBUG=true` in `.env` to log every request (noisy).
@@ -46,15 +73,42 @@ function apiLogOnError(...args: unknown[]) {
   console.warn(...args);
 }
 
+function isTimeoutError(err: unknown): boolean {
+  return err instanceof DOMException && (err.name === "TimeoutError" || err.name === "AbortError");
+}
+
+/** User-facing message for a failed connection (offline / timeout / unreachable). */
+function networkFailureMessage(err: unknown): string {
+  if (isTimeoutError(err)) {
+    return `The request timed out after ${API_TIMEOUT_MS / 1000}s. Please check your connection and try again.`;
+  }
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    return "You appear to be offline. Please check your internet connection and try again.";
+  }
+  return "Cannot connect to the server. Please check your internet connection and try again.";
+}
+
+/** JSON error blob so blob callers (which read the body) can surface a real message. */
+function blobError(message: string): Blob {
+  return new Blob([JSON.stringify({ success: false, message })], { type: "application/json" });
+}
+
 function networkFailure<T>(url: string, err: unknown): { ok: false; status: 0; data: AuthApiEnvelope<T> } {
-  const hint =
-    "Cannot reach the API. Start the backend on that host/port, or set VITE_API_BASE_URL in .env and restart the dev server. Current base: " +
-    API_BASE_URL;
-  apiLogOnError(`${LOG_PREFIX} network error:`, err, "URL:", url, hint);
+  const message = networkFailureMessage(err);
+  // Keep the developer-oriented hint (base URL + raw error) in the console only.
+  apiLogOnError(
+    `${LOG_PREFIX} network error:`,
+    err,
+    "URL:",
+    url,
+    "Current base:",
+    API_BASE_URL,
+    "(set VITE_API_BASE_URL in .env if this is wrong)",
+  );
   return {
     ok: false,
     status: 0,
-    data: { success: false, message: hint },
+    data: { success: false, message },
   };
 }
 
@@ -86,7 +140,7 @@ async function tryRefreshAccessToken(): Promise<string | null> {
   apiLogAll(`${LOG_PREFIX} POST token/refresh body:`, { refresh_token: "[redacted]" });
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await fetchWithTimeout(url, {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify(body),
@@ -151,7 +205,7 @@ export async function adminRequest<T = unknown>(
   apiLogAll(`${LOG_PREFIX} ${method} body:`, logBody(body ?? null));
 
   const doFetch = () =>
-    fetch(url, {
+    fetchWithTimeout(url, {
       ...rest,
       method,
       headers,
@@ -231,7 +285,7 @@ export async function adminFetchBlob(
   apiLogAll(`${LOG_PREFIX} ${method} [blob] body:`, logBody(body ?? null));
 
   const doFetch = () =>
-    fetch(url, {
+    fetchWithTimeout(url, {
       ...rest,
       method,
       headers,
@@ -246,7 +300,7 @@ export async function adminFetchBlob(
     return {
       ok: false,
       status: 0,
-      blob: new Blob(),
+      blob: blobError(networkFailureMessage(err)),
       filename: null,
     };
   }
@@ -262,7 +316,7 @@ export async function adminFetchBlob(
         return {
           ok: false,
           status: 0,
-          blob: new Blob(),
+          blob: blobError(networkFailureMessage(err)),
           filename: null,
         };
       }

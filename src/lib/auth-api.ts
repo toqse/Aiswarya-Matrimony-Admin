@@ -76,7 +76,7 @@ export async function postSendOtp(role: UserRole, mobile: string) {
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify(body),
   });
-  let data: AuthApiEnvelope<unknown> = {};
+  let data: AuthApiEnvelope<{ mobile?: string; otp?: string }> = {};
   try {
     data = await res.json();
   } catch {

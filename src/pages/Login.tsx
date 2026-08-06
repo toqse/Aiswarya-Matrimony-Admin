@@ -62,15 +62,22 @@ export default function Login() {
         return;
       }
 
+      const debugOtp = typeof data.data?.otp === "string" ? data.data.otp.replace(/\D/g, "").slice(0, OTP_LENGTH) : "";
+
       toast({
         title: "OTP sent",
-        description: `Check SMS for +91 ${mobile}`,
+        description: debugOtp ? `OTP (debug): ${debugOtp}` : `Check SMS for +91 ${mobile}`,
       });
 
       setStep("otp");
       setTimer(OTP_VALIDITY);
-      setOtp(Array(OTP_LENGTH).fill(""));
-      setTimeout(() => otpRefs.current[0]?.focus(), 100);
+      if (debugOtp.length === OTP_LENGTH) {
+        setOtp(debugOtp.split(""));
+        setTimeout(() => otpRefs.current[OTP_LENGTH - 1]?.focus(), 100);
+      } else {
+        setOtp(Array(OTP_LENGTH).fill(""));
+        setTimeout(() => otpRefs.current[0]?.focus(), 100);
+      }
     } finally {
       setSending(false);
     }

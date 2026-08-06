@@ -126,15 +126,16 @@ export default function BulkUpload() {
     }
   };
 
-  const runImport = async () => {
-    if (!validation?.validation_token) {
+  const runImport = async (token?: string) => {
+    const validationToken = token ?? validation?.validation_token;
+    if (!validationToken) {
       toast({ title: "Nothing to import", variant: "destructive" });
       return;
     }
     setImporting(true);
     try {
       const r = await importBulkUpload({
-        validation_token: validation.validation_token,
+        validation_token: validationToken,
       });
       const isAsync = Boolean(r.async && r.task_id);
       if (isAsync && r.task_id) {
@@ -569,6 +570,7 @@ export default function BulkUpload() {
                   <TableHead>Status</TableHead>
                   <TableHead>Branch</TableHead>
                   <TableHead>Created</TableHead>
+                  <TableHead className="text-right">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -585,6 +587,23 @@ export default function BulkUpload() {
                     <TableCell>{h.branch_name || "-"}</TableCell>
                     <TableCell>
                       {formatDateTime(h.created_at)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {h.status === "validated" && h.validation_token ? (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          disabled={importInFlight}
+                          onClick={() => runImport(h.validation_token)}
+                        >
+                          {importInFlight ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : null}
+                          Import
+                        </Button>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}

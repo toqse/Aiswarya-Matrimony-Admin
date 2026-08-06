@@ -45,12 +45,15 @@ export interface ValidateBulkResult {
   validation_token: string | null;
 }
 
+/** Bulk upload validate/import can take minutes on large legacy CSVs. */
+const BULK_UPLOAD_TIMEOUT_MS = 15 * 60 * 1000;
+
 export async function validateBulkUpload(file: File) {
   const fd = new FormData();
   fd.append("file", file);
   const res = await adminRequest<ValidateBulkResult>(
     "v1/admin/bulk-upload/validate/",
-    { method: "POST", body: fd },
+    { method: "POST", body: fd, timeoutMs: BULK_UPLOAD_TIMEOUT_MS },
   );
   return unwrap(res);
 }
@@ -70,7 +73,7 @@ export async function importBulkUpload(body: {
 }) {
   const res = await adminRequest<ImportBulkResult>(
     "v1/admin/bulk-upload/import/",
-    { method: "POST", body },
+    { method: "POST", body, timeoutMs: BULK_UPLOAD_TIMEOUT_MS },
   );
   return unwrap(res);
 }

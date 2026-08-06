@@ -78,9 +78,9 @@ function isTimeoutError(err: unknown): boolean {
 }
 
 /** User-facing message for a failed connection (offline / timeout / unreachable). */
-function networkFailureMessage(err: unknown): string {
+function networkFailureMessage(err: unknown, timeoutMs: number = API_TIMEOUT_MS): string {
   if (isTimeoutError(err)) {
-    return `The request timed out after ${API_TIMEOUT_MS / 1000}s. Please check your connection and try again.`;
+    return `The request timed out after ${timeoutMs / 1000}s. Please check your connection and try again.`;
   }
   if (typeof navigator !== "undefined" && navigator.onLine === false) {
     return "You appear to be offline. Please check your internet connection and try again.";
@@ -93,8 +93,12 @@ function blobError(message: string): Blob {
   return new Blob([JSON.stringify({ success: false, message })], { type: "application/json" });
 }
 
-function networkFailure<T>(url: string, err: unknown): { ok: false; status: 0; data: AuthApiEnvelope<T> } {
-  const message = networkFailureMessage(err);
+function networkFailure<T>(
+  url: string,
+  err: unknown,
+  timeoutMs: number = API_TIMEOUT_MS,
+): { ok: false; status: 0; data: AuthApiEnvelope<T> } {
+  const message = networkFailureMessage(err, timeoutMs);
   // Keep the developer-oriented hint (base URL + raw error) in the console only.
   apiLogOnError(
     `${LOG_PREFIX} network error:`,
@@ -170,6 +174,8 @@ export interface AdminRequestInit extends Omit<RequestInit, "body"> {
   body?: BodyInit | object | null;
   /** Do not attach Bearer token */
   skipAuth?: boolean;
+  /** Override the default network timeout (ms). */
+  timeoutMs?: number;
 }
 
 function serializeBody(body: AdminRequestInit["body"]): BodyInit | undefined {
@@ -186,9 +192,10 @@ export async function adminRequest<T = unknown>(
   path: string,
   init: AdminRequestInit = {},
 ): Promise<{ ok: boolean; status: number; data: AuthApiEnvelope<T> }> {
-  const { skipAuth, body: rawBody, headers: initHeaders, ...rest } = init;
+  const { skipAuth, body: rawBody, headers: initHeaders, timeoutMs, ...rest } = init;
   const method = (rest.method || "GET").toUpperCase();
   const url = path.startsWith("http") ? path : apiUrl(path.replace(/^\//, ""));
+  const requestTimeoutMs = timeoutMs ?? API_TIMEOUT_MS;
 
   const body = serializeBody(rawBody ?? undefined);
   const headers = new Headers(initHeaders);
@@ -205,18 +212,22 @@ export async function adminRequest<T = unknown>(
   apiLogAll(`${LOG_PREFIX} ${method} body:`, logBody(body ?? null));
 
   const doFetch = () =>
-    fetchWithTimeout(url, {
-      ...rest,
-      method,
-      headers,
-      body: body ?? null,
-    });
+    fetchWithTimeout(
+      url,
+      {
+        ...rest,
+        method,
+        headers,
+        body: body ?? null,
+      },
+      requestTimeoutMs,
+    );
 
   let res: Response;
   try {
     res = await doFetch();
   } catch (err) {
-    return networkFailure<T>(url, err);
+    return networkFailure<T>(url, err, requestTimeoutMs);
   }
   let refreshSucceeded = false;
 
@@ -228,7 +239,7 @@ export async function adminRequest<T = unknown>(
       try {
         res = await doFetch();
       } catch (err) {
-        return networkFailure<T>(url, err);
+        return networkFailure<T>(url, err, requestTimeoutMs);
       }
       refreshSucceeded = true;
     }

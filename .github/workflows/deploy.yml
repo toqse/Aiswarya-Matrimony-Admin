@@ -1,43 +1,38 @@
-name: Deploy Admin Website
+name: Deploy Admin Portal
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
 
 jobs:
-  deploy:
+  build-and-deploy:
     runs-on: ubuntu-latest
-
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: npm
+          node-version: '20'
+          cache: 'npm'
 
-      - run: npm ci
+      - name: Install dependencies
+        run: npm ci
 
-      - run: npm run build
+      - name: Build
+        run: npm run build
+        env:
+          VITE_API_URL: https://api.aiswaryamatrimonials.com
+          # add any other build-time env vars your admin app needs
 
-      - name: Clean old files
-        uses: appleboy/ssh-action@v1.2.0
+      - name: Deploy to VPS
+        uses: burnett01/rsync-deployments@7.0.1
         with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USERNAME }}
-          key: ${{ secrets.SSH_KEY }}
-          port: ${{ secrets.PORT }}
-          script: |
-            rm -rf /var/www/admin/*
-
-      - name: Upload dist
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USERNAME }}
-          key: ${{ secrets.SSH_KEY }}
-          port: ${{ secrets.PORT }}
-          source: "dist/*"
-          target: "/var/www/admin"
-          strip_components: 1
+          switches: -avzr --delete
+          path: dist/            # change to "build/" if using Create React App
+          remote_path: /var/www/admin/
+          remote_host: ${{ secrets.VPS_HOST }}
+          remote_port: ${{ secrets.VPS_PORT }}
+          remote_user: ${{ secrets.VPS_USER }}
+          remote_key: ${{ secrets.VPS_SSH_KEY }}

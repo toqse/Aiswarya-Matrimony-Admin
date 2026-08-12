@@ -56,9 +56,19 @@ export default function Login() {
 
     setSending(true);
     try {
-      const { ok, data } = await postSendOtp(selectedRole, mobile);
+      const { ok, status, data } = await postSendOtp(selectedRole, mobile);
       if (!ok || (data && typeof data.success === "boolean" && !data.success)) {
-        toast({ title: getAuthApiErrorMessage(data), variant: "destructive" });
+        const msg = getAuthApiErrorMessage(data);
+        toast({
+          title: status === 429 ? "Too many requests" : msg,
+          description:
+            status === 429
+              ? msg !== "Request failed"
+                ? msg
+                : "Please wait a few minutes before requesting another OTP."
+              : undefined,
+          variant: "destructive",
+        });
         return;
       }
 

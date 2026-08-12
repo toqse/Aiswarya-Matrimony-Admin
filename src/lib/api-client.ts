@@ -38,10 +38,11 @@ async function fetchWithTimeout(
 
 /**
  * Logging:
- * - Set `VITE_API_DEBUG=true` in `.env` to log every request (noisy).
- * - Even without debug, we still log URL/method for failed requests so you can see the endpoint in the console.
+ * - Every request URL + response is logged to the browser console (useful after deploy).
+ * - Set `VITE_API_DEBUG=false` to silence request bodies only; URL/status still log.
+ * - Set `VITE_API_DEBUG=true` (default) to also log request bodies.
  */
-const API_DEBUG_ALL = import.meta.env.VITE_API_DEBUG === "true";
+const API_DEBUG_ALL = import.meta.env.VITE_API_DEBUG !== "false";
 
 function apiLogAll(...args: unknown[]) {
   if (!API_DEBUG_ALL) return;
@@ -49,7 +50,6 @@ function apiLogAll(...args: unknown[]) {
 }
 
 function apiLogUrl(...args: unknown[]) {
-  // User requested: always show URLs in console.
   console.log(...args);
 }
 

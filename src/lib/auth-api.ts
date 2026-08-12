@@ -41,12 +41,21 @@ export interface AuthApiEnvelope<T> {
   error?: string | AuthApiErrorShape;
 }
 
-const DEBUG_AUTH_LOGS = Boolean(import.meta.env.DEV);
+const DEBUG_AUTH_LOGS = import.meta.env.VITE_API_DEBUG !== "false";
 
 function authLog(...args: unknown[]) {
   if (DEBUG_AUTH_LOGS) {
     console.log(...args);
   }
+}
+
+function redactAuthBody(body: unknown): unknown {
+  if (!body || typeof body !== "object") return body;
+  const o = { ...(body as Record<string, unknown>) };
+  for (const key of ["otp", "access_token", "refresh_token", "password"]) {
+    if (key in o && o[key] != null) o[key] = "[redacted]";
+  }
+  return o;
 }
 
 /** Resolves user-facing text from API JSON (top-level or nested `error.message`). */
@@ -70,7 +79,7 @@ export async function postSendOtp(role: UserRole, mobile: string) {
     mobile: mobile.trim(),
   };
   authLog("[send-otp] URL:", url);
-  authLog("[send-otp] body:", body);
+  authLog("[send-otp] body:", redactAuthBody(body));
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
@@ -83,7 +92,7 @@ export async function postSendOtp(role: UserRole, mobile: string) {
     data = {};
   }
   authLog("[send-otp] response status:", res.status);
-  authLog("[send-otp] response body:", data);
+  authLog("[send-otp] response body:", redactAuthBody(data));
   return { ok: res.ok, status: res.status, data };
 }
 
@@ -95,7 +104,7 @@ export async function postVerifyOtp(role: UserRole, mobile: string, otp: string)
     otp: otp.trim(),
   };
   authLog("[verify-otp] URL:", url);
-  authLog("[verify-otp] body:", body);
+  authLog("[verify-otp] body:", redactAuthBody(body));
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
@@ -108,7 +117,7 @@ export async function postVerifyOtp(role: UserRole, mobile: string, otp: string)
     data = {};
   }
   authLog("[verify-otp] response status:", res.status);
-  authLog("[verify-otp] response body:", data);
+  authLog("[verify-otp] response body:", redactAuthBody(data));
   return { ok: res.ok, status: res.status, data };
 }
 
@@ -129,7 +138,7 @@ export async function postAdminRefreshToken(refreshToken: string) {
     data = {};
   }
   authLog("[admin-token-refresh] response status:", res.status);
-  authLog("[admin-token-refresh] response body:", data);
+  authLog("[admin-token-refresh] response body:", redactAuthBody(data));
   return { ok: res.ok, status: res.status, data };
 }
 
@@ -155,6 +164,6 @@ export async function postAdminLogout() {
     data = {};
   }
   authLog("[admin-logout] response status:", res.status);
-  authLog("[admin-logout] response body:", data);
+  authLog("[admin-logout] response body:", redactAuthBody(data));
   return { ok: res.ok, status: res.status, data };
 }

@@ -1,4 +1,4 @@
-import { adminRequest } from "@/lib/api-client";
+import { adminRequest, PROFILE_MULTIPART_TIMEOUT_MS } from "@/lib/api-client";
 import { unwrap } from "@/lib/admin-api/http";
 
 export interface ProfileListRow {
@@ -251,6 +251,7 @@ export async function patchAdminProfile(
     {
       method: "PATCH",
       body,
+      timeoutMs: PROFILE_MULTIPART_TIMEOUT_MS,
     },
   );
   return unwrap(res);
@@ -364,6 +365,7 @@ export async function patchAdminProfilePhotos(
     {
       method: "PATCH",
       body: formData,
+      timeoutMs: PROFILE_MULTIPART_TIMEOUT_MS,
     },
   );
   return unwrap(res);
@@ -378,6 +380,7 @@ export async function patchStaffProfile(
     {
       method: "PATCH",
       body,
+      timeoutMs: PROFILE_MULTIPART_TIMEOUT_MS,
     },
   );
   return unwrap(res);
@@ -461,6 +464,7 @@ export async function patchBranchMyProfile(
     {
       method: "PATCH",
       body,
+      timeoutMs: PROFILE_MULTIPART_TIMEOUT_MS,
     },
   );
   return unwrap(res);
@@ -489,6 +493,7 @@ export async function createBranchMyProfile(
     {
       method: "POST",
       body,
+      timeoutMs: PROFILE_MULTIPART_TIMEOUT_MS,
     },
   );
   return unwrap(res);
@@ -584,6 +589,7 @@ export async function createStaffProfile(
     {
       method: "POST",
       body,
+      timeoutMs: PROFILE_MULTIPART_TIMEOUT_MS,
     },
   );
   return unwrap(res);
@@ -597,6 +603,7 @@ export async function createAdminProfile(
     {
       method: "POST",
       body,
+      timeoutMs: PROFILE_MULTIPART_TIMEOUT_MS,
     },
   );
   return unwrap(res);

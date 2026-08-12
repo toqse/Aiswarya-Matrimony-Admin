@@ -6,9 +6,14 @@ export function userRoleToApiRole(role: UserRole): string {
   return role;
 }
 
-/** Maps API `role` from verify response / JWT to UI role. */
-export function mapApiRoleToUserRole(apiRole: string): UserRole {
-  const r = apiRole.trim().toLowerCase();
+/**
+ * Maps API `role` from verify response / JWT / localStorage to UI role.
+ * Never throws — missing/invalid values fall back to "staff".
+ */
+export function mapApiRoleToUserRole(apiRole: unknown): UserRole {
+  const r = String(apiRole ?? "")
+    .trim()
+    .toLowerCase();
   if (r === "admin") return "admin";
   if (r === "staff") return "staff";
   if (r === "branch_manager" || r === "branch-manager") return "branch-manager";

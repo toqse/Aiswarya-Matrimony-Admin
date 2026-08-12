@@ -139,7 +139,7 @@ export function AppSidebar() {
           </div>
           {!collapsed && (
             <p className="text-sm font-medium text-sidebar-foreground/90 text-center">
-              {roleLabels[role]}
+              {roleLabels[role] ?? "Panel"}
             </p>
           )}
         </div>

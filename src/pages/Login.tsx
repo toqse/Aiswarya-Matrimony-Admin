@@ -8,6 +8,7 @@ import { PhoneInput } from "@/components/ui/phone-input";
 import { ShieldCheck, ArrowLeft, Loader2, CheckCircle2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { postSendOtp, postVerifyOtp, getAuthApiErrorMessage } from "@/lib/auth-api";
+import { userRoleToApiRole } from "@/lib/role-mapping";
 import type { MatrimonyAdminSession } from "@/lib/matrimony-admin-storage";
 
 const DEMO_ACCOUNTS: Record<UserRole, { mobile: string; label: string }> = {
@@ -143,7 +144,7 @@ export default function Login() {
       const session: MatrimonyAdminSession = {
         access_token: d.access_token,
         refresh_token: d.refresh_token,
-        role: d.role,
+        role: d.role ?? userRoleToApiRole(selectedRole),
         name: d.name,
         branch: d.branch,
         permissions: d.permissions ?? [],

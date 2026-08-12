@@ -97,15 +97,18 @@ export default function ProfileAdmin() {
   const invalidate = () => qc.invalidateQueries({ queryKey: ["admin", "profiles"] });
 
   const createMut = useMutation({
-    mutationFn: (payload: FormData) => createAdminProfile(payload),
-    onSuccess: async (res) => {
+    mutationFn: async (form: Record<string, unknown>) => {
+      const payload = await buildProfileRegistrationFormData(form);
+      return createAdminProfile(payload);
+    },
+    onSuccess: (res) => {
       const matriId = String((res as { matri_id?: string }).matri_id ?? "");
       toast({
         title: "Profile created",
         description: matriId ? `Created successfully: ${matriId}` : "Created successfully",
       });
       setShowAddProfile(false);
-      await invalidate();
+      void invalidate();
     },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
@@ -143,13 +146,21 @@ export default function ProfileAdmin() {
   });
 
   const editMut = useMutation({
-    mutationFn: ({ matriId, body }: { matriId: string; body: FormData }) =>
-      patchAdminProfile(matriId, body),
-    onSuccess: async () => {
+    mutationFn: async ({
+      matriId,
+      form,
+    }: {
+      matriId: string;
+      form: Parameters<typeof buildProfileEditFormData>[0];
+    }) => {
+      const body = await buildProfileEditFormData(form);
+      return patchAdminProfile(matriId, body);
+    },
+    onSuccess: () => {
       toast({ title: "Profile updated" });
-      await invalidate();
       setEditRow(null);
       setEditInitial(null);
+      void invalidate();
     },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
@@ -416,7 +427,7 @@ export default function ProfileAdmin() {
         submitting={editMut.isPending}
         onComplete={(form) => {
           if (!editRow) return;
-          editMut.mutate({ matriId: editRow.matri_id, body: buildProfileEditFormData(form) });
+          editMut.mutate({ matriId: editRow.matri_id, form });
         }}
       />
 
@@ -500,8 +511,7 @@ export default function ProfileAdmin() {
         onOpenChange={setShowAddProfile}
         submitting={createMut.isPending}
         onComplete={(form) => {
-          const fd = buildProfileRegistrationFormData(form);
-          createMut.mutate(fd);
+          createMut.mutate(form);
         }}
       />
     </div>

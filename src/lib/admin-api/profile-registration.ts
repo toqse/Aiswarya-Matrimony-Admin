@@ -4,6 +4,7 @@
  * create flows stay in sync with the backend `registration` contract.
  */
 import { formatPhoneForApi, digitsOnlyMobile } from "@/lib/phone";
+import { compressProfileUploadFile } from "@/lib/compressImage";
 import {
   EMPTY_FAMILY_FIELDS,
   type FamilyFormFields,
@@ -14,13 +15,6 @@ import {
   type PartnerPreferenceType,
 } from "@/components/profile/PartnerPreferenceSection";
 
-function isoToDDMMYYYY(iso: string): string {
-  // iso expected: YYYY-MM-DD
-  const [y, m, d] = String(iso ?? "").split("-");
-  if (!y || !m || !d) return String(iso ?? "");
-  return `${d}-${m}-${y}`;
-}
-
 const FILE_KEYS = [
   "full_photo",
   "passport_photo",
@@ -30,6 +24,27 @@ const FILE_KEYS = [
   "aadhaar_front",
   "aadhaar_back",
 ] as const;
+
+async function appendCompressedFiles(
+  fd: FormData,
+  source: Record<string, unknown>,
+): Promise<void> {
+  await Promise.all(
+    FILE_KEYS.map(async (k) => {
+      const f = source[k];
+      if (!(f instanceof File)) return;
+      const compressed = await compressProfileUploadFile(k, f);
+      fd.append(k, compressed);
+    }),
+  );
+}
+
+function isoToDDMMYYYY(iso: string): string {
+  // iso expected: YYYY-MM-DD
+  const [y, m, d] = String(iso ?? "").split("-");
+  if (!y || !m || !d) return String(iso ?? "");
+  return `${d}-${m}-${y}`;
+}
 
 function parentStatusToApi(ui: string): string | undefined {
   if (!ui) return undefined;
@@ -150,7 +165,9 @@ export function buildPartnerReligionDetails(form: {
 }
 
 /** Convert the wizard form object into a ready-to-POST FormData (registration JSON + files). */
-export function buildProfileRegistrationFormData(form: Record<string, unknown>): FormData {
+export async function buildProfileRegistrationFormData(
+  form: Record<string, unknown>,
+): Promise<FormData> {
   const gender = form.gender === "Male" ? "M" : form.gender === "Female" ? "F" : "O";
   const birthTime = String(form.timeOfBirth ?? "").trim();
   const birthPlace = String(form.placeOfBirth ?? "").trim();
@@ -238,10 +255,7 @@ export function buildProfileRegistrationFormData(form: Record<string, unknown>):
 
   const fd = new FormData();
   fd.append("registration", JSON.stringify(registration));
-  FILE_KEYS.forEach((k) => {
-    const f = form[k];
-    if (f instanceof File) fd.append(k, f);
-  });
+  await appendCompressedFiles(fd, form);
   return fd;
 }
 
@@ -427,7 +441,7 @@ export function mapDetailToWizardForm(
  * basic_details because the edit pipeline applies section handlers and skips
  * top-level identity keys.
  */
-export function buildProfileEditFormData(form: WizardFormValues): FormData {
+export async function buildProfileEditFormData(form: WizardFormValues): Promise<FormData> {
   const gender = form.gender === "Male" ? "M" : form.gender === "Female" ? "F" : "O";
   const birthTime = String(form.timeOfBirth ?? "").trim();
   const birthPlace = String(form.placeOfBirth ?? "").trim();
@@ -493,9 +507,6 @@ export function buildProfileEditFormData(form: WizardFormValues): FormData {
 
   const fd = new FormData();
   fd.append("registration", JSON.stringify(registration));
-  FILE_KEYS.forEach((k) => {
-    const f = (form as unknown as Record<string, unknown>)[k];
-    if (f instanceof File) fd.append(k, f);
-  });
+  await appendCompressedFiles(fd, form as unknown as Record<string, unknown>);
   return fd;
 }

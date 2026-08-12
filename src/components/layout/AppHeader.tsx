@@ -19,7 +19,7 @@ export function AppHeader() {
   const { role, logout } = useRole();
   const navigate = useNavigate();
 
-  const currentRole = roleOptions.find((r) => r.value === role)!;
+  const currentRole = roleOptions.find((r) => r.value === role) ?? roleOptions[0];
 
   return (
     <header className="h-14 border-b bg-card flex items-center gap-3 px-4 shrink-0">

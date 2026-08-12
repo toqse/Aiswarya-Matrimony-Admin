@@ -52,8 +52,8 @@ import { EMPTY_PROFILE_SEARCH, profileSearchToQuery } from "@/lib/profileSearch"
 import AddProfileWizard from "@/components/profile/AddProfileWizard";
 import EditProfileWizard from "@/components/profile/EditProfileWizard";
 import {
-  buildPartnerReligionDetails,
   buildProfileEditFormData,
+  buildProfileRegistrationFormData,
   mapDetailToWizardForm,
   type WizardFormValues,
 } from "@/lib/admin-api/profile-registration";
@@ -68,13 +68,6 @@ import {
   patchStaffProfile,
   toggleStaffProfileWishlist,
 } from "@/lib/admin-api/profiles";
-
-function isoToDDMMYYYY(iso: string): string {
-  // iso expected: YYYY-MM-DD
-  const [y, m, d] = iso.split("-");
-  if (!y || !m || !d) return iso;
-  return `${d}-${m}-${y}`;
-}
 
 function showValue(value: unknown) {
   if (value == null || value === "") return "—";
@@ -156,9 +149,11 @@ export default function MyProfiles() {
   );
 
   const createMut = useMutation({
-    mutationFn: (payload: FormData | Record<string, unknown>) =>
-      createStaffProfile(payload),
-    onSuccess: async (res) => {
+    mutationFn: async (form: Record<string, unknown>) => {
+      const payload = await buildProfileRegistrationFormData(form);
+      return createStaffProfile(payload);
+    },
+    onSuccess: (res) => {
       const matriId = String((res as { matri_id?: string }).matri_id ?? "");
       toast({
         title: "Profile Created",
@@ -167,7 +162,7 @@ export default function MyProfiles() {
           : "Created successfully",
       });
       setShowAddProfile(false);
-      await Promise.all([
+      void Promise.all([
         qc.invalidateQueries({ queryKey: ["staff", "profiles", "summary"] }),
         qc.invalidateQueries({ queryKey: ["staff", "profiles", "list"] }),
       ]);
@@ -181,15 +176,23 @@ export default function MyProfiles() {
   });
 
   const patchMut = useMutation({
-    mutationFn: ({ matriId, body }: { matriId: string; body: FormData }) =>
-      patchStaffProfile(matriId, body),
-    onSuccess: async () => {
+    mutationFn: async ({
+      matriId,
+      form,
+    }: {
+      matriId: string;
+      form: WizardFormValues;
+    }) => {
+      const body = await buildProfileEditFormData(form);
+      return patchStaffProfile(matriId, body);
+    },
+    onSuccess: () => {
       toast({
         title: "Profile Updated",
         description: "Changes saved successfully.",
       });
       setShowEditProfile(false);
-      await Promise.all([
+      void Promise.all([
         qc.invalidateQueries({ queryKey: ["staff", "profiles", "summary"] }),
         qc.invalidateQueries({ queryKey: ["staff", "profiles", "list"] }),
       ]);
@@ -865,191 +868,8 @@ export default function MyProfiles() {
         open={showAddProfile}
         onOpenChange={setShowAddProfile}
         submitting={createMut.isPending}
-        onComplete={(form: any) => {
-          const gender =
-            form.gender === "Male" ? "M" : form.gender === "Female" ? "F" : "O";
-          const birthTime = String(form.timeOfBirth ?? "").trim();
-          const birthPlace = String(form.placeOfBirth ?? "").trim();
-          const birthDate = isoToDDMMYYYY(String(form.dob ?? ""));
-          const horoscopeDetails = form.hasHoroscope
-            ? {
-                date_of_birth: birthDate || undefined,
-                pr_dob: birthDate || undefined,
-                time_of_birth: birthTime || undefined,
-                birth_time: birthTime || undefined,
-                pr_tob: birthTime || undefined,
-                country_id: form.countryId
-                  ? Number(form.countryId)
-                  : undefined,
-                state_id: form.stateId
-                  ? Number(form.stateId)
-                  : undefined,
-                district_id: form.districtId
-                  ? Number(form.districtId)
-                  : undefined,
-                place_of_birth: birthPlace || undefined,
-                birth_place: birthPlace || undefined,
-                pr_pob: birthPlace || undefined,
-                latitude: form.birthLatitude
-                  ? Number(form.birthLatitude)
-                  : undefined,
-                longitude: form.birthLongitude
-                  ? Number(form.birthLongitude)
-                  : undefined,
-                timezone: form.birthTimezone || undefined,
-              }
-            : undefined;
-          const registration = {
-            name: String(form.name ?? form.fullName ?? "").trim(),
-            phone_number: String(form.mobile ?? "").trim(),
-            gender,
-            dob: birthDate,
-            email: form.email ? String(form.email).trim() : undefined,
-            terms_accepted: true,
-            profile_for: String(form.profileFor ?? "myself").toLowerCase(),
-            has_horoscope: !!form.hasHoroscope,
-            horoscope_details: horoscopeDetails,
-            time_of_birth: form.hasHoroscope
-              ? birthTime || undefined
-              : undefined,
-            birth_time: form.hasHoroscope ? birthTime || undefined : undefined,
-            pr_tob: form.hasHoroscope ? birthTime || undefined : undefined,
-            place_of_birth: form.hasHoroscope
-              ? birthPlace || undefined
-              : undefined,
-            birth_place: form.hasHoroscope
-              ? birthPlace || undefined
-              : undefined,
-            pr_pob: form.hasHoroscope ? birthPlace || undefined : undefined,
-            latitude:
-              form.hasHoroscope && form.birthLatitude
-                ? Number(form.birthLatitude)
-                : undefined,
-            longitude:
-              form.hasHoroscope && form.birthLongitude
-                ? Number(form.birthLongitude)
-                : undefined,
-            timezone: form.hasHoroscope
-              ? form.birthTimezone || undefined
-              : undefined,
-            location_details: {
-              country_id: form.countryId ? Number(form.countryId) : undefined,
-              state_id: form.stateId ? Number(form.stateId) : undefined,
-              district_id: form.districtId
-                ? Number(form.districtId)
-                : undefined,
-              city: form.city ? String(form.city).trim() : undefined,
-              address: form.address || undefined,
-            },
-            religion_details: {
-              religion_id: form.religionId
-                ? Number(form.religionId)
-                : undefined,
-              caste_id: form.casteId ? Number(form.casteId) : undefined,
-              mother_tongue_id: form.motherTongueId
-                ? Number(form.motherTongueId)
-                : undefined,
-              ...buildPartnerReligionDetails({
-                religionId: String(form.religionId ?? ""),
-                partnerPreferenceType: form.partnerPreferenceType ?? "own_religion_only",
-                partnerReligionIds: Array.isArray(form.partnerReligionIds)
-                  ? form.partnerReligionIds.map(String)
-                  : [],
-                partnerCastePreferences: form.partnerCastePreferences ?? {},
-                partnerAgeFrom: String(form.partnerAgeFrom ?? ""),
-                partnerAgeTo: String(form.partnerAgeTo ?? ""),
-              }),
-            },
-            personal_details: {
-              marital_status: form.maritalStatus || undefined,
-              height_cm: form.height ? Number(form.height) : undefined,
-              weight_kg: form.weight || undefined,
-              complexion: form.complexion || undefined,
-              reason_for_divorce:
-                form.maritalStatus === "Divorced" && form.reasonForDivorce
-                  ? String(form.reasonForDivorce).trim()
-                  : undefined,
-            },
-            education_details: {
-              highest_education_id: form.highestEducationId
-                ? Number(form.highestEducationId)
-                : undefined,
-              education_subject_id: form.educationSubjectId
-                ? Number(form.educationSubjectId)
-                : undefined,
-              employment_status: form.employmentStatus || undefined,
-              occupation_id: form.occupationId
-                ? Number(form.occupationId)
-                : undefined,
-              annual_income_id: form.annualIncomeId
-                ? Number(form.annualIncomeId)
-                : undefined,
-            },
-            about_me: form.aboutMe || undefined,
-          } as Record<string, unknown>;
-
-          const fd = new FormData();
-          fd.append("registration", JSON.stringify(registration));
-
-          const fileKeys = [
-            "full_photo",
-            "passport_photo",
-            "profile_photo",
-            "selfie_photo",
-            "family_photo",
-            "aadhaar_front",
-            "aadhaar_back",
-          ] as const;
-
-          fileKeys.forEach((k) => {
-            const f = form[k];
-            if (f instanceof File) fd.append(k, f);
-          });
-
-          const formData = {
-            horoscopeFields: [
-              {
-                uiFieldName: "Time of Birth",
-                stateFieldName: "timeOfBirth",
-                stateValue: form.timeOfBirth,
-                apiPayloadFieldNames: [
-                  "registration.time_of_birth",
-                  "registration.birth_time",
-                  "registration.pr_tob",
-                  "registration.horoscope_details.time_of_birth",
-                  "registration.horoscope_details.birth_time",
-                  "registration.horoscope_details.pr_tob",
-                ],
-                serializerFieldNames: ["time_of_birth", "birth_time", "pr_tob"],
-              },
-              {
-                uiFieldName: "Place of Birth",
-                stateFieldName: "placeOfBirth",
-                stateValue: form.placeOfBirth,
-                apiPayloadFieldNames: [
-                  "registration.place_of_birth",
-                  "registration.birth_place",
-                  "registration.pr_pob",
-                  "registration.horoscope_details.place_of_birth",
-                  "registration.horoscope_details.birth_place",
-                  "registration.horoscope_details.pr_pob",
-                ],
-                serializerFieldNames: [
-                  "place_of_birth",
-                  "birth_place",
-                  "pr_pob",
-                ],
-              },
-            ],
-            registration,
-            formDataEntries: Array.from(fd.entries()).map(([key, value]) => [
-              key,
-              value instanceof File ? `[File:${value.name}]` : value,
-            ]),
-          };
-          console.log(formData);
-
-          createMut.mutate(fd);
+        onComplete={(form: Record<string, unknown>) => {
+          createMut.mutate(form);
         }}
       />
 
@@ -1063,7 +883,7 @@ export default function MyProfiles() {
           if (!editProfile) return;
           patchMut.mutate({
             matriId: editProfile.matri_id,
-            body: buildProfileEditFormData(form),
+            form,
           });
         }}
       />

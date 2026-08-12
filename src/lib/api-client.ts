@@ -11,6 +11,8 @@ const LOG_PREFIX = "[admin-api]";
 
 /** Default network timeout for every API call (ms). Requests abort after this. */
 export const API_TIMEOUT_MS = 20_000;
+/** Profile create/edit multipart (photos) — allow slower VPS uploads. */
+export const PROFILE_MULTIPART_TIMEOUT_MS = 60_000;
 
 /**
  * fetch() wrapper that aborts the request after `timeoutMs`. Any caller-supplied

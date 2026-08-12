@@ -24,15 +24,57 @@ interface RoleContextType {
 
 const RoleContext = createContext<RoleContextType | undefined>(undefined);
 
-export function RoleProvider({ children }: { children: ReactNode }) {
-  const [role, setRole] = useState<UserRole>(() => {
+type BootSession = {
+  role: UserRole;
+  isLoggedIn: boolean;
+  userName: string | null;
+  branch: AdminBranchRef | null;
+  permissions: string[];
+};
+
+function readBootSession(): BootSession {
+  try {
     const s = getMatrimonyAdminSession();
-    return s?.access_token ? mapApiRoleToUserRole(s.role) : "admin";
-  });
-  const [isLoggedIn, setIsLoggedIn] = useState(() => !!getMatrimonyAdminSession()?.access_token);
-  const [userName, setUserName] = useState<string | null>(() => getMatrimonyAdminSession()?.name ?? null);
-  const [branch, setBranch] = useState<AdminBranchRef | null>(() => getMatrimonyAdminSession()?.branch ?? null);
-  const [permissions, setPermissions] = useState<string[]>(() => getMatrimonyAdminSession()?.permissions ?? []);
+    if (!s?.access_token) {
+      return {
+        role: "admin",
+        isLoggedIn: false,
+        userName: null,
+        branch: null,
+        permissions: [],
+      };
+    }
+    return {
+      role: mapApiRoleToUserRole(s.role),
+      isLoggedIn: true,
+      userName: s.name ?? null,
+      branch: s.branch ?? null,
+      permissions: Array.isArray(s.permissions) ? s.permissions : [],
+    };
+  } catch (err) {
+    console.warn("[RoleProvider] bad session; clearing", err);
+    try {
+      clearMatrimonyAdminSession();
+    } catch {
+      /* ignore */
+    }
+    return {
+      role: "admin",
+      isLoggedIn: false,
+      userName: null,
+      branch: null,
+      permissions: [],
+    };
+  }
+}
+
+export function RoleProvider({ children }: { children: ReactNode }) {
+  const [boot] = useState(readBootSession);
+  const [role, setRole] = useState<UserRole>(boot.role);
+  const [isLoggedIn, setIsLoggedIn] = useState(boot.isLoggedIn);
+  const [userName, setUserName] = useState<string | null>(boot.userName);
+  const [branch, setBranch] = useState<AdminBranchRef | null>(boot.branch);
+  const [permissions, setPermissions] = useState<string[]>(boot.permissions);
 
   const login = (session: MatrimonyAdminSession) => {
     setMatrimonyAdminSession(session);

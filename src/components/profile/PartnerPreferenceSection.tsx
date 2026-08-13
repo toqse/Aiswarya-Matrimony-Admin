@@ -4,7 +4,13 @@ import { Check, CheckSquare, Globe, Home } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import FormSectionCard from "@/components/profile/FormSectionCard";
+import ProfileFormField, {
+  fieldError,
+  invalidInputClass,
+  type ProfileFieldErrors,
+} from "@/components/profile/ProfileFormField";
 import { fetchCastes } from "@/lib/admin-api/master";
+import { validatePartnerFieldErrors } from "@/lib/profile-validation";
 import { cn } from "@/lib/utils";
 
 export type PartnerPreferenceType = "own_religion_only" | "open_to_all" | "specific_religions";
@@ -67,39 +73,17 @@ interface PartnerPreferenceSectionProps {
     value: PartnerPreferenceFields[K],
   ) => void;
   onBatchChange?: (updates: Partial<PartnerPreferenceFields>) => void;
+  errors?: ProfileFieldErrors;
 }
 
+/** @deprecated Use validatePartnerFieldErrors from @/lib/profile-validation */
 export function validatePartnerPreference(
   values: PartnerPreferenceFields,
   religionId: string,
 ): string | null {
-  if (
-    values.partnerPreferenceType === "specific_religions" &&
-    values.partnerReligionIds.length === 0
-  ) {
-    return "Select at least one partner religion.";
-  }
-
-  const ageFrom = values.partnerAgeFrom.trim()
-    ? Number(values.partnerAgeFrom)
-    : null;
-  const ageTo = values.partnerAgeTo.trim() ? Number(values.partnerAgeTo) : null;
-
-  if (ageFrom != null && (!Number.isInteger(ageFrom) || ageFrom < 18 || ageFrom > 80)) {
-    return "Partner age from must be between 18 and 80.";
-  }
-  if (ageTo != null && (!Number.isInteger(ageTo) || ageTo < 18 || ageTo > 80)) {
-    return "Partner age to must be between 18 and 80.";
-  }
-  if (ageFrom != null && ageTo != null && ageFrom > ageTo) {
-    return "Partner age from cannot be greater than age to.";
-  }
-
-  if (values.partnerPreferenceType === "own_religion_only" && !religionId) {
-    return "Select a religion before setting partner preference.";
-  }
-
-  return null;
+  const errs = validatePartnerFieldErrors(values, religionId);
+  const first = Object.values(errs)[0];
+  return first ?? null;
 }
 
 function pillClass(selected: boolean) {
@@ -119,6 +103,7 @@ export default function PartnerPreferenceSection({
   values,
   onChange,
   onBatchChange,
+  errors,
 }: PartnerPreferenceSectionProps) {
   const ownReligionId = religionId ? Number(religionId) : 0;
   const ownCasteId = casteId ? Number(casteId) : 0;
@@ -339,6 +324,11 @@ export default function PartnerPreferenceSection({
                 );
               })}
             </div>
+            {fieldError(errors, "partnerPreferenceType") && (
+              <p className="mt-2 text-xs text-destructive">
+                {fieldError(errors, "partnerPreferenceType")}
+              </p>
+            )}
           </div>
 
           {selectedType === "specific_religions" && (
@@ -361,6 +351,11 @@ export default function PartnerPreferenceSection({
                     );
                   })}
                 </div>
+                {fieldError(errors, "partnerReligionIds") && (
+                  <p className="mt-2 text-xs text-destructive">
+                    {fieldError(errors, "partnerReligionIds")}
+                  </p>
+                )}
               </div>
               {selectedPartnerReligionIds.length > 0 && (
                 <div className="space-y-3">
@@ -459,8 +454,10 @@ export default function PartnerPreferenceSection({
               <p className="text-xs text-muted-foreground">Enter preferred age range between 18 and 80</p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="grid gap-2">
-                <Label htmlFor="partnerAgeFrom">Age From</Label>
+              <ProfileFormField
+                label="Age From"
+                error={fieldError(errors, "partnerAgeFrom")}
+              >
                 <Input
                   id="partnerAgeFrom"
                   type="number"
@@ -469,10 +466,14 @@ export default function PartnerPreferenceSection({
                   value={values.partnerAgeFrom}
                   onChange={(e) => handleAgeInput("partnerAgeFrom", e.target.value)}
                   placeholder="18"
+                  className={invalidInputClass(fieldError(errors, "partnerAgeFrom"))}
+                  aria-invalid={Boolean(fieldError(errors, "partnerAgeFrom"))}
                 />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="partnerAgeTo">Age To</Label>
+              </ProfileFormField>
+              <ProfileFormField
+                label="Age To"
+                error={fieldError(errors, "partnerAgeTo")}
+              >
                 <Input
                   id="partnerAgeTo"
                   type="number"
@@ -481,8 +482,10 @@ export default function PartnerPreferenceSection({
                   value={values.partnerAgeTo}
                   onChange={(e) => handleAgeInput("partnerAgeTo", e.target.value)}
                   placeholder="80"
+                  className={invalidInputClass(fieldError(errors, "partnerAgeTo"))}
+                  aria-invalid={Boolean(fieldError(errors, "partnerAgeTo"))}
                 />
-              </div>
+              </ProfileFormField>
             </div>
           </div>
         </div>

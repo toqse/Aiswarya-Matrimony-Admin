@@ -15,15 +15,19 @@ import { TimeOfBirthPicker } from "@/components/profile/TimeOfBirthPicker";
 import FormSectionCard from "@/components/profile/FormSectionCard";
 import FamilyDetailsSection, {
   EMPTY_FAMILY_FIELDS,
-  validateFamilyFields,
   type FamilyFormFields,
 } from "@/components/profile/FamilyDetailsSection";
 import PartnerPreferenceSection, {
   EMPTY_PARTNER_PREFERENCE_FIELDS,
-  validatePartnerPreference,
   type PartnerPreferenceFields,
 } from "@/components/profile/PartnerPreferenceSection";
-import { useToast } from "@/hooks/use-toast";
+import ProfileFormField, {
+  fieldError,
+  invalidInputClass,
+  invalidSelectClass,
+  type ProfileFieldErrors,
+} from "@/components/profile/ProfileFormField";
+import { firstErrorField, validateProfileForm } from "@/lib/profile-validation";
 import {
   fetchCastes,
   fetchComplexions,
@@ -50,8 +54,8 @@ interface AddProfileWizardProps {
 }
 
 export default function AddProfileWizard({ open, onOpenChange, onComplete, submitting = false }: AddProfileWizardProps) {
-  const { toast } = useToast();
   const [horoExpanded, setHoroExpanded] = useState(true);
+  const [fieldErrors, setFieldErrors] = useState<ProfileFieldErrors>({});
   const [form, setForm] = useState({
     profileFor: "",
     fullName: "",
@@ -100,26 +104,21 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
     ...EMPTY_FAMILY_FIELDS,
   });
 
-  const horoscopeValid =
-    !form.hasHoroscope || (!!form.dob && !!form.timeOfBirth && !!form.placeOfBirth);
+  const clearFieldError = (field: string) =>
+    setFieldErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
 
-  const canSubmit =
-    !!form.profileFor &&
-    !!form.fullName &&
-    form.mobile.length === 10 &&
-    !!form.dob &&
-    !!form.gender &&
-    !!form.religionId &&
-    !!form.maritalStatus &&
-    !!form.height &&
-    !!form.highestEducationId &&
-    !!form.employmentStatus &&
-    horoscopeValid;
-
-  const update = (field: keyof typeof form, value: string | boolean) =>
+  const update = (field: keyof typeof form, value: string | boolean) => {
+    clearFieldError(String(field));
     setForm((prev) => ({ ...prev, [field]: value }));
+  };
 
-  const reset = () =>
+  const reset = () => {
+    setFieldErrors({});
     setForm({
       profileFor: "",
       fullName: "",
@@ -167,46 +166,44 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
       aadhaar_back: null,
       ...EMPTY_FAMILY_FIELDS,
     });
+  };
 
-  const updateFamily = <K extends keyof FamilyFormFields>(field: K, value: FamilyFormFields[K]) =>
+  const updateFamily = <K extends keyof FamilyFormFields>(field: K, value: FamilyFormFields[K]) => {
+    clearFieldError(String(field));
     setForm((prev) => ({ ...prev, [field]: value }));
+  };
 
   const updatePartnerPreference = <K extends keyof PartnerPreferenceFields>(
     field: K,
     value: PartnerPreferenceFields[K],
-  ) => setForm((prev) => ({ ...prev, [field]: value }));
+  ) => {
+    clearFieldError(String(field));
+    setForm((prev) => ({ ...prev, [field]: value }));
+  };
 
-  const batchPartnerPreference = (updates: Partial<PartnerPreferenceFields>) =>
+  const batchPartnerPreference = (updates: Partial<PartnerPreferenceFields>) => {
+    setFieldErrors((prev) => {
+      const next = { ...prev };
+      for (const key of Object.keys(updates)) delete next[key];
+      return next;
+    });
     setForm((prev) => ({ ...prev, ...updates }));
+  };
 
   const submit = () => {
-    const familyError = validateFamilyFields(form);
-    if (familyError) {
-      toast({ title: "Family details", description: familyError, variant: "destructive" });
-      return;
-    }
-    const partnerError = validatePartnerPreference(form, form.religionId);
-    if (partnerError) {
-      toast({ title: "Partner preference", description: partnerError, variant: "destructive" });
-      return;
-    }
-    if (
-      form.maritalStatus === "Divorced" &&
-      !form.reasonForDivorce.trim()
-    ) {
-      toast({
-        title: "Missing fields",
-        description: "Reason for divorce is required when marital status is Divorced.",
-        variant: "destructive",
-      });
-      return;
-    }
-    if (!canSubmit) {
-      const description =
-        form.hasHoroscope && !horoscopeValid
-          ? "Horoscope is enabled — Date of Birth, Time of Birth and Place of Birth are required."
-          : "Please fill all required fields.";
-      toast({ title: "Missing fields", description, variant: "destructive" });
+    const errs = validateProfileForm(form, {
+      requireProfileFor: true,
+      requireMobile: true,
+    });
+    setFieldErrors(errs);
+    if (Object.keys(errs).length > 0) {
+      if (form.hasHoroscope && (errs.timeOfBirth || errs.placeOfBirth || errs.dob)) {
+        setHoroExpanded(true);
+      }
+      const first = firstErrorField(errs);
+      if (first) {
+        document.getElementById(`profile-field-${first}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
       return;
     }
 
@@ -367,38 +364,65 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
         </DialogHeader>
 
         <div className="space-y-6">
-          <div>
-            <Label>Profile For *</Label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
-              {profileForOptions.map((opt) => (
-                <Button
-                  key={opt}
-                  type="button"
-                  variant={form.profileFor === opt ? "default" : "outline"}
-                  onClick={() => update("profileFor", opt)}
-                >
-                  {opt}
-                </Button>
-              ))}
-            </div>
+          <div id="profile-field-profileFor">
+            <ProfileFormField label="Profile For" required error={fieldError(fieldErrors, "profileFor")}>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-0.5">
+                {profileForOptions.map((opt) => (
+                  <Button
+                    key={opt}
+                    type="button"
+                    variant={form.profileFor === opt ? "default" : "outline"}
+                    onClick={() => update("profileFor", opt)}
+                  >
+                    {opt}
+                  </Button>
+                ))}
+              </div>
+            </ProfileFormField>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <Label>Full Name *</Label>
-              <Input value={form.fullName} onChange={(e) => update("fullName", e.target.value)} />
-            </div>
-            <div>
-              <Label>Mobile *</Label>
-              <PhoneInput value={form.mobile} onChange={(v) => update("mobile", v)} />
-            </div>
-            <div>
-              <Label>Email</Label>
+            <ProfileFormField
+              label="Full Name"
+              required
+              error={fieldError(fieldErrors, "fullName")}
+            >
+              <Input
+                id="profile-field-fullName"
+                value={form.fullName}
+                onChange={(e) => update("fullName", e.target.value)}
+                className={invalidInputClass(fieldError(fieldErrors, "fullName"))}
+                aria-invalid={Boolean(fieldError(fieldErrors, "fullName"))}
+              />
+            </ProfileFormField>
+            <ProfileFormField
+              label="Mobile"
+              required
+              error={fieldError(fieldErrors, "mobile")}
+            >
+              <PhoneInput
+                id="profile-field-mobile"
+                value={form.mobile}
+                onChange={(v) => update("mobile", v)}
+                invalid={Boolean(fieldError(fieldErrors, "mobile"))}
+              />
+            </ProfileFormField>
+            <ProfileFormField label="Email">
               <Input value={form.email} onChange={(e) => update("email", e.target.value)} />
-            </div>
-            <div>
-              <Label>Date of Birth *</Label>
-              <Input type="date" value={form.dob} onChange={(e) => update("dob", e.target.value)} />
+            </ProfileFormField>
+            <ProfileFormField
+              label="Date of Birth"
+              required
+              error={fieldError(fieldErrors, "dob")}
+            >
+              <Input
+                id="profile-field-dob"
+                type="date"
+                value={form.dob}
+                onChange={(e) => update("dob", e.target.value)}
+                className={invalidInputClass(fieldError(fieldErrors, "dob"))}
+                aria-invalid={Boolean(fieldError(fieldErrors, "dob"))}
+              />
               <label className="mt-2 flex items-center gap-2 text-sm cursor-pointer select-none">
                 <Checkbox
                   checked={form.hasHoroscope}
@@ -406,11 +430,18 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
                 />
                 <span>I have horoscope details</span>
               </label>
-            </div>
-            <div>
-              <Label>Gender *</Label>
+            </ProfileFormField>
+            <ProfileFormField
+              label="Gender"
+              required
+              error={fieldError(fieldErrors, "gender")}
+            >
               <Select value={form.gender} onValueChange={(v) => update("gender", v)}>
-                <SelectTrigger>
+                <SelectTrigger
+                  id="profile-field-gender"
+                  className={invalidSelectClass(fieldError(fieldErrors, "gender"))}
+                  aria-invalid={Boolean(fieldError(fieldErrors, "gender"))}
+                >
                   <SelectValue placeholder="Select gender" />
                 </SelectTrigger>
                 <SelectContent>
@@ -418,7 +449,7 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
                   <SelectItem value="Female">Female</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
+            </ProfileFormField>
             <div>
               <Label>Country</Label>
               <Select
@@ -508,11 +539,12 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
               <Label>Address</Label>
               <Input value={form.address} onChange={(e) => update("address", e.target.value)} />
             </div>
-            <div>
-              <Label>Religion *</Label>
+            <ProfileFormField label="Religion" required error={fieldError(fieldErrors, "religionId")}>
               <Select
                 value={form.religionId}
                 onValueChange={(v) => {
+                  clearFieldError("religionId");
+                  clearFieldError("partnerPreferenceType");
                   setForm((p) => ({
                     ...p,
                     religionId: v,
@@ -523,7 +555,11 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
                   }));
                 }}
               >
-                <SelectTrigger>
+                <SelectTrigger
+                  id="profile-field-religionId"
+                  className={invalidSelectClass(fieldError(fieldErrors, "religionId"))}
+                  aria-invalid={Boolean(fieldError(fieldErrors, "religionId"))}
+                >
                   <SelectValue placeholder="Select religion" />
                 </SelectTrigger>
                 <SelectContent>
@@ -534,7 +570,7 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+            </ProfileFormField>
             <div>
               <Label>Caste</Label>
               <Select value={form.casteId} onValueChange={(v) => update("casteId", v)} disabled={!form.religionId}>
@@ -569,20 +605,29 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
 
           <FormSectionCard title="Personal Details">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <Label>Marital Status *</Label>
+            <ProfileFormField
+              label="Marital Status"
+              required
+              error={fieldError(fieldErrors, "maritalStatus")}
+            >
               <Select
                 value={form.maritalStatus}
-                onValueChange={(v) =>
+                onValueChange={(v) => {
+                  clearFieldError("maritalStatus");
+                  clearFieldError("reasonForDivorce");
                   setForm((prev) => ({
                     ...prev,
                     maritalStatus: v,
                     reasonForDivorce:
                       v === "Divorced" ? prev.reasonForDivorce : "",
-                  }))
-                }
+                  }));
+                }}
               >
-                <SelectTrigger>
+                <SelectTrigger
+                  id="profile-field-maritalStatus"
+                  className={invalidSelectClass(fieldError(fieldErrors, "maritalStatus"))}
+                  aria-invalid={Boolean(fieldError(fieldErrors, "maritalStatus"))}
+                >
                   <SelectValue placeholder="Select status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -593,16 +638,23 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+            </ProfileFormField>
             {form.maritalStatus === "Divorced" && (
-              <div className="sm:col-span-2">
-                <Label>Reason for Divorce *</Label>
+              <ProfileFormField
+                label="Reason for Divorce"
+                required
+                className="sm:col-span-2"
+                error={fieldError(fieldErrors, "reasonForDivorce")}
+              >
                 <Input
+                  id="profile-field-reasonForDivorce"
                   value={form.reasonForDivorce}
                   onChange={(e) => update("reasonForDivorce", e.target.value)}
                   placeholder="e.g. Mutual consent"
+                  className={invalidInputClass(fieldError(fieldErrors, "reasonForDivorce"))}
+                  aria-invalid={Boolean(fieldError(fieldErrors, "reasonForDivorce"))}
                 />
-              </div>
+              </ProfileFormField>
             )}
             {["Divorced", "Widowed", "Awaiting Divorce"].includes(form.maritalStatus) && (
               <div className="sm:col-span-2 border rounded-md p-3">
@@ -624,10 +676,19 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
                 )}
               </div>
             )}
-            <div>
-              <Label>Height (cm) *</Label>
-              <Input value={form.height} onChange={(e) => update("height", e.target.value)} />
-            </div>
+            <ProfileFormField
+              label="Height (cm)"
+              required
+              error={fieldError(fieldErrors, "height")}
+            >
+              <Input
+                id="profile-field-height"
+                value={form.height}
+                onChange={(e) => update("height", e.target.value)}
+                className={invalidInputClass(fieldError(fieldErrors, "height"))}
+                aria-invalid={Boolean(fieldError(fieldErrors, "height"))}
+              />
+            </ProfileFormField>
             <div>
               <Label>Weight (kg)</Label>
               <Input value={form.weight} onChange={(e) => update("weight", e.target.value)} />
@@ -662,19 +723,27 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <Label>Highest Education *</Label>
+            <ProfileFormField
+              label="Highest Education"
+              required
+              error={fieldError(fieldErrors, "highestEducationId")}
+            >
               <Select
                 value={form.highestEducationId}
-                onValueChange={(v) =>
+                onValueChange={(v) => {
+                  clearFieldError("highestEducationId");
                   setForm((p) => ({
                     ...p,
                     highestEducationId: v,
                     educationSubjectId: "",
-                  }))
-                }
+                  }));
+                }}
               >
-                <SelectTrigger>
+                <SelectTrigger
+                  id="profile-field-highestEducationId"
+                  className={invalidSelectClass(fieldError(fieldErrors, "highestEducationId"))}
+                  aria-invalid={Boolean(fieldError(fieldErrors, "highestEducationId"))}
+                >
                   <SelectValue placeholder="Select highest education" />
                 </SelectTrigger>
                 <SelectContent>
@@ -685,7 +754,7 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+            </ProfileFormField>
             <div>
               <Label>Education Subject</Label>
               <Select
@@ -705,10 +774,17 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <Label>Employment Status *</Label>
+            <ProfileFormField
+              label="Employment Status"
+              required
+              error={fieldError(fieldErrors, "employmentStatus")}
+            >
               <Select value={form.employmentStatus} onValueChange={(v) => update("employmentStatus", v)}>
-                <SelectTrigger>
+                <SelectTrigger
+                  id="profile-field-employmentStatus"
+                  className={invalidSelectClass(fieldError(fieldErrors, "employmentStatus"))}
+                  aria-invalid={Boolean(fieldError(fieldErrors, "employmentStatus"))}
+                >
                   <SelectValue placeholder="Select employment status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -719,7 +795,7 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+            </ProfileFormField>
             <div>
               <Label>Occupation</Label>
               <Select value={form.occupationId} onValueChange={(v) => update("occupationId", v)}>
@@ -738,7 +814,7 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
             </div>
           </FormSectionCard>
 
-          <FamilyDetailsSection values={form} onChange={updateFamily} />
+          <FamilyDetailsSection values={form} onChange={updateFamily} errors={fieldErrors} />
 
           <PartnerPreferenceSection
             religionId={form.religionId}
@@ -748,6 +824,7 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
             values={form}
             onChange={updatePartnerPreference}
             onBatchChange={batchPartnerPreference}
+            errors={fieldErrors}
           />
 
           {form.hasHoroscope && (
@@ -776,15 +853,22 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
                 <div className="border-t border-border p-4">
                   <p className="mb-3 text-sm font-medium text-muted-foreground">Horoscope Details</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <Label>Time of Birth *</Label>
+                    <ProfileFormField
+                      label="Time of Birth"
+                      required
+                      error={fieldError(fieldErrors, "timeOfBirth")}
+                    >
                       <TimeOfBirthPicker
                         value={form.timeOfBirth}
                         onChange={(v) => update("timeOfBirth", v)}
                       />
-                    </div>
-                    <div className="sm:col-span-2">
-                      <Label>Place of Birth *</Label>
+                    </ProfileFormField>
+                    <ProfileFormField
+                      label="Place of Birth"
+                      required
+                      className="sm:col-span-2"
+                      error={fieldError(fieldErrors, "placeOfBirth")}
+                    >
                       <PlacesAutocomplete
                         value={form.placeOfBirth}
                         onChange={(v) => update("placeOfBirth", v)}
@@ -799,7 +883,7 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
                         }
                         placeholder="Start typing the birth place..."
                       />
-                    </div>
+                    </ProfileFormField>
                     <div>
                       <Label>Latitude</Label>
                       <Input value={form.birthLatitude} readOnly placeholder="Auto-filled" />
@@ -858,7 +942,7 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
               Cancel
             </Button>
-            <Button type="button" onClick={submit} disabled={!canSubmit || submitting}>
+            <Button type="button" onClick={submit} disabled={submitting}>
               {submitting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />

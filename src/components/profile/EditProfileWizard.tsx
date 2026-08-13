@@ -186,6 +186,7 @@ export default function EditProfileWizard({
 }: EditProfileWizardProps) {
   const [horoExpanded, setHoroExpanded] = useState(true);
   const [fieldErrors, setFieldErrors] = useState<ProfileFieldErrors>({});
+  const [scrollToField, setScrollToField] = useState<string | null>(null);
   const [form, setForm] = useState<WizardFormValues>(emptyForm());
 
   // Load the mapped detail into the form whenever a new profile is opened.
@@ -193,9 +194,17 @@ export default function EditProfileWizard({
     if (open && initial) {
       setForm(initial);
       setFieldErrors({});
+      setScrollToField(null);
       setHoroExpanded(true);
     }
   }, [open, initial]);
+
+  useEffect(() => {
+    if (!scrollToField) return;
+    const el = document.getElementById(`profile-field-${scrollToField}`);
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    setScrollToField(null);
+  }, [scrollToField, fieldErrors]);
 
   const clearFieldError = (field: string) =>
     setFieldErrors((prev) => {
@@ -318,7 +327,7 @@ export default function EditProfileWizard({
       }
       const first = firstErrorField(errs);
       if (first) {
-        document.getElementById(`profile-field-${first}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+        setScrollToField(first);
       }
       return;
     }
@@ -866,11 +875,18 @@ export default function EditProfileWizard({
             </div>
           </div>
 
-          <div className="flex justify-end gap-2">
+          <div className="flex flex-col items-end gap-3">
+            {Object.keys(fieldErrors).length > 0 && (
+              <p className="w-full rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                Please complete all required fields. {Object.keys(fieldErrors).length} field
+                {Object.keys(fieldErrors).length === 1 ? "" : "s"} need attention — see errors above.
+              </p>
+            )}
+            <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
               Cancel
             </Button>
-            <Button type="button" onClick={submit} disabled={submitting}>
+            <Button type="button" variant="default" onClick={submit} disabled={submitting}>
               {submitting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -880,6 +896,7 @@ export default function EditProfileWizard({
                 "Save Changes"
               )}
             </Button>
+            </div>
           </div>
         </div>
       </DialogContent>

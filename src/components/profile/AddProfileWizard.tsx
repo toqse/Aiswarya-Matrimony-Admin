@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -56,6 +56,7 @@ interface AddProfileWizardProps {
 export default function AddProfileWizard({ open, onOpenChange, onComplete, submitting = false }: AddProfileWizardProps) {
   const [horoExpanded, setHoroExpanded] = useState(true);
   const [fieldErrors, setFieldErrors] = useState<ProfileFieldErrors>({});
+  const [scrollToField, setScrollToField] = useState<string | null>(null);
   const [form, setForm] = useState({
     profileFor: "",
     fullName: "",
@@ -119,6 +120,7 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
 
   const reset = () => {
     setFieldErrors({});
+    setScrollToField(null);
     setForm({
       profileFor: "",
       fullName: "",
@@ -190,6 +192,13 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
     setForm((prev) => ({ ...prev, ...updates }));
   };
 
+  useEffect(() => {
+    if (!scrollToField) return;
+    const el = document.getElementById(`profile-field-${scrollToField}`);
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    setScrollToField(null);
+  }, [scrollToField, fieldErrors]);
+
   const submit = () => {
     const errs = validateProfileForm(form, {
       requireProfileFor: true,
@@ -202,7 +211,7 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
       }
       const first = firstErrorField(errs);
       if (first) {
-        document.getElementById(`profile-field-${first}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+        setScrollToField(first);
       }
       return;
     }
@@ -938,11 +947,18 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
             </div>
           </div>
 
-          <div className="flex justify-end gap-2">
+          <div className="flex flex-col items-end gap-3">
+            {Object.keys(fieldErrors).length > 0 && (
+              <p className="w-full rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                Please complete all required fields. {Object.keys(fieldErrors).length} field
+                {Object.keys(fieldErrors).length === 1 ? "" : "s"} need attention — see errors above.
+              </p>
+            )}
+            <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
               Cancel
             </Button>
-            <Button type="button" onClick={submit} disabled={submitting}>
+            <Button type="button" variant="default" onClick={submit} disabled={submitting}>
               {submitting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -952,6 +968,7 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
                 "Create Profile"
               )}
             </Button>
+            </div>
           </div>
         </div>
       </DialogContent>

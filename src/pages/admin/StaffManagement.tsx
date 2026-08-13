@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -29,8 +29,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import FormSectionCard from "@/components/profile/FormSectionCard";
 import { Separator } from "@/components/ui/separator";
 import { fetchBranchList } from "@/lib/admin-api/branches";
 import {
@@ -90,32 +90,6 @@ interface StaffForm {
   pfNumber: string;
   esiNumber: string;
 }
-
-/** Tab that each form field lives on (for jumping to the first error). */
-const FIELD_TAB: Partial<Record<keyof StaffForm, string>> = {
-  name: "personal",
-  empCode: "personal",
-  mobile: "personal",
-  email: "personal",
-  branchId: "employment",
-  designation: "employment",
-  role: "employment",
-  department: "employment",
-  joiningDate: "employment",
-  salary: "employment",
-  commissionRate: "employment",
-  target: "employment",
-  address: "details",
-  city: "details",
-  state: "details",
-  pincode: "details",
-  bankName: "details",
-  accountNumber: "details",
-  ifsc: "details",
-  upiId: "details",
-  pfNumber: "details",
-  esiNumber: "details",
-};
 
 /** Map backend (API) field names to the local form field keys for inline error display. */
 const API_FIELD_TO_FORM: Record<string, keyof StaffForm> = {
@@ -194,14 +168,19 @@ function FormField({
   children,
   required,
   error,
+  fieldId,
 }: {
   label: string;
   children: React.ReactNode;
   required?: boolean;
   error?: string;
+  fieldId?: keyof StaffForm;
 }) {
   return (
-    <div className="space-y-1.5">
+    <div
+      id={fieldId ? `staff-field-${fieldId}` : undefined}
+      className="space-y-1.5"
+    >
       <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
         {label} {required && <span className="text-destructive">*</span>}
       </Label>
@@ -261,11 +240,13 @@ export default function StaffManagement() {
   const [viewDetail, setViewDetail] = useState<Record<string, unknown> | null>(
     null,
   );
-  const [activeTab, setActiveTab] = useState("personal");
   const [form, setForm] = useState<StaffForm>(emptyForm());
   const [fieldErrors, setFieldErrors] = useState<
     Partial<Record<keyof StaffForm, string>>
   >({});
+  const [scrollToField, setScrollToField] = useState<keyof StaffForm | null>(
+    null,
+  );
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState("");
   const { toast } = useToast();
@@ -369,13 +350,7 @@ export default function StaffManagement() {
         const keys = Object.keys(mapped) as (keyof StaffForm)[];
         if (keys.length > 0) {
           setFieldErrors((prev) => ({ ...prev, ...mapped }));
-          const tab = FIELD_TAB[keys[0]];
-          if (tab) setActiveTab(tab);
-          toast({
-            title: "Please fix the highlighted fields",
-            description: mapped[keys[0]],
-            variant: "destructive",
-          });
+          setScrollToField(keys[0]);
           return;
         }
       }
@@ -429,16 +404,16 @@ export default function StaffManagement() {
     setEditing(null);
     setForm(emptyForm());
     setFieldErrors({});
+    setScrollToField(null);
     resetPhotoState();
-    setActiveTab("personal");
     setDialogOpen(true);
   };
 
   const openEdit = async (s: StaffListRow) => {
     setEditing(s);
     setFieldErrors({});
+    setScrollToField(null);
     resetPhotoState();
-    setActiveTab("personal");
     try {
       const d = (await fetchStaffDetail(s.id)) as Record<string, unknown>;
       const mobile = String(d.mobile ?? "")
@@ -547,13 +522,20 @@ export default function StaffManagement() {
     return errs;
   };
 
+  useEffect(() => {
+    if (!scrollToField) return;
+    document
+      .getElementById(`staff-field-${scrollToField}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    setScrollToField(null);
+  }, [scrollToField, fieldErrors]);
+
   const handleSave = () => {
     const errs = validate();
     setFieldErrors(errs);
     const keys = Object.keys(errs) as (keyof StaffForm)[];
     if (keys.length > 0) {
-      const firstTab = FIELD_TAB[keys[0]];
-      if (firstTab) setActiveTab(firstTab);
+      setScrollToField(keys[0]);
       return;
     }
     saveMut.mutate();
@@ -775,27 +757,9 @@ export default function StaffManagement() {
             </DialogTitle>
           </DialogHeader>
 
-          <Tabs
-            value={activeTab}
-            onValueChange={setActiveTab}
-            className="flex-1"
-          >
-            <div className="px-6">
-              <TabsList className="grid w-full grid-cols-3 h-11">
-                <TabsTrigger value="personal" className="gap-1.5 text-xs">
-                  <User className="h-3.5 w-3.5" /> Personal
-                </TabsTrigger>
-                <TabsTrigger value="employment" className="gap-1.5 text-xs">
-                  <Briefcase className="h-3.5 w-3.5" /> Employment
-                </TabsTrigger>
-                <TabsTrigger value="details" className="gap-1.5 text-xs">
-                  <MapPin className="h-3.5 w-3.5" /> Address &amp; Bank
-                </TabsTrigger>
-              </TabsList>
-            </div>
-
-            <ScrollArea className="h-[52vh] px-6 py-4">
-              <TabsContent value="personal" className="mt-0 space-y-5">
+          <ScrollArea className="h-[52vh] px-6 py-4">
+            <div className="space-y-6">
+              <FormSectionCard title="Personal">
                 <div className="flex items-center gap-6 pb-2">
                   <label className="h-20 w-20 rounded-full bg-muted flex items-center justify-center border-2 border-dashed border-muted-foreground/30 cursor-pointer overflow-hidden shrink-0 hover:border-primary/50 transition-colors">
                     <input
@@ -827,6 +791,7 @@ export default function StaffManagement() {
                       label="Full Name"
                       required
                       error={fieldErrors.name}
+                      fieldId="name"
                     >
                       <Input
                         value={form.name}
@@ -845,6 +810,7 @@ export default function StaffManagement() {
                         label="Employee Code"
                         required
                         error={fieldErrors.empCode}
+                        fieldId="empCode"
                       >
                         <Input
                           value={form.empCode}
@@ -868,6 +834,7 @@ export default function StaffManagement() {
                     label="Mobile Number"
                     required
                     error={fieldErrors.mobile}
+                    fieldId="mobile"
                   >
                     <PhoneInput
                       value={form.mobile}
@@ -875,7 +842,11 @@ export default function StaffManagement() {
                       invalid={Boolean(fieldErrors.mobile)}
                     />
                   </FormField>
-                  <FormField label="Email Address" error={fieldErrors.email}>
+                  <FormField
+                    label="Email Address"
+                    error={fieldErrors.email}
+                    fieldId="email"
+                  >
                     <Input
                       type="email"
                       value={form.email}
@@ -889,14 +860,15 @@ export default function StaffManagement() {
                     />
                   </FormField>
                 </div>
-              </TabsContent>
+              </FormSectionCard>
 
-              <TabsContent value="employment" className="mt-0 space-y-4">
+              <FormSectionCard title="Employment">
                 <div className="grid grid-cols-2 gap-4">
                   <FormField
                     label="Branch"
                     required
                     error={fieldErrors.branchId}
+                    fieldId="branchId"
                   >
                     <Select
                       value={form.branchId}
@@ -925,6 +897,7 @@ export default function StaffManagement() {
                     label="Designation"
                     required
                     error={fieldErrors.designation}
+                    fieldId="designation"
                   >
                     <Input
                       value={form.designation}
@@ -965,6 +938,7 @@ export default function StaffManagement() {
                   <FormField
                     label="Joining Date"
                     error={fieldErrors.joiningDate}
+                    fieldId="joiningDate"
                   >
                     <Input
                       type="date"
@@ -1021,161 +995,175 @@ export default function StaffManagement() {
                     />
                   </FormField>
                 </div>
-              </TabsContent>
+              </FormSectionCard>
 
-              <TabsContent value="details" className="mt-0 space-y-5">
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    <MapPin className="h-3.5 w-3.5" /> Address
-                  </div>
+              <FormSectionCard title="Address">
+                <FormField
+                  label="Street Address"
+                  required
+                  error={fieldErrors.address}
+                  fieldId="address"
+                >
+                  <Input
+                    value={form.address}
+                    onChange={(e) => update("address", e.target.value)}
+                    className={
+                      fieldErrors.address
+                        ? "border-destructive focus-visible:ring-destructive"
+                        : ""
+                    }
+                    aria-invalid={Boolean(fieldErrors.address)}
+                  />
+                </FormField>
+                <div className="grid grid-cols-3 gap-4">
                   <FormField
-                    label="Street Address"
+                    label="City"
                     required
-                    error={fieldErrors.address}
+                    error={fieldErrors.city}
+                    fieldId="city"
                   >
                     <Input
-                      value={form.address}
-                      onChange={(e) => update("address", e.target.value)}
+                      value={form.city}
+                      onChange={(e) => update("city", e.target.value)}
                       className={
-                        fieldErrors.address
+                        fieldErrors.city
                           ? "border-destructive focus-visible:ring-destructive"
                           : ""
                       }
-                      aria-invalid={Boolean(fieldErrors.address)}
+                      aria-invalid={Boolean(fieldErrors.city)}
                     />
                   </FormField>
-                  <div className="grid grid-cols-3 gap-4">
-                    <FormField label="City" required error={fieldErrors.city}>
-                      <Input
-                        value={form.city}
-                        onChange={(e) => update("city", e.target.value)}
-                        className={
-                          fieldErrors.city
-                            ? "border-destructive focus-visible:ring-destructive"
-                            : ""
-                        }
-                        aria-invalid={Boolean(fieldErrors.city)}
-                      />
-                    </FormField>
-                    <FormField label="State" required error={fieldErrors.state}>
-                      <Input
-                        value={form.state}
-                        onChange={(e) => update("state", e.target.value)}
-                        className={
-                          fieldErrors.state
-                            ? "border-destructive focus-visible:ring-destructive"
-                            : ""
-                        }
-                        aria-invalid={Boolean(fieldErrors.state)}
-                      />
-                    </FormField>
-                    <FormField
-                      label="Pincode"
-                      required
-                      error={fieldErrors.pincode}
-                    >
-                      <Input
-                        value={form.pincode}
-                        onChange={(e) =>
-                          update(
-                            "pincode",
-                            e.target.value.replace(/\D/g, "").slice(0, 6),
-                          )
-                        }
-                        inputMode="numeric"
-                        maxLength={6}
-                        className={
-                          fieldErrors.pincode
-                            ? "border-destructive focus-visible:ring-destructive"
-                            : ""
-                        }
-                        aria-invalid={Boolean(fieldErrors.pincode)}
-                      />
-                    </FormField>
-                  </div>
+                  <FormField
+                    label="State"
+                    required
+                    error={fieldErrors.state}
+                    fieldId="state"
+                  >
+                    <Input
+                      value={form.state}
+                      onChange={(e) => update("state", e.target.value)}
+                      className={
+                        fieldErrors.state
+                          ? "border-destructive focus-visible:ring-destructive"
+                          : ""
+                      }
+                      aria-invalid={Boolean(fieldErrors.state)}
+                    />
+                  </FormField>
+                  <FormField
+                    label="Pincode"
+                    required
+                    error={fieldErrors.pincode}
+                    fieldId="pincode"
+                  >
+                    <Input
+                      value={form.pincode}
+                      onChange={(e) =>
+                        update(
+                          "pincode",
+                          e.target.value.replace(/\D/g, "").slice(0, 6),
+                        )
+                      }
+                      inputMode="numeric"
+                      maxLength={6}
+                      className={
+                        fieldErrors.pincode
+                          ? "border-destructive focus-visible:ring-destructive"
+                          : ""
+                      }
+                      aria-invalid={Boolean(fieldErrors.pincode)}
+                    />
+                  </FormField>
                 </div>
+              </FormSectionCard>
 
-                <Separator />
-
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    <Landmark className="h-3.5 w-3.5" /> Bank Details
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      label="Bank Name"
-                      required
-                      error={fieldErrors.bankName}
-                    >
-                      <Input
-                        value={form.bankName}
-                        onChange={(e) => update("bankName", e.target.value)}
-                        className={
-                          fieldErrors.bankName
-                            ? "border-destructive focus-visible:ring-destructive"
-                            : ""
-                        }
-                        aria-invalid={Boolean(fieldErrors.bankName)}
-                      />
-                    </FormField>
-                    <FormField
-                      label="Account Number"
-                      required
-                      error={fieldErrors.accountNumber}
-                    >
-                      <Input
-                        value={form.accountNumber}
-                        onChange={(e) =>
-                          update("accountNumber", e.target.value)
-                        }
-                        className={
-                          fieldErrors.accountNumber
-                            ? "border-destructive focus-visible:ring-destructive"
-                            : ""
-                        }
-                        aria-invalid={Boolean(fieldErrors.accountNumber)}
-                      />
-                    </FormField>
-                    <FormField
-                      label="IFSC Code"
-                      required
-                      error={fieldErrors.ifsc}
-                    >
-                      <Input
-                        value={form.ifsc}
-                        onChange={(e) => update("ifsc", e.target.value)}
-                        className={
-                          fieldErrors.ifsc
-                            ? "border-destructive focus-visible:ring-destructive"
-                            : ""
-                        }
-                        aria-invalid={Boolean(fieldErrors.ifsc)}
-                      />
-                    </FormField>
-                    <FormField
-                      label="UPI ID"
-                      required
-                      error={fieldErrors.upiId}
-                    >
-                      <Input
-                        value={form.upiId}
-                        onChange={(e) => update("upiId", e.target.value)}
-                        className={
-                          fieldErrors.upiId
-                            ? "border-destructive focus-visible:ring-destructive"
-                            : ""
-                        }
-                        aria-invalid={Boolean(fieldErrors.upiId)}
-                      />
-                    </FormField>
-                  </div>
+              <FormSectionCard title="Bank">
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    label="Bank Name"
+                    required
+                    error={fieldErrors.bankName}
+                    fieldId="bankName"
+                  >
+                    <Input
+                      value={form.bankName}
+                      onChange={(e) => update("bankName", e.target.value)}
+                      className={
+                        fieldErrors.bankName
+                          ? "border-destructive focus-visible:ring-destructive"
+                          : ""
+                      }
+                      aria-invalid={Boolean(fieldErrors.bankName)}
+                    />
+                  </FormField>
+                  <FormField
+                    label="Account Number"
+                    required
+                    error={fieldErrors.accountNumber}
+                    fieldId="accountNumber"
+                  >
+                    <Input
+                      value={form.accountNumber}
+                      onChange={(e) =>
+                        update("accountNumber", e.target.value)
+                      }
+                      className={
+                        fieldErrors.accountNumber
+                          ? "border-destructive focus-visible:ring-destructive"
+                          : ""
+                      }
+                      aria-invalid={Boolean(fieldErrors.accountNumber)}
+                    />
+                  </FormField>
+                  <FormField
+                    label="IFSC Code"
+                    required
+                    error={fieldErrors.ifsc}
+                    fieldId="ifsc"
+                  >
+                    <Input
+                      value={form.ifsc}
+                      onChange={(e) => update("ifsc", e.target.value)}
+                      className={
+                        fieldErrors.ifsc
+                          ? "border-destructive focus-visible:ring-destructive"
+                          : ""
+                      }
+                      aria-invalid={Boolean(fieldErrors.ifsc)}
+                    />
+                  </FormField>
+                  <FormField
+                    label="UPI ID"
+                    required
+                    error={fieldErrors.upiId}
+                    fieldId="upiId"
+                  >
+                    <Input
+                      value={form.upiId}
+                      onChange={(e) => update("upiId", e.target.value)}
+                      className={
+                        fieldErrors.upiId
+                          ? "border-destructive focus-visible:ring-destructive"
+                          : ""
+                      }
+                      aria-invalid={Boolean(fieldErrors.upiId)}
+                    />
+                  </FormField>
                 </div>
-              </TabsContent>
-            </ScrollArea>
-          </Tabs>
+              </FormSectionCard>
+            </div>
+          </ScrollArea>
 
           <DialogFooter className="px-6 py-4 border-t bg-muted/30">
-            <div className="flex justify-end gap-2 w-full">
+            <div className="flex flex-col items-end gap-3 w-full">
+              {Object.keys(fieldErrors).length > 0 && (
+                <p className="w-full rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                  Please complete all required fields. {Object.keys(fieldErrors).length}{" "}
+                  field{Object.keys(fieldErrors).length === 1 ? "" : "s"} need attention —
+                  see errors above.
+                </p>
+              )}
+              <div className="flex justify-end gap-2 w-full">
               <Button variant="outline" onClick={() => setDialogOpen(false)}>
                 Cancel
               </Button>
@@ -1188,6 +1176,7 @@ export default function StaffManagement() {
                   "Create Staff"
                 )}
               </Button>
+              </div>
             </div>
           </DialogFooter>
         </DialogContent>

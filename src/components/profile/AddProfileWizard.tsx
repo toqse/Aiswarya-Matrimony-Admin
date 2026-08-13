@@ -28,6 +28,7 @@ import ProfileFormField, {
   type ProfileFieldErrors,
 } from "@/components/profile/ProfileFormField";
 import { firstErrorField, validateProfileForm } from "@/lib/profile-validation";
+import { ADMIN_PROFILE_FOR_OPTIONS } from "@/lib/profile-for-options";
 import {
   fetchCastes,
   fetchComplexions,
@@ -44,7 +45,7 @@ import {
   fetchStates,
 } from "@/lib/admin-api/master";
 
-const profileForOptions = ["Myself", "Son", "Daughter", "Brother", "Sister", "Friend", "Relative"];
+const profileForOptions = ADMIN_PROFILE_FOR_OPTIONS;
 
 interface AddProfileWizardProps {
   open: boolean;

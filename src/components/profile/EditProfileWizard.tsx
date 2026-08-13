@@ -26,6 +26,7 @@ import ProfileFormField, {
   invalidSelectClass,
   type ProfileFieldErrors,
 } from "@/components/profile/ProfileFormField";
+import { ADMIN_PROFILE_FOR_OPTIONS } from "@/lib/profile-for-options";
 import type { WizardFormValues } from "@/lib/admin-api/profile-registration";
 import { firstErrorField, validateProfileForm } from "@/lib/profile-validation";
 import {
@@ -45,7 +46,7 @@ import {
   fetchStates,
 } from "@/lib/admin-api/master";
 
-const profileForOptions = ["Myself", "Son", "Daughter", "Brother", "Sister", "Friend", "Relative"];
+const profileForOptions = ADMIN_PROFILE_FOR_OPTIONS;
 
 const CHILDREN_MARITAL = ["Divorced", "Widowed", "Awaiting Divorce", "Separated"];
 

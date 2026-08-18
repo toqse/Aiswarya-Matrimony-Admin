@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 import { Separator } from "@/components/ui/separator";
 import { formatPhoneDisplay } from "@/lib/phone";
-import { formatDate } from "@/lib/format-date";
+import { formatDate, formatTimeOfBirthDisplay } from "@/lib/format-date";
+import { ProfileHoroscopeView } from "@/components/horoscope/ProfileHoroscopeView";
 
 const PHOTO_ORDER: { key: string; label: string }[] = [
   { key: "full_photo", label: "Full Photo" },
@@ -136,6 +137,32 @@ export function ProfileDetailPanel({ detail, showAdmin = true }: ProfileDetailPa
         />
       </Section>
 
+      {hasHoroscope && (
+        <>
+          <Separator />
+          <Section title="Horoscope profile">
+            <FieldGrid
+              rows={[
+                ["Time of birth", formatTimeOfBirthDisplay(horoscope.time_of_birth) || horoscope.time_of_birth],
+                ["Place of birth", horoscope.place_of_birth],
+                ["Latitude", horoscope.birth_latitude],
+                ["Longitude", horoscope.birth_longitude],
+                ["Timezone", horoscope.birth_timezone],
+              ]}
+            />
+            {detail.id != null && String(detail.id).trim() !== "" ? (
+              <div className="mt-3">
+                <ProfileHoroscopeView userUuid={String(detail.id)} />
+              </div>
+            ) : (
+              <p className="mt-2 text-sm text-muted-foreground">
+                Profile UUID is missing, so the chart cannot be loaded here. Open Horoscope Management to view it.
+              </p>
+            )}
+          </Section>
+        </>
+      )}
+
       <Separator />
 
       <Section title="Location">
@@ -239,23 +266,6 @@ export function ProfileDetailPanel({ detail, showAdmin = true }: ProfileDetailPa
           ]}
         />
       </Section>
-
-      {hasHoroscope && (
-        <>
-          <Separator />
-          <Section title="Horoscope information">
-            <FieldGrid
-              rows={[
-                ["Time of birth", horoscope.time_of_birth],
-                ["Place of birth", horoscope.place_of_birth],
-                ["Latitude", horoscope.birth_latitude],
-                ["Longitude", horoscope.birth_longitude],
-                ["Timezone", horoscope.birth_timezone],
-              ]}
-            />
-          </Section>
-        </>
-      )}
 
       {detail.about_me != null && String(detail.about_me).trim() !== "" && (
         <>

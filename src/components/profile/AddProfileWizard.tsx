@@ -120,6 +120,7 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
   };
 
   const reset = () => {
+    setHoroExpanded(true);
     setFieldErrors({});
     setScrollToField(null);
     setForm({
@@ -192,6 +193,11 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
     });
     setForm((prev) => ({ ...prev, ...updates }));
   };
+
+  useEffect(() => {
+    if (!open) return;
+    reset();
+  }, [open]);
 
   useEffect(() => {
     if (!scrollToField) return;
@@ -359,17 +365,16 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
     queryFn: () => fetchComplexions({ page_size: 200 }),
   });
 
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) reset();
+    onOpenChange(nextOpen);
+  };
+
   const activeReligionName =
     (religionsQ.data?.results ?? []).find((r) => String(r.id) === form.religionId)?.name ?? "";
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(v) => {
-        if (!v) reset();
-        onOpenChange(v);
-      }}
-    >
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Add New Profile</DialogTitle>
@@ -958,7 +963,7 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
               </p>
             )}
             <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
+            <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} disabled={submitting}>
               Cancel
             </Button>
             <Button type="button" variant="default" onClick={submit} disabled={submitting}>

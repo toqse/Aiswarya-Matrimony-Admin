@@ -26,6 +26,8 @@ type PoruthamProfileMultiPickerProps = {
   branchId: number | undefined;
   tabActive: boolean;
   instanceId: "bride" | "groom";
+  /** When set to 1, only one profile can be selected (replaces on new pick). */
+  maxSelection?: number;
 };
 
 export default function PoruthamProfileMultiPicker({
@@ -36,6 +38,7 @@ export default function PoruthamProfileMultiPicker({
   branchId,
   tabActive,
   instanceId,
+  maxSelection,
 }: PoruthamProfileMultiPickerProps) {
   const [open, setOpen] = useState(false);
   const [searchDraft, setSearchDraft] = useState("");
@@ -75,6 +78,11 @@ export default function PoruthamProfileMultiPicker({
       onSelectedChange(selected.filter((s) => s.profile_id !== item.profile_id));
       return;
     }
+    if (maxSelection === 1) {
+      onSelectedChange([item]);
+      return;
+    }
+    if (maxSelection != null && selected.length >= maxSelection) return;
     onSelectedChange([...selected, item]);
   };
 
@@ -89,10 +97,12 @@ export default function PoruthamProfileMultiPicker({
       setManualId("");
       return;
     }
-    onSelectedChange([
-      ...selected,
-      { profile_id: n, matri_id: "", profile_name: `Profile ${n}` },
-    ]);
+    const manualItem = { profile_id: n, matri_id: "", profile_name: `Profile ${n}` };
+    if (maxSelection === 1) {
+      onSelectedChange([manualItem]);
+    } else if (maxSelection == null || selected.length < maxSelection) {
+      onSelectedChange([...selected, manualItem]);
+    }
     setManualId("");
   };
 

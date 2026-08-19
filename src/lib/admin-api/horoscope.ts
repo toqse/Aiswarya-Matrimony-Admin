@@ -604,6 +604,96 @@ export async function postHoroscopePorutham(
   return unwrap(res);
 }
 
+export type PoruthamFixedMode = "fixed-bride" | "fixed-groom";
+
+export interface CollectedPoruthamMatch {
+  partner: PoruthamNavSelectionItem;
+  bride_profile_id: number;
+  groom_profile_id: number;
+  score: number;
+  max_score: number;
+  overall_result: string;
+  payload: unknown;
+  error?: string;
+}
+
+function poruthamPayloadRoot(data: unknown): Record<string, unknown> {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return {};
+  const o = data as Record<string, unknown>;
+  if (o.data && typeof o.data === "object" && !Array.isArray(o.data)) {
+    return o.data as Record<string, unknown>;
+  }
+  return o;
+}
+
+export function extractPoruthamSummary(payload: unknown): {
+  score: number;
+  max_score: number;
+  overall_result: string;
+} {
+  const root = poruthamPayloadRoot(payload);
+  return {
+    score: pickNum(root.score, root.total_score, root.match_score),
+    max_score: pickNum(root.max_score, root.max, 10) || 10,
+    overall_result: pickStr(root.result, root.overall_result, root.verdict) || "—",
+  };
+}
+
+export interface RunPoruthamBatchOptions {
+  role: UserRole;
+  mode: PoruthamFixedMode;
+  fixed: PoruthamNavSelectionItem;
+  partners: PoruthamNavSelectionItem[];
+  onProgress?: (completed: number, total: number) => void;
+  signal?: AbortSignal;
+}
+
+/** Runs porutham for fixed profile × each partner; failed pairs keep an error row. */
+export async function runPoruthamBatch(options: RunPoruthamBatchOptions): Promise<CollectedPoruthamMatch[]> {
+  const { role, mode, fixed, partners, onProgress, signal } = options;
+  const eligible = partners.filter((p) => p.profile_id !== fixed.profile_id);
+  const results: CollectedPoruthamMatch[] = [];
+  const total = eligible.length;
+
+  for (let i = 0; i < eligible.length; i++) {
+    if (signal?.aborted) break;
+    const partner = eligible[i]!;
+    const bride_profile_id = mode === "fixed-bride" ? fixed.profile_id : partner.profile_id;
+    const groom_profile_id = mode === "fixed-bride" ? partner.profile_id : fixed.profile_id;
+
+    try {
+      const payload = await postHoroscopePorutham(role, { bride_profile_id, groom_profile_id });
+      const summary = extractPoruthamSummary(payload);
+      results.push({
+        partner,
+        bride_profile_id,
+        groom_profile_id,
+        ...summary,
+        payload,
+      });
+    } catch (e) {
+      results.push({
+        partner,
+        bride_profile_id,
+        groom_profile_id,
+        score: 0,
+        max_score: 10,
+        overall_result: "Failed",
+        payload: null,
+        error: e instanceof Error ? e.message : "Request failed",
+      });
+    }
+
+    onProgress?.(i + 1, total);
+  }
+
+  return results.sort((a, b) => {
+    if (a.error && !b.error) return 1;
+    if (!a.error && b.error) return -1;
+    return b.score - a.score;
+  });
+}
+
 export interface JathakamPdfRow {
   matri_id: string;
   profile_name: string;

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,20 +11,19 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useRole } from "@/contexts/RoleContext";
-import type { UserRole } from "@/types/user-role";
 import { getApiErrorMessage } from "@/lib/admin-api/http";
 import {
   fetchHoroscopeRecordDetail,
   fetchHoroscopeRecords,
   fetchHoroscopeSummary,
   normalizeHoroscopeRecord,
-  postHoroscopePorutham,
-  initPoruthamNavFromSelection,
-  advancePoruthamNav,
+  runPoruthamBatch,
+  type CollectedPoruthamMatch,
   type HoroscopeRecordRow,
+  type PoruthamFixedMode,
   type PoruthamNavSelectionItem,
-  type PoruthamNavWindow,
 } from "@/lib/admin-api/horoscope";
 import {
   Star, Eye, FileText,
@@ -34,6 +33,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import HoroscopeSearchFilters from "@/components/horoscope/HoroscopeSearchFilters";
 import PoruthamProfileMultiPicker from "@/components/horoscope/PoruthamProfileMultiPicker";
+import PoruthamCollectedMatches from "@/components/horoscope/PoruthamCollectedMatches";
 import { PoruthamResultView } from "@/components/horoscope/PoruthamResultView";
 import { JathagamTab } from "@/components/horoscope/JathagamTab";
 import {
@@ -86,79 +86,6 @@ function formatLastEdited(label: string): string {
   return label;
 }
 
-function pickPoruthamPair(
-  brides: PoruthamNavSelectionItem[],
-  grooms: PoruthamNavSelectionItem[],
-): { bride: PoruthamNavSelectionItem; groom: PoruthamNavSelectionItem } | null {
-  for (const bride of brides) {
-    for (const groom of grooms) {
-      if (bride.profile_id !== groom.profile_id) {
-        return { bride, groom };
-      }
-    }
-  }
-  return null;
-}
-
-function poruthamNavEligibleCount(
-  window: PoruthamNavWindow | null,
-  excludeProfileId?: number,
-  dismissedIds?: ReadonlySet<number>,
-): number {
-  if (!window) return 0;
-  return window.list.filter((r) => !poruthamProfileSkipped(r.profile_id, excludeProfileId, dismissedIds)).length;
-}
-
-function poruthamProfileSkipped(
-  profileId: number | null | undefined,
-  excludeProfileId?: number,
-  dismissedIds?: ReadonlySet<number>,
-): boolean {
-  if (profileId == null) return true;
-  if (excludeProfileId != null && profileId === excludeProfileId) return true;
-  return dismissedIds?.has(profileId) ?? false;
-}
-
-function poruthamNavCapsWithDismissed(
-  window: PoruthamNavWindow | null,
-  excludeProfileId?: number,
-  dismissedIds?: ReadonlySet<number>,
-): { canPrev: boolean; canNext: boolean } {
-  if (!window || !window.list.length) return { canPrev: false, canNext: false };
-  const skipped = (profileId: number | null | undefined) =>
-    poruthamProfileSkipped(profileId, excludeProfileId, dismissedIds);
-  const canPrev =
-    window.list.slice(0, window.index).some((r) => !skipped(r.profile_id)) || window.hasPrevious;
-  const canNext =
-    window.list.slice(window.index + 1).some((r) => !skipped(r.profile_id)) || window.hasMore;
-  return { canPrev, canNext };
-}
-
-async function advancePoruthamNavSkippingDismissed(
-  role: UserRole,
-  branchId: number | undefined,
-  input: {
-    gender: "F" | "M";
-    direction: 1 | -1;
-    window: PoruthamNavWindow;
-    excludeProfileId?: number;
-  },
-  dismissedIds: ReadonlySet<number>,
-) {
-  let window = input.window;
-  for (let safety = 0; safety < 200; safety++) {
-    const result = await advancePoruthamNav(role, branchId, { ...input, window });
-    if (!result.row?.profile_id || !dismissedIds.has(result.row.profile_id)) return result;
-    window = result.window;
-  }
-  return {
-    window,
-    row: null,
-    canPrev: poruthamNavCapsWithDismissed(window, input.excludeProfileId, dismissedIds).canPrev,
-    canNext: false,
-  };
-}
-
 export default function HoroscopeManagement() {
   const { role, branch } = useRole();
   const { toast } = useToast();
@@ -176,16 +103,14 @@ export default function HoroscopeManagement() {
 
   const [selectedBrides, setSelectedBrides] = useState<PoruthamNavSelectionItem[]>([]);
   const [selectedGrooms, setSelectedGrooms] = useState<PoruthamNavSelectionItem[]>([]);
-  const [poruthamBride, setPoruthamBride] = useState<string>("");
-  const [poruthamGroom, setPoruthamGroom] = useState<string>("");
+  const [poruthamMode, setPoruthamMode] = useState<PoruthamFixedMode>("fixed-bride");
+  const [collectedMatches, setCollectedMatches] = useState<CollectedPoruthamMatch[]>([]);
+  const [collectedFixed, setCollectedFixed] = useState<PoruthamNavSelectionItem | null>(null);
+  const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
+  const [batchRunning, setBatchRunning] = useState(false);
   const [poruthamResultOpen, setPoruthamResultOpen] = useState(false);
   const [poruthamResult, setPoruthamResult] = useState<unknown>(null);
-  const [brideNavWindow, setBrideNavWindow] = useState<PoruthamNavWindow | null>(null);
-  const [groomNavWindow, setGroomNavWindow] = useState<PoruthamNavWindow | null>(null);
-  const [poruthamNavLoading, setPoruthamNavLoading] = useState<"bride" | "groom" | null>(null);
-  const [dismissedBrideProfileIds, setDismissedBrideProfileIds] = useState<Set<number>>(() => new Set());
-  const [dismissedGroomProfileIds, setDismissedGroomProfileIds] = useState<Set<number>>(() => new Set());
-  const [poruthamRemainingCount, setPoruthamRemainingCount] = useState(0);
+  const [collectedDetailIndex, setCollectedDetailIndex] = useState<number | null>(null);
 
   const isAdmin = role === "admin";
   const isBranchManager = role === "branch-manager";
@@ -200,252 +125,157 @@ export default function HoroscopeManagement() {
     return undefined;
   }, [isAdmin, isBranchManager, branch?.id, applied.branch_id]);
 
-  const poruthamBrideMatri = useMemo(
-    () => selectedBrides.find((s) => String(s.profile_id) === poruthamBride)?.matri_id ?? "",
-    [selectedBrides, poruthamBride],
+  const fixedProfile = poruthamMode === "fixed-bride" ? selectedBrides[0] ?? null : selectedGrooms[0] ?? null;
+  const partnerProfiles = poruthamMode === "fixed-bride" ? selectedGrooms : selectedBrides;
+  const eligiblePartners = useMemo(
+    () =>
+      fixedProfile
+        ? partnerProfiles.filter((p) => p.profile_id !== fixedProfile.profile_id)
+        : partnerProfiles,
+    [fixedProfile, partnerProfiles],
   );
-  const poruthamGroomMatri = useMemo(
-    () => selectedGrooms.find((s) => String(s.profile_id) === poruthamGroom)?.matri_id ?? "",
-    [selectedGrooms, poruthamGroom],
+
+  const detailMatch =
+    collectedDetailIndex != null ? collectedMatches[collectedDetailIndex] ?? null : null;
+  const viewableMatchIndices = useMemo(
+    () => collectedMatches.map((m, i) => (m.error ? -1 : i)).filter((i) => i >= 0),
+    [collectedMatches],
   );
+  const detailViewPosition = detailMatch
+    ? viewableMatchIndices.indexOf(collectedDetailIndex!)
+    : -1;
 
   const profilesPath = profilesListPath(role);
 
-  const setupPoruthamNav = useCallback(
-    (
-      brideId: number,
-      groomId: number,
-      resultData: unknown,
-      brideSelections: PoruthamNavSelectionItem[],
-      groomSelections: PoruthamNavSelectionItem[],
-    ) => {
-      try {
-        const brideWin = initPoruthamNavFromSelection(brideSelections, brideId, {
-          matriId: brideSelections.find((s) => s.profile_id === brideId)?.matri_id,
-          profileName: poruthamPersonName(resultData, "bride"),
-        });
-        const groomWin = initPoruthamNavFromSelection(groomSelections, groomId, {
-          matriId: groomSelections.find((s) => s.profile_id === groomId)?.matri_id,
-          profileName: poruthamPersonName(resultData, "groom"),
-        });
-        setBrideNavWindow(brideWin);
-        setGroomNavWindow(groomWin);
-        const brideEligible = poruthamNavEligibleCount(brideWin, groomId, new Set());
-        const groomEligible = poruthamNavEligibleCount(groomWin, brideId, new Set());
-        setPoruthamRemainingCount(brideEligible + groomEligible);
-      } catch {
-        setBrideNavWindow(null);
-        setGroomNavWindow(null);
-      }
-    },
-    [],
-  );
-
-  const executePorutham = useCallback(
-    async (brideId: number, groomId: number, navSide?: "bride" | "groom") => {
-      if (navSide) setPoruthamNavLoading(navSide);
-      try {
-        const data = await postHoroscopePorutham(role, {
-          bride_profile_id: brideId,
-          groom_profile_id: groomId,
-        });
-        setPoruthamResult(data);
-        setPoruthamResultOpen(true);
-        queryClient.invalidateQueries({ queryKey: ["horoscope", role, "summary"] });
-        return data;
-      } catch (e) {
-        toast({
-          title: "Porutham failed",
-          description: e instanceof Error ? e.message : "Request failed",
-          variant: "destructive",
-        });
-        throw e;
-      } finally {
-        setPoruthamNavLoading(null);
-      }
-    },
-    [role, queryClient, toast],
-  );
-
-  const resetPoruthamNav = useCallback(() => {
-    setBrideNavWindow(null);
-    setGroomNavWindow(null);
-    setPoruthamNavLoading(null);
-    setDismissedBrideProfileIds(new Set());
-    setDismissedGroomProfileIds(new Set());
-    setPoruthamRemainingCount(0);
+  const handlePoruthamModeChange = useCallback((mode: PoruthamFixedMode) => {
+    setPoruthamMode(mode);
+    setSelectedBrides([]);
+    setSelectedGrooms([]);
+    setCollectedMatches([]);
+    setCollectedFixed(null);
+    setBatchProgress(null);
+    setCollectedDetailIndex(null);
+    setPoruthamResult(null);
   }, []);
 
-  const handlePoruthamResultOpenChange = useCallback(
-    (open: boolean) => {
-      setPoruthamResultOpen(open);
-      if (!open) resetPoruthamNav();
+  const handlePoruthamResultOpenChange = useCallback((open: boolean) => {
+    setPoruthamResultOpen(open);
+    if (!open) {
+      setCollectedDetailIndex(null);
+      setPoruthamResult(null);
+    }
+  }, []);
+
+  const handleViewCollectedMatch = useCallback(
+    (index: number) => {
+      const match = collectedMatches[index];
+      if (!match || match.error) return;
+      setCollectedDetailIndex(index);
+      setPoruthamResult(match.payload);
+      setPoruthamResultOpen(true);
     },
-    [resetPoruthamNav],
+    [collectedMatches],
   );
 
-  const handleBrideNav = useCallback(
-    async (direction: 1 | -1) => {
-      if (!brideNavWindow || poruthamNavLoading) return;
-      const groomId = Number(poruthamGroom);
-      if (!Number.isFinite(groomId)) return;
-      try {
-        const advanced = await advancePoruthamNavSkippingDismissed(
-          role,
-          horoscopeBranchId,
-          {
-            gender: "F",
-            direction,
-            window: brideNavWindow,
-            excludeProfileId: groomId,
-          },
-          dismissedBrideProfileIds,
-        );
-        if (!advanced.row?.profile_id) return;
-        setBrideNavWindow(advanced.window);
-        setPoruthamBride(String(advanced.row.profile_id));
-        await executePorutham(advanced.row.profile_id, groomId, "bride");
-      } catch {
-        /* toast shown in executePorutham */
+  const handleRemoveCollectedMatch = useCallback(
+    (partnerProfileId: number) => {
+      setCollectedMatches((prev) => prev.filter((m) => m.partner.profile_id !== partnerProfileId));
+      if (poruthamMode === "fixed-bride") {
+        setSelectedGrooms((prev) => prev.filter((p) => p.profile_id !== partnerProfileId));
+      } else {
+        setSelectedBrides((prev) => prev.filter((p) => p.profile_id !== partnerProfileId));
+      }
+      if (collectedDetailIndex != null) {
+        const current = collectedMatches[collectedDetailIndex];
+        if (current?.partner.profile_id === partnerProfileId) {
+          handlePoruthamResultOpenChange(false);
+        }
       }
     },
-    [
-      brideNavWindow,
-      poruthamNavLoading,
-      poruthamGroom,
-      role,
-      horoscopeBranchId,
-      executePorutham,
-      dismissedBrideProfileIds,
-    ],
+    [poruthamMode, collectedDetailIndex, collectedMatches, handlePoruthamResultOpenChange],
   );
 
-  const handleBrideDismiss = useCallback(async () => {
-    if (!brideNavWindow || poruthamNavLoading) return;
-    const brideId = Number(poruthamBride);
-    const groomId = Number(poruthamGroom);
-    if (!Number.isFinite(brideId) || !Number.isFinite(groomId)) return;
-    const nextDismissed = new Set(dismissedBrideProfileIds);
-    nextDismissed.add(brideId);
-    setDismissedBrideProfileIds(nextDismissed);
-    setPoruthamRemainingCount((c) => Math.max(0, c - 1));
-    try {
-      const advanced = await advancePoruthamNavSkippingDismissed(
-        role,
-        horoscopeBranchId,
-        {
-          gender: "F",
-          direction: 1,
-          window: brideNavWindow,
-          excludeProfileId: groomId,
-        },
-        nextDismissed,
-      );
-      if (!advanced.row?.profile_id) return;
-      setBrideNavWindow(advanced.window);
-      setPoruthamBride(String(advanced.row.profile_id));
-      await executePorutham(advanced.row.profile_id, groomId, "bride");
-    } catch {
-      /* toast shown in executePorutham */
-    }
-  }, [
-    brideNavWindow,
-    poruthamNavLoading,
-    poruthamBride,
-    poruthamGroom,
-    dismissedBrideProfileIds,
-    role,
-    horoscopeBranchId,
-    executePorutham,
-  ]);
-
-  const handleGroomNav = useCallback(
-    async (direction: 1 | -1) => {
-      if (!groomNavWindow || poruthamNavLoading) return;
-      const brideId = Number(poruthamBride);
-      if (!Number.isFinite(brideId)) return;
-      try {
-        const advanced = await advancePoruthamNavSkippingDismissed(
-          role,
-          horoscopeBranchId,
-          {
-            gender: "M",
-            direction,
-            window: groomNavWindow,
-            excludeProfileId: brideId,
-          },
-          dismissedGroomProfileIds,
-        );
-        if (!advanced.row?.profile_id) return;
-        setGroomNavWindow(advanced.window);
-        setPoruthamGroom(String(advanced.row.profile_id));
-        await executePorutham(brideId, advanced.row.profile_id, "groom");
-      } catch {
-        /* toast shown in executePorutham */
-      }
+  const handleCollectedDetailNav = useCallback(
+    (direction: -1 | 1) => {
+      if (detailViewPosition < 0) return;
+      const nextPos = detailViewPosition + direction;
+      if (nextPos < 0 || nextPos >= viewableMatchIndices.length) return;
+      const nextIndex = viewableMatchIndices[nextPos]!;
+      handleViewCollectedMatch(nextIndex);
     },
-    [
-      groomNavWindow,
-      poruthamNavLoading,
-      poruthamBride,
-      role,
-      horoscopeBranchId,
-      executePorutham,
-      dismissedGroomProfileIds,
-    ],
+    [detailViewPosition, viewableMatchIndices, handleViewCollectedMatch],
   );
 
-  const handleGroomDismiss = useCallback(async () => {
-    if (!groomNavWindow || poruthamNavLoading) return;
-    const brideId = Number(poruthamBride);
-    const groomId = Number(poruthamGroom);
-    if (!Number.isFinite(brideId) || !Number.isFinite(groomId)) return;
-    const nextDismissed = new Set(dismissedGroomProfileIds);
-    nextDismissed.add(groomId);
-    setDismissedGroomProfileIds(nextDismissed);
-    setPoruthamRemainingCount((c) => Math.max(0, c - 1));
-    try {
-      const advanced = await advancePoruthamNavSkippingDismissed(
-        role,
-        horoscopeBranchId,
-        {
-          gender: "M",
-          direction: 1,
-          window: groomNavWindow,
-          excludeProfileId: brideId,
-        },
-        nextDismissed,
-      );
-      if (!advanced.row?.profile_id) return;
-      setGroomNavWindow(advanced.window);
-      setPoruthamGroom(String(advanced.row.profile_id));
-      await executePorutham(brideId, advanced.row.profile_id, "groom");
-    } catch {
-      /* toast shown in executePorutham */
+  const handlePoruthamBatch = useCallback(async () => {
+    if (!fixedProfile) {
+      toast({
+        title: "Select fixed profile",
+        description:
+          poruthamMode === "fixed-bride"
+            ? "Choose exactly one bride profile."
+            : "Choose exactly one groom profile.",
+        variant: "destructive",
+      });
+      return;
     }
-  }, [
-    groomNavWindow,
-    poruthamNavLoading,
-    poruthamBride,
-    poruthamGroom,
-    dismissedGroomProfileIds,
-    role,
-    horoscopeBranchId,
-    executePorutham,
-  ]);
+    if (eligiblePartners.length === 0) {
+      toast({
+        title: "Select partners",
+        description:
+          poruthamMode === "fixed-bride"
+            ? "Choose at least one groom profile."
+            : "Choose at least one bride profile.",
+        variant: "destructive",
+      });
+      return;
+    }
 
-  const groomProfileIdNum = Number(poruthamGroom);
-  const brideProfileIdNum = Number(poruthamBride);
-  const brideNavCaps = poruthamNavCapsWithDismissed(
-    brideNavWindow,
-    Number.isFinite(groomProfileIdNum) ? groomProfileIdNum : undefined,
-    dismissedBrideProfileIds,
-  );
-  const groomNavCaps = poruthamNavCapsWithDismissed(
-    groomNavWindow,
-    Number.isFinite(brideProfileIdNum) ? brideProfileIdNum : undefined,
-    dismissedGroomProfileIds,
-  );
+    setBatchRunning(true);
+    setBatchProgress({ current: 0, total: eligiblePartners.length });
+    setCollectedMatches([]);
+    setCollectedFixed(fixedProfile);
+    setCollectedDetailIndex(null);
+    setPoruthamResult(null);
+
+    try {
+      const results = await runPoruthamBatch({
+        role,
+        mode: poruthamMode,
+        fixed: fixedProfile,
+        partners: eligiblePartners,
+        onProgress: (current, total) => setBatchProgress({ current, total }),
+      });
+      setCollectedMatches(results);
+      queryClient.invalidateQueries({ queryKey: ["horoscope", role, "summary"] });
+      const ok = results.filter((r) => !r.error).length;
+      const failed = results.length - ok;
+      toast({
+        title: "Porutham calculated",
+        description:
+          failed > 0
+            ? `${ok} match${ok === 1 ? "" : "es"} collected · ${failed} failed`
+            : `${ok} match${ok === 1 ? "" : "es"} collected under ${fixedProfile.profile_name || fixedProfile.matri_id}.`,
+      });
+    } catch (e) {
+      toast({
+        title: "Porutham batch failed",
+        description: e instanceof Error ? e.message : "Request failed",
+        variant: "destructive",
+      });
+    } finally {
+      setBatchRunning(false);
+      setBatchProgress(null);
+    }
+  }, [fixedProfile, eligiblePartners, poruthamMode, role, queryClient, toast]);
+
+  const detailBrideMatri =
+    poruthamMode === "fixed-bride"
+      ? collectedFixed?.matri_id ?? ""
+      : detailMatch?.partner.matri_id ?? "";
+  const detailGroomMatri =
+    poruthamMode === "fixed-groom"
+      ? collectedFixed?.matri_id ?? ""
+      : detailMatch?.partner.matri_id ?? "";
 
   const { data: summary, isLoading: summaryLoading, error: summaryError } = useQuery({
     queryKey: ["horoscope", role, "summary", horoscopeBranchId],
@@ -469,26 +299,6 @@ export default function HoroscopeManagement() {
     enabled: viewOpen && !!viewUserUuid && !viewUserUuid.startsWith("row-"),
   });
 
-  const poruthamMut = useMutation({
-    mutationFn: (body: { bride_profile_id: number; groom_profile_id: number }) => postHoroscopePorutham(role, body),
-    onSuccess: async (data, variables) => {
-      setPoruthamResult(data);
-      setPoruthamResultOpen(true);
-      toast({ title: "Porutham calculated", description: "See result details." });
-      queryClient.invalidateQueries({ queryKey: ["horoscope", role, "summary"] });
-      await setupPoruthamNav(
-        variables.bride_profile_id,
-        variables.groom_profile_id,
-        data,
-        selectedBrides,
-        selectedGrooms,
-      );
-    },
-    onError: (e: Error) => {
-      toast({ title: "Porutham failed", description: e.message, variant: "destructive" });
-    },
-  });
-
   const openView = (row: HoroscopeRecordRow) => {
     setViewUserUuid(row.user_uuid);
     setViewRow(row);
@@ -497,31 +307,8 @@ export default function HoroscopeManagement() {
 
   const totalPages = Math.max(1, Math.ceil((recordsPage?.count ?? 0) / pageSize));
 
-  const handlePoruthamSubmit = () => {
-    if (selectedBrides.length === 0 || selectedGrooms.length === 0) {
-      toast({
-        title: "Select profiles",
-        description: "Choose at least one bride and one groom from the lists.",
-        variant: "destructive",
-      });
-      return;
-    }
-    const pair = pickPoruthamPair(selectedBrides, selectedGrooms);
-    if (!pair) {
-      toast({
-        title: "Invalid pair",
-        description: "Bride and groom must be different profiles.",
-        variant: "destructive",
-      });
-      return;
-    }
-    setPoruthamBride(String(pair.bride.profile_id));
-    setPoruthamGroom(String(pair.groom.profile_id));
-    poruthamMut.mutate({
-      bride_profile_id: pair.bride.profile_id,
-      groom_profile_id: pair.groom.profile_id,
-    });
-  };
+  const canCalculatePorutham =
+    Boolean(fixedProfile) && eligiblePartners.length > 0 && !batchRunning;
 
   function errMsg(e: unknown): string {
     return e instanceof Error ? e.message : String(e ?? "Request failed");
@@ -738,46 +525,101 @@ export default function HoroscopeManagement() {
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2"><Heart className="h-4 w-4 text-primary" /> Porutham (compatibility)</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4 max-w-3xl">
-              <p className="text-xs text-muted-foreground">
-                Select one or more bride and groom profiles. Porutham results and navigation (prev / next / close) stay
-                within your selected lists only.
+            <CardContent className="space-y-4">
+              <p className="text-xs text-muted-foreground max-w-3xl">
+                Pick one fixed profile and multiple partners on the other side. Calculate collects all match scores
+                under the fixed profile for review — display only, no send-to-client.
               </p>
-              <div className="grid gap-4 sm:grid-cols-2">
+
+              <div className="space-y-2 max-w-3xl">
+                <Label>Match mode</Label>
+                <RadioGroup
+                  value={poruthamMode}
+                  onValueChange={(v) => handlePoruthamModeChange(v as PoruthamFixedMode)}
+                  className="flex flex-wrap gap-4"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="fixed-bride" id="porutham-fixed-bride" />
+                    <Label htmlFor="porutham-fixed-bride" className="font-normal cursor-pointer">
+                      Fixed bride — match many grooms
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="fixed-groom" id="porutham-fixed-groom" />
+                    <Label htmlFor="porutham-fixed-groom" className="font-normal cursor-pointer">
+                      Fixed groom — match many brides
+                    </Label>
+                  </div>
+                </RadioGroup>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2 max-w-3xl">
                 <div className="space-y-2">
-                  <Label>Bride profiles</Label>
+                  <Label>
+                    {poruthamMode === "fixed-bride" ? "Fixed bride (select one)" : "Partner brides (select many)"}
+                  </Label>
                   <PoruthamProfileMultiPicker
                     selected={selectedBrides}
                     onSelectedChange={setSelectedBrides}
-                    placeholder="Search and select brides…"
+                    placeholder={
+                      poruthamMode === "fixed-bride"
+                        ? "Search and select one bride…"
+                        : "Search and select brides…"
+                    }
                     role={role}
                     branchId={horoscopeBranchId}
                     tabActive={activeTab === "matches"}
                     instanceId="bride"
+                    maxSelection={poruthamMode === "fixed-bride" ? 1 : undefined}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Groom profiles</Label>
+                  <Label>
+                    {poruthamMode === "fixed-groom" ? "Fixed groom (select one)" : "Partner grooms (select many)"}
+                  </Label>
                   <PoruthamProfileMultiPicker
                     selected={selectedGrooms}
                     onSelectedChange={setSelectedGrooms}
-                    placeholder="Search and select grooms…"
+                    placeholder={
+                      poruthamMode === "fixed-groom"
+                        ? "Search and select one groom…"
+                        : "Search and select grooms…"
+                    }
                     role={role}
                     branchId={horoscopeBranchId}
                     tabActive={activeTab === "matches"}
                     instanceId="groom"
+                    maxSelection={poruthamMode === "fixed-groom" ? 1 : undefined}
                   />
                 </div>
               </div>
-              <Button
-                onClick={handlePoruthamSubmit}
-                disabled={poruthamMut.isPending || selectedBrides.length === 0 || selectedGrooms.length === 0}
-              >
-                {poruthamMut.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                Calculate porutham
-              </Button>
+
+              <div className="max-w-3xl space-y-2">
+                <Button onClick={() => void handlePoruthamBatch()} disabled={!canCalculatePorutham}>
+                  {batchRunning ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  Calculate porutham
+                </Button>
+                {batchProgress ? (
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">
+                      Calculating {batchProgress.current} of {batchProgress.total}…
+                    </p>
+                    <Progress value={(batchProgress.current / batchProgress.total) * 100} className="h-2" />
+                  </div>
+                ) : null}
+              </div>
             </CardContent>
           </Card>
+
+          {collectedFixed && collectedMatches.length > 0 ? (
+            <PoruthamCollectedMatches
+              mode={poruthamMode}
+              fixed={collectedFixed}
+              matches={collectedMatches}
+              onView={handleViewCollectedMatch}
+              onRemove={handleRemoveCollectedMatch}
+            />
+          ) : null}
         </TabsContent>
 
         <TabsContent value="jathagam" className="space-y-4">
@@ -827,34 +669,38 @@ export default function HoroscopeManagement() {
             <PoruthamResultView
               result={poruthamResult}
               role={role}
-              brideMatriId={poruthamBrideMatri}
-              groomMatriId={poruthamGroomMatri}
-              remainingCount={poruthamRemainingCount}
-              personNav={
-                brideNavWindow && groomNavWindow
-                  ? {
-                      bride: {
-                        onPrev: () => void handleBrideNav(-1),
-                        onNext: () => void handleBrideNav(1),
-                        onDismiss: () => void handleBrideDismiss(),
-                        canPrev: brideNavCaps.canPrev,
-                        canNext: brideNavCaps.canNext,
-                        loading: poruthamNavLoading === "bride",
-                      },
-                      groom: {
-                        onPrev: () => void handleGroomNav(-1),
-                        onNext: () => void handleGroomNav(1),
-                        onDismiss: () => void handleGroomDismiss(),
-                        canPrev: groomNavCaps.canPrev,
-                        canNext: groomNavCaps.canNext,
-                        loading: poruthamNavLoading === "groom",
-                      },
-                    }
-                  : undefined
-              }
+              brideMatriId={detailBrideMatri}
+              groomMatriId={detailGroomMatri}
             />
           ) : null}
-          <DialogFooter>
+          <DialogFooter className="flex-col sm:flex-row gap-2 sm:justify-between">
+            {viewableMatchIndices.length > 1 && collectedDetailIndex != null ? (
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={detailViewPosition <= 0}
+                  onClick={() => handleCollectedDetailNav(-1)}
+                >
+                  <ChevronLeft className="h-4 w-4 mr-1" /> Previous match
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  {detailViewPosition + 1} / {viewableMatchIndices.length}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={detailViewPosition >= viewableMatchIndices.length - 1}
+                  onClick={() => handleCollectedDetailNav(1)}
+                >
+                  Next match <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              </div>
+            ) : (
+              <span />
+            )}
             <Button variant="outline" onClick={() => handlePoruthamResultOpenChange(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
@@ -877,34 +723,6 @@ function pickPada(...vals: unknown[]): string | number | undefined {
     if (typeof v === "string" && v.trim()) return v.trim();
   }
   return undefined;
-}
-
-function poruthamPersonName(data: unknown, side: "bride" | "groom"): string {
-  const unwrap = (v: unknown): Record<string, unknown> => {
-    if (!v || typeof v !== "object" || Array.isArray(v)) return {};
-    const o = v as Record<string, unknown>;
-    if (o.data && typeof o.data === "object" && !Array.isArray(o.data)) {
-      return o.data as Record<string, unknown>;
-    }
-    return o;
-  };
-  const root = unwrap(data);
-  const key = side === "bride" ? "bride_horoscope" : "groom_horoscope";
-  const alt = side === "bride" ? "bride" : "groom";
-  const grahanila =
-    root.grahanila && typeof root.grahanila === "object" && !Array.isArray(root.grahanila)
-      ? (root.grahanila as Record<string, unknown>)
-      : null;
-  const node = root[key] ?? root[alt] ?? grahanila?.[alt];
-  if (node && typeof node === "object" && !Array.isArray(node)) {
-    const o = node as Record<string, unknown>;
-    const horo =
-      o.horoscope && typeof o.horoscope === "object" && !Array.isArray(o.horoscope)
-        ? (o.horoscope as Record<string, unknown>)
-        : o;
-    return pickStr(horo.name, horo.pr_name, horo.profile_name, o.name);
-  }
-  return "";
 }
 
 /** Coerce any primitive into a display string; `null`/`undefined`/empty → "—". */

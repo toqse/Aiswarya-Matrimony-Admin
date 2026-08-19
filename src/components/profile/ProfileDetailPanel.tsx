@@ -240,6 +240,8 @@ export function ProfileDetailPanel({ detail, showAdmin = true }: ProfileDetailPa
             ["Married brothers", family.married_brothers],
             ["Sisters", family.sisters],
             ["Married sisters", family.married_sisters],
+            ["Brother's occupation", family.brother_occupation],
+            ["Sister's occupation", family.sister_occupation],
             ["Family type", family.family_type],
             ["Family status", family.family_status],
             ["Family contact", family.family_contact],

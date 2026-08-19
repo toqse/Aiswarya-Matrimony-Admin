@@ -28,7 +28,8 @@ jobs:
       - name: Deploy to VPS
         uses: burnett01/rsync-deployments@7.0.1
         with:
-          switches: -avzr --delete
+          # Keep previous hashed JS chunks so open tabs still work after deploy.
+          switches: -avzr
           path: dist/
           remote_path: /var/www/admin/
           remote_host: ${{ secrets.HOST }}

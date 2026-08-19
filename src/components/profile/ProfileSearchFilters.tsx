@@ -150,7 +150,7 @@ export default function ProfileSearchFilters({
       role === "branch-manager"
         ? fetchBranchStaffList({ page_size: 200 })
         : fetchAdminStaffList({ status: "active", page_size: 200 }),
-    enabled: showAssignedStaff && role !== "staff",
+    enabled: showAssignedStaff,
   });
 
   const religions = religionsQuery.data?.results ?? [];
@@ -451,10 +451,9 @@ export default function ProfileSearchFilters({
                 <Select
                   value={value.staff_id || "all"}
                   onValueChange={(v) => patch({ staff_id: v === "all" ? "" : v })}
-                  disabled={role === "staff"}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder={role === "staff" ? "Your profiles only" : "All staff"} />
+                    <SelectValue placeholder="All staff" />
                   </SelectTrigger>
                   <SelectContent className="max-h-64">
                     <SelectItem value="all">All staff</SelectItem>

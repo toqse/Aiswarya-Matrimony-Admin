@@ -1,5 +1,6 @@
-import { Component, type ErrorInfo, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
+import { isChunkLoadError, reloadForStaleChunk } from "@/lib/lazyRetry";
+import { Component, type ErrorInfo, type ReactNode } from "react";
 
 type Props = {
   children: ReactNode;
@@ -25,6 +26,9 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error("[ErrorBoundary]", error, info.componentStack);
+    if (isChunkLoadError(error)) {
+      reloadForStaleChunk();
+    }
   }
 
   private handleReload = () => {
@@ -39,9 +43,14 @@ export class ErrorBoundary extends Component<Props, State> {
     if (this.state.hasError) {
       return (
         <div className="flex min-h-[40vh] flex-col items-center justify-center gap-4 p-6 text-center">
-          <p className="text-lg font-semibold text-foreground">Something went wrong</p>
+          <p className="text-lg font-semibold text-foreground">
+            Something went wrong
+          </p>
           <p className="max-w-md text-sm text-muted-foreground">
-            {this.state.message || "This page failed to load. Try again or reload."}
+            {isChunkLoadError(this.state.message)
+              ? "A new version of the admin panel was deployed. Reload to load the latest page scripts."
+              : this.state.message ||
+                "This page failed to load. Try again or reload."}
           </p>
           <div className="flex flex-wrap items-center justify-center gap-2">
             <Button type="button" variant="outline" onClick={this.handleReset}>

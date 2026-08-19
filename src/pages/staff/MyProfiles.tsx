@@ -30,7 +30,6 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import {
   Plus,
   Eye,
@@ -45,9 +44,8 @@ import {
   XCircle,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { formatPhoneDisplay } from "@/lib/phone";
-import { formatDate } from "@/lib/format-date";
 import ProfileSearchFilters from "@/components/profile/ProfileSearchFilters";
+import { ProfileDetailPanel } from "@/components/profile/ProfileDetailPanel";
 import { EMPTY_PROFILE_SEARCH, profileSearchToQuery } from "@/lib/profileSearch";
 import AddProfileWizard from "@/components/profile/AddProfileWizard";
 import EditProfileWizard from "@/components/profile/EditProfileWizard";
@@ -68,13 +66,6 @@ import {
   patchStaffProfile,
   toggleStaffProfileWishlist,
 } from "@/lib/admin-api/profiles";
-
-function showValue(value: unknown) {
-  if (value == null || value === "") return "—";
-  if (typeof value === "boolean") return value ? "Yes" : "No";
-  if (Array.isArray(value)) return value.length ? value.join(", ") : "—";
-  return String(value);
-}
 
 export default function MyProfiles() {
   const [filters, setFilters] = useState(EMPTY_PROFILE_SEARCH);
@@ -280,7 +271,7 @@ export default function MyProfiles() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">My Profiles</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Manage profiles created or assigned to you
+            Manage all platform profiles
           </p>
         </div>
         <Button
@@ -342,7 +333,7 @@ export default function MyProfiles() {
           setPage(1);
         }}
         role="staff"
-        showAssignedStaff={false}
+        showAssignedStaff={true}
       />
 
       {/* Profiles table */}
@@ -540,282 +531,7 @@ export default function MyProfiles() {
 
             {viewDetailQ.data && (
               <div className="space-y-5 text-sm pr-3">
-                {(() => {
-                  const detail = viewDetailQ.data ?? {};
-                  const basic =
-                    (detail.basic_details as
-                      | Record<string, unknown>
-                      | undefined) ?? {};
-                  const religion =
-                    (detail.religion_details as
-                      | Record<string, unknown>
-                      | undefined) ?? {};
-                  const personal =
-                    (detail.personal_details as
-                      | Record<string, unknown>
-                      | undefined) ?? {};
-                  const location =
-                    (detail.location_details as
-                      | Record<string, unknown>
-                      | undefined) ?? {};
-                  const education =
-                    (detail.education_details as
-                      | Record<string, unknown>
-                      | undefined) ?? {};
-                  const family =
-                    (detail.family_details as
-                      | Record<string, unknown>
-                      | undefined) ?? {};
-                  const admin =
-                    (detail.admin as Record<string, unknown> | undefined) ?? {};
-                  const photos =
-                    (detail.photos as
-                      | Record<string, string | null>
-                      | undefined) ?? {};
-
-                  const FieldGrid = ({
-                    rows,
-                  }: {
-                    rows: [string, unknown][];
-                  }) => (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {rows.map(([k, v]) => (
-                        <div key={k} className="rounded-md border bg-card p-3">
-                          <p className="text-xs text-muted-foreground">{k}</p>
-                          <p className="font-medium text-sm break-words">
-                            {showValue(v)}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  );
-
-                  const Section = ({
-                    title,
-                    children,
-                  }: {
-                    title: string;
-                    children: React.ReactNode;
-                  }) => (
-                    <div className="space-y-2">
-                      <h3 className="text-sm font-semibold text-foreground">
-                        {title}
-                      </h3>
-                      {children}
-                    </div>
-                  );
-
-                  return (
-                    <>
-                      <Section title="Record">
-                        <FieldGrid
-                          rows={[
-                            ["Matrimony ID", detail.matri_id],
-                            ["Profile UUID", detail.id],
-                          ]}
-                        />
-                      </Section>
-
-                      <Separator />
-
-                      <Section title="Basic details">
-                        <FieldGrid
-                          rows={[
-                            ["Name", basic.name],
-                            ["Gender", basic.gender],
-                            ["Date of birth", formatDate(basic.dob)],
-                            ["Age", basic.age],
-                            ["Email", basic.email],
-                            ["Phone", formatPhoneDisplay(basic.phone)],
-                            ["Profile for", basic.profile_for],
-                          ]}
-                        />
-                      </Section>
-
-                      <Separator />
-
-                      <Section title="Location">
-                        <FieldGrid
-                          rows={[
-                            [
-                              "Country",
-                              location.country ?? location.country_id,
-                            ],
-                            ["State", location.state ?? location.state_id],
-                            [
-                              "District",
-                              location.district ?? location.district_id,
-                            ],
-                            ["City", location.city ?? location.city_id],
-                            ["Address", location.address],
-                          ]}
-                        />
-                      </Section>
-
-                      <Separator />
-
-                      <Section title="Religion & partner preference">
-                        <FieldGrid
-                          rows={[
-                            [
-                              "Religion",
-                              religion.religion ?? religion.religion_id,
-                            ],
-                            ["Caste", religion.caste ?? religion.caste_id],
-                            [
-                              "Mother tongue",
-                              religion.mother_tongue ??
-                                religion.mother_tongue_id,
-                            ],
-                            [
-                              "Partner religion preference",
-                              religion.partner_religion_preference,
-                            ],
-                            [
-                              "Partner preference type",
-                              religion.partner_preference_type,
-                            ],
-                            [
-                              "Partner religion IDs",
-                              religion.partner_religion_ids,
-                            ],
-                            [
-                              "Partner caste preference",
-                              religion.partner_caste_preference,
-                            ],
-                          ]}
-                        />
-                      </Section>
-
-                      <Separator />
-
-                      <Section title="Personal">
-                        <FieldGrid
-                          rows={[
-                            [
-                              "Marital status",
-                              personal.marital_status ??
-                                personal.marital_status_id,
-                            ],
-                            [
-                              "Children count",
-                              personal.children_count ??
-                                personal.number_of_children,
-                            ],
-                            ["Height", personal.height_cm],
-                            ["Weight (kg)", personal.weight_kg],
-                            [
-                              "Complexion",
-                              personal.colour ?? personal.complexion,
-                            ],
-                            ["Blood group", personal.blood_group],
-                          ]}
-                        />
-                      </Section>
-
-                      <Separator />
-
-                      <Section title="Education & career">
-                        <FieldGrid
-                          rows={[
-                            [
-                              "Highest education",
-                              education.highest_education ??
-                                education.highest_education_id,
-                            ],
-                            [
-                              "Subject",
-                              education.education_subject ??
-                                education.education_subject_id,
-                            ],
-                            ["Employment status", education.employment_status],
-                            [
-                              "Occupation",
-                              education.occupation ?? education.occupation_id,
-                            ],
-                            [
-                              "Annual income",
-                              education.annual_income ??
-                                education.annual_income_id,
-                            ],
-                          ]}
-                        />
-                      </Section>
-
-                      {Object.values(photos).some(Boolean) && (
-                        <>
-                          <Separator />
-                          <Section title="Photos">
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                              {Object.entries(photos).map(([key, url]) => {
-                                if (!url) return null;
-                                return (
-                                  <a
-                                    key={key}
-                                    href={url}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="rounded-md border bg-card p-2 hover:bg-muted/40 transition-colors"
-                                  >
-                                    <p className="text-xs text-muted-foreground mb-2 capitalize">
-                                      {key.replace(/_/g, " ")}
-                                    </p>
-                                    <img
-                                      src={url}
-                                      alt={key}
-                                      className="w-full h-24 object-cover rounded"
-                                    />
-                                  </a>
-                                );
-                              })}
-                            </div>
-                          </Section>
-                        </>
-                      )}
-
-                      {typeof detail.about_me === "string" &&
-                        detail.about_me.trim() !== "" && (
-                          <>
-                            <Separator />
-                            <Section title="About me">
-                              <div className="rounded-md border bg-card p-3">
-                                <p className="text-sm whitespace-pre-wrap">
-                                  {detail.about_me}
-                                </p>
-                              </div>
-                            </Section>
-                          </>
-                        )}
-
-                      {Object.keys(family).length > 0 && (
-                        <>
-                          <Separator />
-                          <Section title="Family">
-                            <FieldGrid
-                              rows={[
-                                ["Father", family.father_name],
-                                ["Father status", family.father_status === "Late" ? "Deceased" : family.father_status],
-                                ["Father occupation", family.father_occupation],
-                                ["Mother", family.mother_name],
-                                ["Mother status", family.mother_status === "Late" ? "Deceased" : family.mother_status],
-                                ["Mother occupation", family.mother_occupation],
-                                ["Brothers", family.brothers],
-                                ["Married brothers", family.married_brothers],
-                                ["Sisters", family.sisters],
-                                ["Married sisters", family.married_sisters],
-                                ["Family type", family.family_type],
-                                ["Family status", family.family_status],
-                                ["Family contact", family.family_contact],
-                                ["Family contact 2", family.family_contact_2],
-                                ["About family", family.about_family],
-                              ]}
-                            />
-                          </Section>
-                        </>
-                      )}
-                    </>
-                  );
-                })()}
+                <ProfileDetailPanel detail={viewDetailQ.data} showAdmin={false} />
 
                 {!viewIsMatch && (
                   <div className="flex gap-2 pt-2">

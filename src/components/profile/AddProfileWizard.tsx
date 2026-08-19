@@ -276,6 +276,8 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
       marriedBrothersCount: form.marriedBrothersCount,
       sistersCount: form.sistersCount,
       marriedSistersCount: form.marriedSistersCount,
+      brotherOccupation: form.brotherOccupation,
+      sisterOccupation: form.sisterOccupation,
       familyType: form.familyType,
       familyStatus: form.familyStatus,
       familyContact: form.familyContact,

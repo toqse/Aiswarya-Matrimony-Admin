@@ -2817,9 +2817,8 @@ BRANCH MANAGER — My Profiles (/api/v1/branch/my-profiles/)
 Role: admin or branch_manager (Admin JWT).
 
 Scope:
-  - Profiles where the member’s `User.branch` (master.Branch) matches the manager’s branch code, OR the member has a
-    `CustomerStaffAssignment` to a StaffProfile whose `branch.code` matches the manager’s branch.
-  - Wrong-branch / inaccessible profile -> 404 "Profile not found or not in your branch."
+  - All active member profiles on the platform (same base list as admin Profile Admin).
+  - Unknown matri_id or inactive member -> 404 "Profile not found."
   - No branch on manager account -> 400 "No branch assigned to your account. Contact admin." (same helper as other branch routes)
 
 Model: EmailTemplate (admin_panel.my_profiles) — used by send-email:
@@ -2928,7 +2927,7 @@ GET /api/v1/branch/my-profiles/{matri_id}/
         }
       }
     }
-  Error 404: Profile not found or not in your branch.
+  Error 404: Profile not found.
 
 PATCH /api/v1/branch/my-profiles/{matri_id}/
   Description: Edit profile sections (same PATCH body rules as /api/v1/admin/profiles/{matri_id}/): admin_verified,
@@ -2944,7 +2943,7 @@ PATCH /api/v1/branch/my-profiles/{matri_id}/
       "data": { "...": "same shape as GET detail (refreshed data)." }
     }
   Error 400: blocked profile — "Cannot edit a blocked profile. Contact admin."
-  Error 404: Profile not found or not in your branch.
+  Error 404: Profile not found.
 
 PATCH /api/v1/branch/my-profiles/{matri_id}/verify/
   Description: Toggle verification status.
@@ -2957,7 +2956,7 @@ PATCH /api/v1/branch/my-profiles/{matri_id}/verify/
     }
   Error 400: incomplete profile when verifying —
     "Cannot verify an incomplete profile. Profile is {n}% complete. All sections must be filled before verification."
-  Error 404: Profile not found or not in your branch.
+  Error 404: Profile not found.
 
 PATCH /api/v1/branch/my-profiles/{matri_id}/refresh/
   Description: Recalculate and return completion percentage.
@@ -2981,7 +2980,7 @@ POST /api/v1/branch/my-profiles/{matri_id}/wishlist/
   Response 200 (removed):
     { "success": true, "data": { "is_wishlisted": false }, "message": "Removed from wishlist." }
   Error 400: "No linked user account found to manage wishlist."
-  Error 404: Profile not found or not in your branch.
+  Error 404: Profile not found.
 
 POST /api/v1/branch/my-profiles/create/
   Description: Create a new profile in the manager’s branch.
@@ -3671,7 +3670,7 @@ Roles:
   - Admin: full list, detail, PATCH, verify, assign staff, block, delete, merge
   - Branch Manager: list + detail + PATCH + verify + assign + block for users in branch scope; cannot DELETE or merge
   - Staff: use GET /api/v1/staff/profiles/… for “My Profiles” (summary, table, create, detail, refresh, wishlist, email,
-    documents) — assigned profiles only. Staff may still use GET /api/v1/admin/profiles/ (assigned-only list) and
+    documents) — all active member profiles on the platform. Staff may still use GET /api/v1/admin/profiles/ (assigned-only list) and
     GET/PATCH /api/v1/admin/profiles/{matri_id}/ for edits, but must NOT verify or delete:
     - PATCH with `admin_verified` -> 403 "Profile verification requires Branch Manager or Admin role."
     - PATCH /api/v1/admin/profiles/{matri_id}/verify/ -> 403 (same message)
@@ -3720,8 +3719,8 @@ Role: staff only (Admin JWT). Staff gate: active staff + StaffProfile (admin_use
   Staff Dashboard / My Commissions / My Salary. Wrong role -> 403 "Access denied. Staff token required."; missing
   profile -> 400 "Staff profile not configured. Contact admin."; inactive -> 403 deactivate message.
 
-Scope: only users with CustomerStaffAssignment to the logged-in staff. Inaccessible matri_id -> 404
-  "Profile not found or not assigned to you."
+Scope: all active member profiles on the platform. Inaccessible matri_id -> 404
+  "Profile not found."
 
 Completeness (summary, list, refresh): 6 steps — location, religion, personal, education, about_me, profile_photo
   (same as Branch Manager My Profiles list KPIs).
@@ -3804,7 +3803,7 @@ GET /api/v1/staff/profiles/{matri_id}/
   Body: none
   Response 200: Same shape as GET /api/v1/admin/profiles/{matri_id}/ (full profile + admin block).
     profile_completion_percentage uses the 6-step My Profiles formula for this module.
-  Error 404: "Profile not found or not assigned to you."
+  Error 404: "Profile not found."
 
 PATCH /api/v1/staff/profiles/{matri_id}/
   Auth: Required (Admin JWT; role staff)
@@ -3822,7 +3821,7 @@ PATCH /api/v1/staff/profiles/{matri_id}/
   Error 400: "Cannot edit a blocked profile. Contact admin." | about_me too long:
     "About me must be 500 characters or fewer."
   Error 403: admin_verified in body — verify message above.
-  Error 404: "Profile not found or not assigned to you."
+  Error 404: "Profile not found."
 
 DELETE /api/v1/staff/profiles/{matri_id}/
   Auth: Required (Admin JWT; role staff)
@@ -3843,7 +3842,7 @@ PATCH /api/v1/staff/profiles/{matri_id}/refresh/
         "steps_remaining": ["photos"]
       }
     }
-  Error 404: "Profile not found or not assigned to you."
+  Error 404: "Profile not found."
 
 POST /api/v1/staff/profiles/{matri_id}/wishlist/
   Auth: Required (Admin JWT; role staff)
@@ -3851,7 +3850,7 @@ POST /api/v1/staff/profiles/{matri_id}/wishlist/
   Response 200 (toggled on): { "success": true, "data": { "is_wishlisted": true }, "message": "Added to wishlist." }
   Response 200 (toggled off): { "success": true, "data": { "is_wishlisted": false }, "message": "Removed from wishlist." }
   Error 400: "No linked user account found to manage wishlist."
-  Error 404: "Profile not found or not assigned to you."
+  Error 404: "Profile not found."
 
 POST /api/v1/staff/profiles/create/
   Auth: Required (Admin JWT; role staff)
@@ -3947,7 +3946,7 @@ POST /api/v1/staff/profiles/{matri_id}/send-email/
   Error 400: "This profile has no registered email address." | "template_id is required." |
              "Email template is inactive. Activate it first."
   Error 404: "Email template not found."
-  Error 404 (profile): "Profile not found or not assigned to you."
+  Error 404 (profile): "Profile not found."
 
 GET /api/v1/staff/profiles/{matri_id}/documents/
   Auth: Required (Admin JWT; role staff)
@@ -3969,7 +3968,7 @@ GET /api/v1/staff/profiles/{matri_id}/documents/
         "missing": ["full_photo", "selfie_photo", "family_photo", "aadhaar_front", "aadhaar_back"]
       }
     }
-  Error 404: "Profile not found or not assigned to you."
+  Error 404: "Profile not found."
 
 ----------------------------------------------------------------------------
 GET /api/v1/admin/profiles/{matri_id}/

@@ -37,6 +37,8 @@ export interface FamilyFormFields {
   marriedBrothersCount: string;
   sistersCount: string;
   marriedSistersCount: string;
+  brotherOccupation: string;
+  sisterOccupation: string;
   familyType: string;
   familyStatus: string;
   familyContact: string;
@@ -55,6 +57,8 @@ export const EMPTY_FAMILY_FIELDS: FamilyFormFields = {
   marriedBrothersCount: "",
   sistersCount: "",
   marriedSistersCount: "",
+  brotherOccupation: "",
+  sisterOccupation: "",
   familyType: "",
   familyStatus: "",
   familyContact: "",
@@ -179,6 +183,20 @@ export default function FamilyDetailsSection({ values, onChange, errors }: Famil
             onChange={(e) => onChange("marriedSistersCount", digitsOnly(e.target.value))}
             className={invalidInputClass(fieldError(errors, "marriedSistersCount"))}
             aria-invalid={Boolean(fieldError(errors, "marriedSistersCount"))}
+          />
+        </ProfileFormField>
+        <ProfileFormField label="Brother's Occupation">
+          <Input
+            value={values.brotherOccupation}
+            onChange={(e) => onChange("brotherOccupation", e.target.value)}
+            placeholder="e.g. Software Engineer"
+          />
+        </ProfileFormField>
+        <ProfileFormField label="Sister's Occupation">
+          <Input
+            value={values.sisterOccupation}
+            onChange={(e) => onChange("sisterOccupation", e.target.value)}
+            placeholder="e.g. Teacher"
           />
         </ProfileFormField>
         <ProfileFormField label="Family Type">

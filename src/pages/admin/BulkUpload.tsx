@@ -28,12 +28,13 @@ import { formatDateTime } from "@/lib/format-date";
 import {
   fetchBulkImportStatus,
   fetchBulkUploadHistory,
+  fetchBulkTemplateColumns,
   importBulkUpload,
   validateBulkUpload,
   downloadBulkTemplate,
 } from "@/lib/admin-api/bulk-upload";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, FileText, Loader2, Upload } from "lucide-react";
+import { Download, Loader2, Upload } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 export default function BulkUpload() {
@@ -48,6 +49,7 @@ export default function BulkUpload() {
   const [historyStatus, setHistoryStatus] = useState<string>("all");
   const [historyPage, setHistoryPage] = useState(1);
   const [currentJobStatus, setCurrentJobStatus] = useState<string | null>(null);
+  const [templateColumns, setTemplateColumns] = useState<string[]>([]);
   const importInFlight =
     importing || currentJobStatus === "queued" || currentJobStatus === "processing";
   const fileRef = useRef<HTMLInputElement>(null);
@@ -99,7 +101,7 @@ export default function BulkUpload() {
     if (f) handleFile(f);
   };
 
-  const processUpload = async () => {
+  const processUploadAndImport = async () => {
     if (!file) return;
     setUploading(true);
     setProgress(10);
@@ -107,17 +109,33 @@ export default function BulkUpload() {
       const v = await validateBulkUpload(file);
       setValidation(v);
       setCurrentJobStatus("validated");
-      setProgress(100);
-      toast({
-        title: "Validation complete",
-        description: `${v.valid_rows} valid, ${v.error_rows} errors (${v.total_rows} rows)`,
-      });
+      setProgress(50);
       queryClient.invalidateQueries({
         queryKey: ["admin", "bulk-upload", "history"],
       });
+
+      if (!v.validation_token || v.valid_rows === 0) {
+        toast({
+          title: "Validation complete",
+          description:
+            v.valid_rows === 0
+              ? `${v.error_rows} error(s) — no valid rows to import`
+              : `${v.valid_rows} valid, ${v.error_rows} errors (${v.total_rows} rows)`,
+          variant: v.valid_rows === 0 ? "destructive" : "default",
+        });
+        setProgress(100);
+        return;
+      }
+
+      toast({
+        title: "Validation complete",
+        description: `Importing ${v.valid_rows} valid row(s)...`,
+      });
+      await runImport(v.validation_token);
+      setProgress(100);
     } catch (e) {
       toast({
-        title: "Validation failed",
+        title: "Upload failed",
         description: (e as Error).message,
         variant: "destructive",
       });
@@ -168,6 +186,12 @@ export default function BulkUpload() {
   };
 
   useEffect(() => {
+    fetchBulkTemplateColumns()
+      .then(setTemplateColumns)
+      .catch(() => setTemplateColumns([]));
+  }, []);
+
+  useEffect(() => {
     if (!taskId) return;
     const t = setInterval(async () => {
       try {
@@ -210,7 +234,7 @@ export default function BulkUpload() {
 
   const downloadTemplate = async () => {
     try {
-      await downloadBulkTemplate("xlsx");
+      await downloadBulkTemplate("csv");
       toast({ title: "Template downloaded" });
     } catch (e) {
       toast({
@@ -351,24 +375,17 @@ export default function BulkUpload() {
           <div className="flex flex-col sm:flex-row gap-2 mt-4 sm:justify-center">
             <Button
               disabled={!file || uploading || importInFlight}
-              onClick={processUpload}
-              className="w-full sm:w-auto"
+              onClick={processUploadAndImport}
+              className="w-full sm:w-auto gap-2"
             >
-              {uploading ? (
+              {uploading || importInFlight ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <FileText className="h-4 w-4" />
+                <Upload className="h-4 w-4" />
               )}
-              Validate
-            </Button>
-            <Button
-              variant="secondary"
-              disabled={!validation?.validation_token || importInFlight}
-              onClick={runImport}
-              className="w-full sm:w-auto"
-            >
-              {importInFlight ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              {importInFlight ? "Importing..." : "Import valid rows"}
+              {uploading || importInFlight
+                ? "Uploading & importing..."
+                : "Upload & Import"}
             </Button>
           </div>
         </CardContent>
@@ -379,12 +396,29 @@ export default function BulkUpload() {
           <CardTitle className="text-base">Template columns</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground leading-relaxed">
-            Use the downloaded template only. It includes all required fields,
-            family columns, horoscope columns (`horochart`, `amsachart`,
-            `bhavchart`, `sishta_dur`, `star`, `padam`), and parent status
-            columns in the expected order.
+          <p className="text-sm text-muted-foreground leading-relaxed mb-4">
+            Use the downloaded template only. Column order and spelling must
+            match exactly.
           </p>
+          {templateColumns.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+              {templateColumns.map((column, index) => (
+                <div
+                  key={`${index}-${column}`}
+                  className="flex items-start gap-2 rounded-md border bg-muted/20 px-3 py-2 text-sm"
+                >
+                  <span className="text-muted-foreground tabular-nums shrink-0">
+                    {index + 1}.
+                  </span>
+                  <span className="font-medium break-words">{column}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Loading template columns...
+            </p>
+          )}
         </CardContent>
       </Card>
 

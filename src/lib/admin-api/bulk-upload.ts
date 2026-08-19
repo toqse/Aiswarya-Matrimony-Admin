@@ -1,36 +1,28 @@
 import { unwrap } from "@/lib/admin-api/http";
 import { adminFetchBlob, adminRequest, downloadBlob } from "@/lib/api-client";
 
-const TEMPLATE_XLSX_FILENAME = "Matrimony_Bulk_Upload_Template.xlsx";
+const LEGACY_TEMPLATE_CSV_FILENAME = "matrimony_import_template.csv";
 
-async function downloadPublicTemplateFallback() {
-  const res = await fetch(`/${TEMPLATE_XLSX_FILENAME}`);
-  if (!res.ok) {
-    throw new Error("Template file is not available on the server");
-  }
-  downloadBlob(await res.blob(), TEMPLATE_XLSX_FILENAME);
+export async function fetchBulkTemplateColumns() {
+  const res = await adminRequest<{ columns: string[] }>(
+    "v1/admin/bulk-upload/template/?columns=1",
+  );
+  return unwrap(res).columns;
 }
 
-export async function downloadBulkTemplate(format: "csv" | "xlsx" = "xlsx") {
+export async function downloadBulkTemplate(format: "csv" | "xlsx" = "csv") {
   const { ok, blob, filename } = await adminFetchBlob(
-    `v1/admin/bulk-upload/template/?format=${format}`,
+    `v1/admin/bulk-upload/template/?file_format=${format}`,
   );
   if (ok) {
     downloadBlob(
       blob,
       filename ||
-        (format === "xlsx" ? TEMPLATE_XLSX_FILENAME : "bulk_upload_template.csv"),
+        (format === "xlsx"
+          ? LEGACY_TEMPLATE_CSV_FILENAME.replace(".csv", ".xlsx")
+          : LEGACY_TEMPLATE_CSV_FILENAME),
     );
     return;
-  }
-
-  if (format === "xlsx") {
-    try {
-      await downloadPublicTemplateFallback();
-      return;
-    } catch {
-      // Fall through to API error below.
-    }
   }
 
   throw new Error("Failed to download template");

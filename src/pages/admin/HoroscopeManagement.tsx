@@ -20,7 +20,6 @@ import {
   fetchHoroscopeSummary,
   normalizeHoroscopeRecord,
   postHoroscopePorutham,
-  postHoroscopeRegenerate,
   initPoruthamNavFromSelection,
   advancePoruthamNav,
   type HoroscopeRecordRow,
@@ -28,7 +27,7 @@ import {
   type PoruthamNavWindow,
 } from "@/lib/admin-api/horoscope";
 import {
-  Star, Eye, FileText, RefreshCw,
+  Star, Eye, FileText,
   CheckCircle, Clock, XCircle, AlertTriangle, Heart, Sparkles,
   Shield, Loader2, ChevronLeft, ChevronRight, ExternalLink, Link2,
 } from "lucide-react";
@@ -470,17 +469,6 @@ export default function HoroscopeManagement() {
     enabled: viewOpen && !!viewUserUuid && !viewUserUuid.startsWith("row-"),
   });
 
-  const regenerateMut = useMutation({
-    mutationFn: (userUuid: string) => postHoroscopeRegenerate(role, userUuid),
-    onSuccess: () => {
-      toast({ title: "Regenerate queued", description: "Chart refresh has been requested." });
-      queryClient.invalidateQueries({ queryKey: ["horoscope", role] });
-    },
-    onError: (e: Error) => {
-      toast({ title: "Regenerate failed", description: e.message, variant: "destructive" });
-    },
-  });
-
   const poruthamMut = useMutation({
     mutationFn: (body: { bride_profile_id: number; groom_profile_id: number }) => postHoroscopePorutham(role, body),
     onSuccess: async (data, variables) => {
@@ -506,8 +494,6 @@ export default function HoroscopeManagement() {
     setViewRow(row);
     setViewOpen(true);
   };
-
-  const canRegenerate = (row: HoroscopeRecordRow) => !row.user_uuid.startsWith("row-");
 
   const totalPages = Math.max(1, Math.ceil((recordsPage?.count ?? 0) / pageSize));
 
@@ -709,17 +695,6 @@ export default function HoroscopeManagement() {
                                   </Button>
                                 ) : null}
                                 <Button variant="ghost" size="icon" onClick={() => openView(h)} title="View"><Eye className="h-4 w-4" /></Button>
-                                {canRegenerate(h) && (
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    disabled={regenerateMut.isPending}
-                                    onClick={() => regenerateMut.mutate(h.user_uuid)}
-                                    title="Regenerate chart"
-                                  >
-                                    <RefreshCw className="h-4 w-4" />
-                                  </Button>
-                                )}
                               </div>
                             </TableCell>
                           </TableRow>

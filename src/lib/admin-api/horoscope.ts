@@ -595,13 +595,6 @@ export async function fetchHoroscopeRecordDetail(role: UserRole, userUuid: strin
   return {};
 }
 
-export async function postHoroscopeRegenerate(role: UserRole, userUuid: string): Promise<unknown> {
-  const base = horoscopeBasePath(role);
-  const enc = encodeURIComponent(userUuid.trim());
-  const res = await adminRequest<unknown>(`${base}records/${enc}/regenerate/`, { method: "POST", body: {} });
-  return unwrap(res);
-}
-
 export async function postHoroscopePorutham(
   role: UserRole,
   body: { bride_profile_id: number; groom_profile_id: number },

@@ -40,11 +40,10 @@ function SignCell({
   return (
     <div
       title={signLabel || undefined}
-      className="relative flex min-h-0 min-w-0 flex-col overflow-hidden bg-white p-0.5 sm:p-1 min-h-[44px] sm:min-h-[58px] box-border"
+      className="relative flex min-h-0 min-w-0 flex-col bg-white p-0.5 sm:p-1 min-h-[44px] sm:min-h-[58px] box-border"
       style={{
         gridColumn: pos.col,
         gridRow: pos.row,
-        border: `1px solid ${GRID_LINE}`,
         ...(isLagna ? { background: LAGNA_HIGHLIGHT } : null),
       }}
     >
@@ -187,11 +186,12 @@ export function SouthIndianChart({ grid, display, lang, compact = false }: South
   const maxW = compact ? "min(100%,380px)" : "min(100%,420px)";
 
   return (
-    <div className="mx-auto w-full max-w-full overflow-hidden px-0.5 box-border font-ml">
-      <div
-        className="mx-auto grid aspect-square w-full grid-cols-4 grid-rows-4 overflow-hidden bg-white box-border"
-        style={{ border: `1px solid ${GRID_LINE}`, maxWidth: maxW }}
-      >
+    <div className="mx-auto w-full max-w-full px-0.5 pb-px box-border font-ml">
+      <div className="mx-auto w-full aspect-square box-border" style={{ maxWidth: maxW }}>
+        <div
+          className="grid h-full w-full grid-cols-4 grid-rows-4 gap-px box-border"
+          style={{ border: `1px solid ${GRID_LINE}`, backgroundColor: GRID_LINE }}
+        >
         {PERIMETER_SIGNS.map((sign) => {
           const planets = Array.isArray(houses[String(sign)]) ? houses[String(sign)] : [];
           return (
@@ -211,10 +211,10 @@ export function SouthIndianChart({ grid, display, lang, compact = false }: South
           style={{
             gridColumn: "2 / span 2",
             gridRow: "2 / span 2",
-            border: `1px solid ${GRID_LINE}`,
           }}
         >
           <ChartCenterPanel display={display} lang={lang} />
+        </div>
         </div>
       </div>
     </div>

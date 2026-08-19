@@ -1,7 +1,7 @@
 ================================================================================
 MATRIMONY BACKEND - API DOCUMENTATION (Aiswarya Matrimony)
 ================================================================================
-Base URL: /api/v1
+Base URL: /api/v1   ..........................
 Auth Base: /api/v1/auth/.
 Admin Auth Base: /api/v1/admin/auth/
 Admin Profiles: /api/v1/admin/profiles/ | Staff My Profiles UI: /api/v1/staff/profiles/ (admin_panel.staff_profiles)

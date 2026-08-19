@@ -73,7 +73,7 @@ export default function BulkUpload() {
                 | "failed"),
       }),
   });
-  const historyRows = history?.results ?? [];
+  const historyRows = Array.isArray(history?.results) ? history.results : [];
   const historyTotal = history?.count ?? 0;
   const historyCanPrev = Boolean(history?.previous) && historyPage > 1;
   const historyCanNext = Boolean(history?.next);
@@ -187,7 +187,7 @@ export default function BulkUpload() {
 
   useEffect(() => {
     fetchBulkTemplateColumns()
-      .then(setTemplateColumns)
+      .then((cols) => setTemplateColumns(Array.isArray(cols) ? cols : []))
       .catch(() => setTemplateColumns([]));
   }, []);
 
@@ -245,7 +245,7 @@ export default function BulkUpload() {
     }
   };
 
-  const errors = validation?.errors ?? [];
+  const errors = Array.isArray(validation?.errors) ? validation.errors : [];
   const groupedErrors = useMemo(() => {
     // Group errors by normalized message (and field), keeping row lists unique and sorted.
     const byKey = new Map<

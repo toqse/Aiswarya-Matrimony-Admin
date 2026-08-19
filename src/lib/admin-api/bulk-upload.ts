@@ -4,10 +4,14 @@ import { adminFetchBlob, adminRequest, downloadBlob } from "@/lib/api-client";
 const LEGACY_TEMPLATE_CSV_FILENAME = "matrimony_import_template.csv";
 
 export async function fetchBulkTemplateColumns() {
-  const res = await adminRequest<{ columns: string[] }>(
+  const res = await adminRequest<{ columns: string[] } | string[]>(
     "v1/admin/bulk-upload/template/?columns=1",
   );
-  return unwrap(res).columns;
+  const data = await unwrap(res);
+  if (Array.isArray(data)) {
+    return data.filter((column): column is string => typeof column === "string");
+  }
+  return Array.isArray(data?.columns) ? data.columns : [];
 }
 
 export async function downloadBulkTemplate(format: "csv" | "xlsx" = "csv") {
@@ -110,6 +114,32 @@ export interface BulkUploadHistoryData {
   results: BulkUploadHistoryRow[];
 }
 
+function normalizeHistoryPayload(payload: unknown): BulkUploadHistoryData {
+  if (Array.isArray(payload)) {
+    return {
+      count: payload.length,
+      next: null,
+      previous: null,
+      results: payload as BulkUploadHistoryRow[],
+    };
+  }
+  const p =
+    payload && typeof payload === "object"
+      ? (payload as Record<string, unknown>)
+      : {};
+  const resultsRaw = Array.isArray(p.results)
+    ? p.results
+    : Array.isArray(p.data)
+      ? p.data
+      : [];
+  return {
+    count: typeof p.count === "number" ? p.count : resultsRaw.length,
+    next: (p.next as string | null | undefined) ?? null,
+    previous: (p.previous as string | null | undefined) ?? null,
+    results: resultsRaw as BulkUploadHistoryRow[],
+  };
+}
+
 export async function fetchBulkUploadHistory(params?: {
   page?: number;
   page_size?: number;
@@ -125,5 +155,5 @@ export async function fetchBulkUploadHistory(params?: {
       ? `v1/admin/bulk-upload/history/?${qs}`
       : "v1/admin/bulk-upload/history/",
   );
-  return unwrap(res);
+  return normalizeHistoryPayload(await unwrap(res));
 }

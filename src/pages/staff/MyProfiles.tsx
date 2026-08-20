@@ -35,7 +35,6 @@ import {
   Eye,
   Edit,
   RefreshCw,
-  Heart,
   StickyNote,
   AlertTriangle,
   Users,
@@ -61,8 +60,6 @@ import {
   fetchStaffMyProfilesSummary,
   fetchStaffProfiles,
   fetchStaffProfileDetail,
-  fetchStaffProfileMatches,
-  fetchStaffProfilePublicDetail,
   patchStaffProfile,
   toggleStaffProfileWishlist,
 } from "@/lib/admin-api/profiles";
@@ -73,7 +70,6 @@ export default function MyProfiles() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState("20");
   const [viewProfile, setViewProfile] = useState<ProfileListRow | null>(null);
-  const [viewIsMatch, setViewIsMatch] = useState(false);
   const [showAddProfile, setShowAddProfile] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [editProfile, setEditProfile] = useState<ProfileListRow | null>(null);
@@ -81,8 +77,6 @@ export default function MyProfiles() {
   const [showNoteDialog, setShowNoteDialog] = useState(false);
   const [noteTarget, setNoteTarget] = useState<string>("");
   const [noteText, setNoteText] = useState("");
-  const [showMatchDialog, setShowMatchDialog] = useState(false);
-  const [matchTarget, setMatchTarget] = useState<ProfileListRow | null>(null);
   const { toast } = useToast();
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -115,18 +109,9 @@ export default function MyProfiles() {
   const canNext = Boolean(listQ.data?.next);
 
   const viewDetailQ = useQuery({
-    queryKey: ["staff", "profiles", "detail", viewProfile?.matri_id, viewIsMatch],
-    queryFn: () =>
-      viewIsMatch
-        ? fetchStaffProfilePublicDetail(String(viewProfile?.matri_id ?? ""))
-        : fetchStaffProfileDetail(String(viewProfile?.matri_id ?? "")),
+    queryKey: ["staff", "profiles", "detail", viewProfile?.matri_id],
+    queryFn: () => fetchStaffProfileDetail(String(viewProfile?.matri_id ?? "")),
     enabled: !!viewProfile?.matri_id,
-  });
-
-  const matchesQ = useQuery({
-    queryKey: ["staff", "profiles", "matches", matchTarget?.matri_id],
-    queryFn: () => fetchStaffProfileMatches(String(matchTarget!.matri_id)),
-    enabled: showMatchDialog && !!matchTarget?.matri_id,
   });
 
   const expiringProfiles = useMemo(
@@ -421,7 +406,6 @@ export default function MyProfiles() {
                         className="h-7 w-7 hover:bg-violet-500/10"
                         title="View Profile"
                         onClick={() => {
-                          setViewIsMatch(false);
                           setViewProfile(p);
                         }}
                       >
@@ -435,18 +419,6 @@ export default function MyProfiles() {
                         onClick={() => goToCashPaymentForRenewal(p)}
                       >
                         <RefreshCw className="h-3.5 w-3.5 text-emerald-500" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 hover:bg-pink-500/10"
-                        title="View Matches"
-                        onClick={() => {
-                          setMatchTarget(p);
-                          setShowMatchDialog(true);
-                        }}
-                      >
-                        <Heart className="h-3.5 w-3.5 text-pink-500" />
                       </Button>
                       <Button
                         variant="ghost"
@@ -500,7 +472,6 @@ export default function MyProfiles() {
         onOpenChange={(o) => {
           if (!o) {
             setViewProfile(null);
-            setViewIsMatch(false);
           }
         }}
       >
@@ -533,8 +504,7 @@ export default function MyProfiles() {
               <div className="space-y-5 text-sm pr-3">
                 <ProfileDetailPanel detail={viewDetailQ.data} showAdmin={false} />
 
-                {!viewIsMatch && (
-                  <div className="flex gap-2 pt-2">
+                <div className="flex gap-2 pt-2">
                     <Button
                       size="sm"
                       variant="outline"
@@ -559,20 +529,7 @@ export default function MyProfiles() {
                     >
                       <RefreshCw className="h-3.5 w-3.5 mr-1" /> Renew
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        if (!viewProfile) return;
-                        setViewProfile(null);
-                        setMatchTarget(viewProfile);
-                        setShowMatchDialog(true);
-                      }}
-                    >
-                      <Heart className="h-3.5 w-3.5 mr-1" /> Matches
-                    </Button>
                   </div>
-                )}
               </div>
             )}
           </ScrollArea>
@@ -603,87 +560,6 @@ export default function MyProfiles() {
           });
         }}
       />
-
-      {/* Match Viewer Dialog */}
-      <Dialog open={showMatchDialog} onOpenChange={setShowMatchDialog}>
-        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Matches for {matchTarget?.name}</DialogTitle>
-            <DialogDescription className="sr-only">
-              View suggested matches for this profile.
-            </DialogDescription>
-          </DialogHeader>
-          {matchTarget && (
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                Ranked suggestions from the member pool (partner preferences + match score)
-              </p>
-              {matchesQ.isLoading ? (
-                <p className="text-sm text-muted-foreground py-8 text-center">Loading matches…</p>
-              ) : matchesQ.error ? (
-                <p className="text-sm text-destructive py-8 text-center">
-                  {(matchesQ.error as Error).message}
-                </p>
-              ) : (matchesQ.data ?? []).length === 0 ? (
-                <p className="text-sm text-muted-foreground py-8 text-center">
-                  No matches found for the current criteria.
-                </p>
-              ) : (
-                (matchesQ.data ?? []).map((m) => (
-                  <Card
-                    key={m.matri_id}
-                    className="hover:shadow-md transition-shadow"
-                  >
-                    <CardContent className="p-4 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-full bg-pink-100 flex items-center justify-center">
-                          <Heart className="h-4 w-4 text-pink-500" />
-                        </div>
-                        <div>
-                          <p className="font-semibold text-sm">{m.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {m.age != null ? `${m.age}y` : "—"} · {m.religion ?? "—"} / {m.caste ?? "—"}
-                            {m.marital_status ? ` · ${m.marital_status}` : ""}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-xs">
-                          {m.match_percentage}% match
-                        </Badge>
-                        <Badge
-                          variant={m.admin_verified ? "default" : "outline"}
-                          className={
-                            m.admin_verified
-                              ? "bg-success text-success-foreground"
-                              : ""
-                          }
-                        >
-                          {m.admin_verified ? "Verified" : "Unverified"}
-                        </Badge>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setShowMatchDialog(false);
-                            setViewIsMatch(true);
-                            setViewProfile({
-                              matri_id: m.matri_id,
-                              name: m.name,
-                            } as ProfileListRow);
-                          }}
-                        >
-                          <Eye className="h-3 w-3 mr-1" /> View
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))
-              )}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
 
       {/* Add Note Dialog */}
       <Dialog open={showNoteDialog} onOpenChange={setShowNoteDialog}>

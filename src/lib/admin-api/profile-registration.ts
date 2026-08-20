@@ -298,6 +298,7 @@ export interface WizardFormValues extends FamilyFormFields, PartnerPreferenceFie
   educationSubjectId: string;
   employmentStatus: string;
   occupationId: string;
+  occupationName?: string;
   aboutMe: string;
   full_photo: File | null;
   passport_photo: File | null;
@@ -426,6 +427,7 @@ export function mapDetailToWizardForm(
     educationSubjectId: idToString(education.education_subject_id),
     employmentStatus: String(education.employment_status ?? ""),
     occupationId: idToString(education.occupation_id),
+    occupationName: String(education.occupation ?? ""),
     aboutMe: String(detail.about_me ?? ""),
     ...mapFamilyDetailsToForm(family),
     full_photo: null,

@@ -28,7 +28,7 @@ import ProfileFormField, {
 } from "@/components/profile/ProfileFormField";
 import { ADMIN_PROFILE_FOR_OPTIONS } from "@/lib/profile-for-options";
 import { filterValidComplexions, isValidComplexionName, normalizeComplexionOption } from "@/lib/complexion-options";
-import { displayOccupationName } from "@/lib/displayOccupationName";
+import OccupationCombobox from "@/components/profile/OccupationCombobox";
 import type { WizardFormValues } from "@/lib/admin-api/profile-registration";
 import { firstErrorField, validateProfileForm } from "@/lib/profile-validation";
 import {
@@ -42,7 +42,6 @@ import {
   fetchEmploymentStatuses,
   fetchIncomeRanges,
   fetchMaritalStatuses,
-  fetchOccupations,
   fetchPublicMotherTongues,
   fetchReligions,
   fetchStates,
@@ -159,6 +158,7 @@ function emptyForm(): WizardFormValues {
     educationSubjectId: "",
     employmentStatus: "",
     occupationId: "",
+    occupationName: "",
     aboutMe: "",
     full_photo: null,
     passport_photo: null,
@@ -286,11 +286,6 @@ export default function EditProfileWizard({
     queryKey: ["master", "education-subjects", "edit-form", form.highestEducationId],
     queryFn: () => fetchEducationSubjects({ education_id: Number(form.highestEducationId), page_size: 500 }),
     enabled: open && !!form.highestEducationId,
-  });
-  const occupationsQ = useQuery({
-    queryKey: ["master", "occupations", "edit-form"],
-    queryFn: () => fetchOccupations({ page_size: 500 }),
-    enabled: open,
   });
   const employmentQ = useQuery({
     queryKey: ["master", "employment-statuses", "edit-form"],
@@ -762,18 +757,11 @@ export default function EditProfileWizard({
             </ProfileFormField>
             <div>
               <Label>Occupation</Label>
-              <Select value={form.occupationId} onValueChange={(v) => update("occupationId", v)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select occupation" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(occupationsQ.data?.results ?? []).map((o) => (
-                    <SelectItem key={o.id} value={String(o.id)}>
-                      {displayOccupationName(o.name)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <OccupationCombobox
+                value={form.occupationId}
+                onValueChange={(v) => update("occupationId", v)}
+                initialLabel={form.occupationName}
+              />
             </div>
             </div>
           </FormSectionCard>

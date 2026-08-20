@@ -260,11 +260,17 @@ export async function fetchEducationSubjects(params?: { education_id?: number; s
   return parsePaginated<EducationSubjectItem>(res);
 }
 
-export async function fetchOccupations(params?: { search?: string; page?: number; page_size?: number }) {
+export async function fetchOccupations(params?: {
+  search?: string;
+  page?: number;
+  page_size?: number;
+  limit?: number;
+}) {
   const q = new URLSearchParams();
   if (params?.search) q.set("search", params.search);
   if (params?.page) q.set("page", String(params.page));
-  if (params?.page_size) q.set("page_size", String(params.page_size));
+  const limit = params?.limit ?? params?.page_size;
+  if (limit) q.set("limit", String(Math.min(Number(limit), 200)));
   const qs = q.toString();
   const res = await adminRequest<never>(qs ? `v1/master/occupations/?${qs}` : "v1/master/occupations/");
   return parsePaginated<OccupationItem>(res);

@@ -30,7 +30,7 @@ import ProfileFormField, {
 import { firstErrorField, validateProfileForm } from "@/lib/profile-validation";
 import { ADMIN_PROFILE_FOR_OPTIONS } from "@/lib/profile-for-options";
 import { filterValidComplexions, isValidComplexionName } from "@/lib/complexion-options";
-import { displayOccupationName } from "@/lib/displayOccupationName";
+import OccupationCombobox from "@/components/profile/OccupationCombobox";
 import {
   fetchCastes,
   fetchComplexions,
@@ -41,7 +41,6 @@ import {
   fetchEmploymentStatuses,
   fetchIncomeRanges,
   fetchMaritalStatuses,
-  fetchOccupations,
   fetchPublicMotherTongues,
   fetchReligions,
   fetchStates,
@@ -340,11 +339,6 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
     queryKey: ["master", "education-subjects", "profile-form", form.highestEducationId],
     queryFn: () => fetchEducationSubjects({ education_id: Number(form.highestEducationId), page_size: 500 }),
     enabled: !!form.highestEducationId,
-  });
-
-  const occupationsQ = useQuery({
-    queryKey: ["master", "occupations", "profile-form"],
-    queryFn: () => fetchOccupations({ page_size: 500 }),
   });
 
   const employmentQ = useQuery({
@@ -820,18 +814,10 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
             </ProfileFormField>
             <div>
               <Label>Occupation</Label>
-              <Select value={form.occupationId} onValueChange={(v) => update("occupationId", v)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select occupation" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(occupationsQ.data?.results ?? []).map((o) => (
-                    <SelectItem key={o.id} value={String(o.id)}>
-                      {displayOccupationName(o.name)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <OccupationCombobox
+                value={form.occupationId}
+                onValueChange={(v) => update("occupationId", v)}
+              />
             </div>
             </div>
           </FormSectionCard>

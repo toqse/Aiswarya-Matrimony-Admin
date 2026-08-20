@@ -1,9 +1,11 @@
-import { useState, useEffect, useMemo, useCallback, type ClipboardEvent, type KeyboardEvent } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import { REGEXP_ONLY_DIGITS } from "input-otp";
 import { PhoneInput } from "@/components/ui/phone-input";
 import { digitsOnlyMobile, formatPhoneForApi } from "@/lib/phone";
 import { formatDateTime } from "@/lib/format-date";
@@ -369,43 +371,30 @@ export default function CashPaymentDashboard() {
     verifyOtpMut.mutate(code);
   };
 
-  const applyOtpDigits = (digits: string, focusIndex?: number) => {
+  const applyOtpDigits = (digits: string) => {
     const clean = digits.replace(/\D/g, "").slice(0, PAYMENT_OTP_LENGTH);
     const newOtp = emptyOtpDigits();
     for (let i = 0; i < clean.length; i++) newOtp[i] = clean[i] ?? "";
     setForm((f) => ({ ...f, otp: newOtp }));
-    const next = Math.min(focusIndex ?? clean.length, PAYMENT_OTP_LENGTH - 1);
-    requestAnimationFrame(() => document.getElementById(`otp-${next}`)?.focus());
   };
 
-  const handleOtpChange = (index: number, value: string) => {
-    const digitsOnly = value.replace(/\D/g, "");
-    if (digitsOnly.length > 1) {
-      applyOtpDigits(digitsOnly, index + digitsOnly.length - 1);
-      return;
-    }
-    const newOtp = [...form.otp];
-    newOtp[index] = digitsOnly;
-    setForm((f) => ({ ...f, otp: newOtp }));
-    if (digitsOnly && index < PAYMENT_OTP_LENGTH - 1) {
-      document.getElementById(`otp-${index + 1}`)?.focus();
-    }
-  };
-
-  const handleOtpPaste = (e: ClipboardEvent) => {
-    const text = e.clipboardData.getData("text");
-    const clean = text.replace(/\D/g, "");
-    if (clean.length < 2) return;
-    e.preventDefault();
-    applyOtpDigits(clean, clean.length - 1);
-  };
-
-  const handleOtpKeyDown = (index: number, e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Backspace" && !e.currentTarget.value && index > 0) {
-      e.preventDefault();
-      document.getElementById(`otp-${index - 1}`)?.focus();
-    }
-  };
+  useEffect(() => {
+    if (step !== 3 || paymentMode !== "Cash" || !form.otpSent || form.otpVerified) return;
+    if (!("OTPCredential" in window)) return;
+    const ac = new AbortController();
+    const creds = navigator.credentials as CredentialsContainer & {
+      get: (opts: { otp: { transport: string[] }; signal: AbortSignal }) => Promise<{ code?: string } | null>;
+    };
+    creds
+      .get({ otp: { transport: ["sms"] }, signal: ac.signal })
+      .then((otpCred) => {
+        if (otpCred?.code) applyOtpDigits(otpCred.code);
+      })
+      .catch(() => {});
+    return () => ac.abort();
+    // Re-subscribe when the OTP step is shown.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, paymentMode, form.otpSent, form.otpVerified]);
 
   const completePayment = () => {
     if (paymentRecorded) {
@@ -745,24 +734,29 @@ export default function CashPaymentDashboard() {
               ) : (
                 <>
                   <p className="text-center text-xs text-muted-foreground">Enter the {PAYMENT_OTP_LENGTH}-digit code (you can paste all digits at once)</p>
-                  <div
-                    className="grid grid-cols-6 gap-1.5 sm:gap-2 max-w-md mx-auto"
-                    onPaste={handleOtpPaste}
-                  >
-                    {form.otp.map((digit, i) => (
-                      <Input
-                        key={i}
-                        id={`otp-${i}`}
-                        inputMode="numeric"
-                        autoComplete="one-time-code"
-                        value={digit}
-                        onChange={(e) => handleOtpChange(i, e.target.value)}
-                        onKeyDown={(e) => handleOtpKeyDown(i, e)}
-                        maxLength={1}
-                        className="h-11 sm:h-12 min-w-0 w-full px-0 text-center text-lg sm:text-xl font-bold border-2 border-primary/30 focus:border-primary"
-                        aria-label={`Digit ${i + 1} of ${PAYMENT_OTP_LENGTH}`}
-                      />
-                    ))}
+                  <div className="flex justify-center">
+                    <InputOTP
+                      maxLength={PAYMENT_OTP_LENGTH}
+                      value={form.otp.join("")}
+                      onChange={applyOtpDigits}
+                      autoFocus
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      pattern={REGEXP_ONLY_DIGITS}
+                      pasteTransformer={(pasted) => pasted.replace(/\D/g, "")}
+                      containerClassName="justify-center gap-1.5 sm:gap-2"
+                      aria-label="Customer payment OTP"
+                    >
+                      <InputOTPGroup className="gap-1.5 sm:gap-2">
+                        {Array.from({ length: PAYMENT_OTP_LENGTH }, (_, i) => (
+                          <InputOTPSlot
+                            key={i}
+                            index={i}
+                            className="h-11 w-11 sm:h-12 sm:w-12 rounded-md border-2 border-primary/30 text-lg sm:text-xl font-bold first:rounded-md last:rounded-md first:border-l-2"
+                          />
+                        ))}
+                      </InputOTPGroup>
+                    </InputOTP>
                   </div>
                   <div className="flex items-center justify-center gap-4">
                     <div className="flex items-center gap-1 text-sm text-muted-foreground">

@@ -29,6 +29,8 @@ import ProfileFormField, {
 } from "@/components/profile/ProfileFormField";
 import { firstErrorField, validateProfileForm } from "@/lib/profile-validation";
 import { ADMIN_PROFILE_FOR_OPTIONS } from "@/lib/profile-for-options";
+import { filterValidComplexions, isValidComplexionName } from "@/lib/complexion-options";
+import { displayOccupationName } from "@/lib/displayOccupationName";
 import {
   fetchCastes,
   fetchComplexions,
@@ -712,12 +714,15 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
             </div>
             <div>
               <Label>Complexion</Label>
-              <Select value={form.complexion} onValueChange={(v) => update("complexion", v)}>
+              <Select
+                value={isValidComplexionName(form.complexion) ? form.complexion : undefined}
+                onValueChange={(v) => update("complexion", v)}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select complexion" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(complexionsQ.data?.results ?? []).map((c) => (
+                  {filterValidComplexions(complexionsQ.data?.results ?? []).map((c) => (
                     <SelectItem key={c.id} value={c.name}>
                       {c.name}
                     </SelectItem>
@@ -822,7 +827,7 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
                 <SelectContent>
                   {(occupationsQ.data?.results ?? []).map((o) => (
                     <SelectItem key={o.id} value={String(o.id)}>
-                      {o.name}
+                      {displayOccupationName(o.name)}
                     </SelectItem>
                   ))}
                 </SelectContent>

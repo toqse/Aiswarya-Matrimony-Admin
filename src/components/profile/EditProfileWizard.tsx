@@ -27,6 +27,8 @@ import ProfileFormField, {
   type ProfileFieldErrors,
 } from "@/components/profile/ProfileFormField";
 import { ADMIN_PROFILE_FOR_OPTIONS } from "@/lib/profile-for-options";
+import { filterValidComplexions, isValidComplexionName, normalizeComplexionOption } from "@/lib/complexion-options";
+import { displayOccupationName } from "@/lib/displayOccupationName";
 import type { WizardFormValues } from "@/lib/admin-api/profile-registration";
 import { firstErrorField, validateProfileForm } from "@/lib/profile-validation";
 import {
@@ -193,7 +195,10 @@ export default function EditProfileWizard({
   // Load the mapped detail into the form whenever a new profile is opened.
   useEffect(() => {
     if (open && initial) {
-      setForm(initial);
+      setForm({
+        ...initial,
+        complexion: normalizeComplexionOption(initial.complexion),
+      });
       setFieldErrors({});
       setScrollToField(null);
       setHoroExpanded(true);
@@ -655,12 +660,15 @@ export default function EditProfileWizard({
             </div>
             <div>
               <Label>Complexion</Label>
-              <Select value={form.complexion} onValueChange={(v) => update("complexion", v)}>
+              <Select
+                value={isValidComplexionName(form.complexion) ? form.complexion : undefined}
+                onValueChange={(v) => update("complexion", v)}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select complexion" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(complexionsQ.data?.results ?? []).map((c) => (
+                  {filterValidComplexions(complexionsQ.data?.results ?? []).map((c) => (
                     <SelectItem key={c.id} value={c.name}>
                       {c.name}
                     </SelectItem>
@@ -761,7 +769,7 @@ export default function EditProfileWizard({
                 <SelectContent>
                   {(occupationsQ.data?.results ?? []).map((o) => (
                     <SelectItem key={o.id} value={String(o.id)}>
-                      {o.name}
+                      {displayOccupationName(o.name)}
                     </SelectItem>
                   ))}
                 </SelectContent>

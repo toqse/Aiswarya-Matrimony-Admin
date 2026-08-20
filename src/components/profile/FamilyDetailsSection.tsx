@@ -24,7 +24,7 @@ export const FAMILY_STATUS_OPTIONS = [
   "High Class",
 ] as const;
 
-export const PARENT_STATUS_OPTIONS = ["Alive", "Deceased"] as const;
+export const PARENT_STATUS_OPTIONS = ["Alive", "Late"] as const;
 
 export interface FamilyFormFields {
   fatherName: string;

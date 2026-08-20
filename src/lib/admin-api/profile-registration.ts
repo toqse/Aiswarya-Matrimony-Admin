@@ -48,14 +48,18 @@ function isoToDDMMYYYY(iso: string): string {
 
 function parentStatusToApi(ui: string): string | undefined {
   if (!ui) return undefined;
-  if (ui === "Deceased") return "Late";
+  const s = ui.trim().toLowerCase();
+  if (s === "deceased" || s === "late") return "Late";
+  if (s === "alive") return "Alive";
   return ui;
 }
 
 function parentStatusToUi(api: unknown): string {
-  const s = String(api ?? "").trim();
-  if (s === "Late") return "Deceased";
-  return s || "Alive";
+  const s = String(api ?? "").trim().toLowerCase();
+  if (!s) return "Alive";
+  if (s === "deceased" || s === "late") return "Late";
+  if (s === "alive") return "Alive";
+  return String(api ?? "").trim() || "Alive";
 }
 
 function phoneFromApi(value: unknown): string {

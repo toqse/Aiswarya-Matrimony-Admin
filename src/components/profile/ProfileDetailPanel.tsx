@@ -232,10 +232,10 @@ export function ProfileDetailPanel({ detail, showAdmin = true }: ProfileDetailPa
           rows={[
             ["Father's name", family.father_name],
             ["Father's occupation", family.father_occupation],
-            ["Father's status", family.father_status === "Late" ? "Deceased" : family.father_status],
+            ["Father's status", family.father_status === "Deceased" ? "Late" : family.father_status],
             ["Mother's name", family.mother_name],
             ["Mother's occupation", family.mother_occupation],
-            ["Mother's status", family.mother_status === "Late" ? "Deceased" : family.mother_status],
+            ["Mother's status", family.mother_status === "Deceased" ? "Late" : family.mother_status],
             ["Brothers", family.brothers],
             ["Married brothers", family.married_brothers],
             ["Sisters", family.sisters],

@@ -193,6 +193,7 @@ export interface HoroscopeRecordsFilters {
   matri_id?: string;
   name?: string;
   religion_id?: number;
+  caste_id?: number;
   branch_id?: number;
   page?: number;
   page_size?: number;
@@ -232,6 +233,7 @@ export async function fetchHoroscopeRecords(role: UserRole, filters?: HoroscopeR
     matri_id: filters?.matri_id?.trim() || undefined,
     name: filters?.name?.trim() || undefined,
     religion_id: filters?.religion_id,
+    caste_id: filters?.caste_id,
     branch_id: filters?.branch_id,
     page: filters?.page,
     page_size: filters?.page_size,
@@ -692,6 +694,97 @@ export async function runPoruthamBatch(options: RunPoruthamBatchOptions): Promis
     if (!a.error && b.error) return -1;
     return b.score - a.score;
   });
+}
+
+export interface SavedPoruthamMatchRow {
+  id: number;
+  mode: string;
+  partner_profile_id: number | null;
+  partner_matri_id: string;
+  partner_name: string;
+  score: number;
+  max_score: number;
+  overall_result: string;
+  uthamam_count: number | null;
+  saved_by_name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+function normalizeSavedPoruthamRow(row: unknown): SavedPoruthamMatchRow {
+  const r = (row && typeof row === "object" ? row : {}) as Record<string, unknown>;
+  const pid = r.partner_profile_id;
+  return {
+    id: pickNum(r.id),
+    mode: pickStr(r.mode),
+    partner_profile_id:
+      typeof pid === "number" && !Number.isNaN(pid)
+        ? pid
+        : typeof pid === "string" && /^\d+$/.test(pid)
+          ? Number(pid)
+          : null,
+    partner_matri_id: pickStr(r.partner_matri_id),
+    partner_name: pickStr(r.partner_name),
+    score: pickNum(r.score),
+    max_score: pickNum(r.max_score, 10) || 10,
+    overall_result: pickStr(r.overall_result),
+    uthamam_count:
+      r.uthamam_count == null || r.uthamam_count === ""
+        ? null
+        : pickNum(r.uthamam_count),
+    saved_by_name: pickStr(r.saved_by_name),
+    created_at: pickStr(r.created_at),
+    updated_at: pickStr(r.updated_at),
+  };
+}
+
+export async function fetchSavedPoruthamMatches(
+  role: UserRole,
+  fixedProfileId: number,
+): Promise<SavedPoruthamMatchRow[]> {
+  const base = horoscopeBasePath(role);
+  const q = toQs({ fixed_profile_id: fixedProfileId });
+  const res = await adminRequest<unknown>(`${base}porutham/saved/${q}`);
+  const data = await unwrap(res);
+  const root = (data && typeof data === "object" ? data : {}) as Record<string, unknown>;
+  const results = Array.isArray(root.results) ? root.results : [];
+  return results.map(normalizeSavedPoruthamRow);
+}
+
+export async function savePoruthamMatches(
+  role: UserRole,
+  body: {
+    mode: PoruthamFixedMode;
+    fixed_profile_id: number;
+    partner_profile_ids: number[];
+  },
+): Promise<SavedPoruthamMatchRow[]> {
+  const base = horoscopeBasePath(role);
+  const res = await adminRequest<unknown>(`${base}porutham/saved/`, {
+    method: "POST",
+    body,
+  });
+  const data = await unwrap(res);
+  const root = (data && typeof data === "object" ? data : {}) as Record<string, unknown>;
+  const saved = Array.isArray(root.saved) ? root.saved : [];
+  return saved.map(normalizeSavedPoruthamRow);
+}
+
+export async function deleteSavedPoruthamMatches(
+  role: UserRole,
+  body: {
+    fixed_profile_id: number;
+    partner_profile_ids: number[];
+  },
+): Promise<number> {
+  const base = horoscopeBasePath(role);
+  const res = await adminRequest<unknown>(`${base}porutham/saved/`, {
+    method: "DELETE",
+    body,
+  });
+  const data = await unwrap(res);
+  const root = (data && typeof data === "object" ? data : {}) as Record<string, unknown>;
+  return pickNum(root.deleted);
 }
 
 export interface JathakamPdfRow {

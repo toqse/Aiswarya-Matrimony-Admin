@@ -12,8 +12,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
-import { fetchReligions } from "@/lib/admin-api/master";
 import { fetchBranchList } from "@/lib/admin-api/branches";
+import { fetchCastes, fetchReligions } from "@/lib/admin-api/master";
 import {
   EMPTY_HOROSCOPE_SEARCH,
   type HoroscopeSearchFiltersState,
@@ -66,6 +66,16 @@ export default function HoroscopeSearchFilters({
     queryFn: () => fetchReligions({ page_size: 200 }),
   });
 
+  const castesQuery = useQuery({
+    queryKey: ["master", "castes", "horoscope-search", value.religion_id],
+    queryFn: () =>
+      fetchCastes({
+        religion_id: Number(value.religion_id),
+        page_size: 500,
+      }),
+    enabled: !!value.religion_id,
+  });
+
   const branchesQuery = useQuery({
     queryKey: ["admin", "branches", "horoscope-search"],
     queryFn: () => fetchBranchList({ page: 1, page_size: 100 }),
@@ -73,6 +83,7 @@ export default function HoroscopeSearchFilters({
   });
 
   const religions = religionsQuery.data?.results ?? [];
+  const castes = castesQuery.data?.results ?? [];
   const branches = branchesQuery.data?.results ?? [];
 
   return (
@@ -126,7 +137,7 @@ export default function HoroscopeSearchFilters({
             <Field label="Religion">
               <Select
                 value={value.religion_id || "all"}
-                onValueChange={(v) => patch({ religion_id: v === "all" ? "" : v })}
+                onValueChange={(v) => patch({ religion_id: v === "all" ? "" : v, caste_id: "" })}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="All religions" />
@@ -136,6 +147,25 @@ export default function HoroscopeSearchFilters({
                   {religions.map((r) => (
                     <SelectItem key={r.id} value={String(r.id)}>
                       {r.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+
+            <Field label="Caste">
+              <Select
+                value={value.caste_id || "all"}
+                onValueChange={(v) => patch({ caste_id: v === "all" ? "" : v })}
+              >
+                <SelectTrigger disabled={!value.religion_id}>
+                  <SelectValue placeholder={value.religion_id ? "All castes" : "Select religion first"} />
+                </SelectTrigger>
+                <SelectContent className="max-h-64">
+                  <SelectItem value="all">All castes</SelectItem>
+                  {castes.map((c) => (
+                    <SelectItem key={c.id} value={String(c.id)}>
+                      {c.name}
                     </SelectItem>
                   ))}
                 </SelectContent>

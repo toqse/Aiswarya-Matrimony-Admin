@@ -18,12 +18,17 @@ import {
   fetchHoroscopeRecordDetail,
   fetchHoroscopeRecords,
   fetchHoroscopeSummary,
+  fetchSavedPoruthamMatches,
+  deleteSavedPoruthamMatches,
   normalizeHoroscopeRecord,
+  postHoroscopePorutham,
   runPoruthamBatch,
+  savePoruthamMatches,
   type CollectedPoruthamMatch,
   type HoroscopeRecordRow,
   type PoruthamFixedMode,
   type PoruthamNavSelectionItem,
+  type SavedPoruthamMatchRow,
 } from "@/lib/admin-api/horoscope";
 import {
   Star, Eye, FileText,
@@ -33,7 +38,9 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import HoroscopeSearchFilters from "@/components/horoscope/HoroscopeSearchFilters";
 import PoruthamProfileMultiPicker from "@/components/horoscope/PoruthamProfileMultiPicker";
+import PoruthamPartnerFilters from "@/components/horoscope/PoruthamPartnerFilters";
 import PoruthamCollectedMatches from "@/components/horoscope/PoruthamCollectedMatches";
+import PoruthamSavedMatches from "@/components/horoscope/PoruthamSavedMatches";
 import { PoruthamResultView } from "@/components/horoscope/PoruthamResultView";
 import { JathagamTab } from "@/components/horoscope/JathagamTab";
 import {
@@ -56,6 +63,10 @@ import {
   horoscopeSearchToQuery,
   type HoroscopeSearchFiltersState,
 } from "@/lib/horoscopeSearch";
+import {
+  EMPTY_PORUTHAM_PARTNER_FILTERS,
+  type PoruthamPartnerFiltersState,
+} from "@/lib/poruthamPartnerFilters";
 
 const jathagamStatusConfig: Record<string, { icon: typeof CheckCircle; color: string; label: string }> = {
   generated: { icon: CheckCircle, color: "bg-success/10 text-success", label: "Generated" },
@@ -111,6 +122,16 @@ export default function HoroscopeManagement() {
   const [poruthamResultOpen, setPoruthamResultOpen] = useState(false);
   const [poruthamResult, setPoruthamResult] = useState<unknown>(null);
   const [collectedDetailIndex, setCollectedDetailIndex] = useState<number | null>(null);
+  const [partnerFilterDraft, setPartnerFilterDraft] = useState<PoruthamPartnerFiltersState>(
+    EMPTY_PORUTHAM_PARTNER_FILTERS,
+  );
+  const [partnerFilterApplied, setPartnerFilterApplied] = useState<PoruthamPartnerFiltersState>(
+    EMPTY_PORUTHAM_PARTNER_FILTERS,
+  );
+  const [partnerFilterVersion, setPartnerFilterVersion] = useState(0);
+  const [savingMatches, setSavingMatches] = useState(false);
+  const [unsavingPartnerId, setUnsavingPartnerId] = useState<number | null>(null);
+  const [saveGeneration, setSaveGeneration] = useState(0);
 
   const isAdmin = role === "admin";
   const isBranchManager = role === "branch-manager";
@@ -156,6 +177,9 @@ export default function HoroscopeManagement() {
     setBatchProgress(null);
     setCollectedDetailIndex(null);
     setPoruthamResult(null);
+    setPartnerFilterDraft(EMPTY_PORUTHAM_PARTNER_FILTERS);
+    setPartnerFilterApplied(EMPTY_PORUTHAM_PARTNER_FILTERS);
+    setPartnerFilterVersion(0);
   }, []);
 
   const handlePoruthamResultOpenChange = useCallback((open: boolean) => {
@@ -267,6 +291,104 @@ export default function HoroscopeManagement() {
       setBatchProgress(null);
     }
   }, [fixedProfile, eligiblePartners, poruthamMode, role, queryClient, toast]);
+
+  const savedMatchesQueryKey = ["horoscope", role, "porutham-saved", fixedProfile?.profile_id];
+
+  const {
+    data: savedMatches = [],
+    isLoading: savedMatchesLoading,
+    refetch: refetchSavedMatches,
+  } = useQuery({
+    queryKey: savedMatchesQueryKey,
+    queryFn: () => fetchSavedPoruthamMatches(role, fixedProfile!.profile_id),
+    enabled: activeTab === "matches" && fixedProfile != null,
+  });
+
+  const savedPartnerIds = useMemo(
+    () =>
+      new Set(
+        savedMatches
+          .map((r) => r.partner_profile_id)
+          .filter((id): id is number => id != null),
+      ),
+    [savedMatches],
+  );
+
+  const handleSaveSelectedMatches = useCallback(
+    async (partnerProfileIds: number[]) => {
+      if (!fixedProfile) return;
+      setSavingMatches(true);
+      try {
+        await savePoruthamMatches(role, {
+          mode: poruthamMode,
+          fixed_profile_id: fixedProfile.profile_id,
+          partner_profile_ids: partnerProfileIds,
+        });
+        await refetchSavedMatches();
+        setSaveGeneration((g) => g + 1);
+        toast({
+          title: "Matches saved",
+          description: `${partnerProfileIds.length} match${partnerProfileIds.length === 1 ? "" : "es"} saved for later review.`,
+        });
+      } catch (e) {
+        toast({
+          title: "Save failed",
+          description: getApiErrorMessage(e),
+          variant: "destructive",
+        });
+      } finally {
+        setSavingMatches(false);
+      }
+    },
+    [fixedProfile, poruthamMode, role, refetchSavedMatches, toast],
+  );
+
+  const handleUnsaveMatch = useCallback(
+    async (partnerProfileId: number) => {
+      if (!fixedProfile) return;
+      setUnsavingPartnerId(partnerProfileId);
+      try {
+        await deleteSavedPoruthamMatches(role, {
+          fixed_profile_id: fixedProfile.profile_id,
+          partner_profile_ids: [partnerProfileId],
+        });
+        await refetchSavedMatches();
+        toast({ title: "Match removed from saved list" });
+      } catch (e) {
+        toast({
+          title: "Unsave failed",
+          description: getApiErrorMessage(e),
+          variant: "destructive",
+        });
+      } finally {
+        setUnsavingPartnerId(null);
+      }
+    },
+    [fixedProfile, role, refetchSavedMatches, toast],
+  );
+
+  const handleViewSavedMatch = useCallback(
+    async (row: SavedPoruthamMatchRow) => {
+      if (!fixedProfile || row.partner_profile_id == null) return;
+      try {
+        const bride_profile_id =
+          poruthamMode === "fixed-bride" ? fixedProfile.profile_id : row.partner_profile_id;
+        const groom_profile_id =
+          poruthamMode === "fixed-bride" ? row.partner_profile_id : fixedProfile.profile_id;
+        const payload = await postHoroscopePorutham(role, { bride_profile_id, groom_profile_id });
+        setCollectedDetailIndex(null);
+        setPoruthamResult(payload);
+        setPoruthamResultOpen(true);
+      } catch (e) {
+        toast({
+          title: "Could not load match",
+          description: getApiErrorMessage(e),
+          variant: "destructive",
+        });
+      }
+    },
+    [fixedProfile, poruthamMode, role, toast],
+  );
 
   const detailBrideMatri =
     poruthamMode === "fixed-bride"
@@ -527,8 +649,8 @@ export default function HoroscopeManagement() {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-xs text-muted-foreground max-w-3xl">
-                Pick one fixed profile and multiple partners on the other side. Calculate collects all match scores
-                under the fixed profile for review — display only, no send-to-client.
+                Pick one fixed profile, filter partners by religion/caste/horoscope details, select many,
+                calculate porutham, tick the matches you want to keep, and save for later review.
               </p>
 
               <div className="space-y-2 max-w-3xl">
@@ -553,6 +675,30 @@ export default function HoroscopeManagement() {
                 </RadioGroup>
               </div>
 
+              {poruthamMode === "fixed-bride" ? (
+                <p className="text-xs text-muted-foreground -mt-2">
+                  Filters below apply to partner grooms.
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground -mt-2">
+                  Filters below apply to partner brides.
+                </p>
+              )}
+
+              <PoruthamPartnerFilters
+                value={partnerFilterDraft}
+                onChange={setPartnerFilterDraft}
+                onApply={() => {
+                  setPartnerFilterApplied(partnerFilterDraft);
+                  setPartnerFilterVersion((v) => v + 1);
+                }}
+                onReset={() => {
+                  setPartnerFilterDraft(EMPTY_PORUTHAM_PARTNER_FILTERS);
+                  setPartnerFilterApplied(EMPTY_PORUTHAM_PARTNER_FILTERS);
+                  setPartnerFilterVersion((v) => v + 1);
+                }}
+              />
+
               <div className="grid gap-4 sm:grid-cols-2 max-w-3xl">
                 <div className="space-y-2">
                   <Label>
@@ -571,6 +717,12 @@ export default function HoroscopeManagement() {
                     tabActive={activeTab === "matches"}
                     instanceId="bride"
                     maxSelection={poruthamMode === "fixed-bride" ? 1 : undefined}
+                    partnerFilters={
+                      poruthamMode === "fixed-groom" ? partnerFilterApplied : undefined
+                    }
+                    filterVersion={
+                      poruthamMode === "fixed-groom" ? partnerFilterVersion : undefined
+                    }
                   />
                 </div>
                 <div className="space-y-2">
@@ -590,6 +742,12 @@ export default function HoroscopeManagement() {
                     tabActive={activeTab === "matches"}
                     instanceId="groom"
                     maxSelection={poruthamMode === "fixed-groom" ? 1 : undefined}
+                    partnerFilters={
+                      poruthamMode === "fixed-bride" ? partnerFilterApplied : undefined
+                    }
+                    filterVersion={
+                      poruthamMode === "fixed-bride" ? partnerFilterVersion : undefined
+                    }
                   />
                 </div>
               </div>
@@ -618,6 +776,21 @@ export default function HoroscopeManagement() {
               matches={collectedMatches}
               onView={handleViewCollectedMatch}
               onRemove={handleRemoveCollectedMatch}
+              onSaveSelected={handleSaveSelectedMatches}
+              saving={savingMatches}
+              savedPartnerIds={savedPartnerIds}
+              saveGeneration={saveGeneration}
+            />
+          ) : null}
+
+          {fixedProfile ? (
+            <PoruthamSavedMatches
+              mode={poruthamMode}
+              rows={savedMatches}
+              loading={savedMatchesLoading}
+              onView={handleViewSavedMatch}
+              onUnsave={handleUnsaveMatch}
+              unsavingId={unsavingPartnerId}
             />
           ) : null}
         </TabsContent>

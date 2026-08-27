@@ -6,6 +6,7 @@ export interface HoroscopeSearchFiltersState {
   matri_id: string;
   name: string;
   religion_id: string;
+  caste_id: string;
   branch_id: string;
   pr_star: string;
   rasi_id: string;
@@ -26,6 +27,7 @@ export const EMPTY_HOROSCOPE_SEARCH: HoroscopeSearchFiltersState = {
   matri_id: "",
   name: "",
   religion_id: "",
+  caste_id: "",
   branch_id: "",
   pr_star: "",
   rasi_id: "",
@@ -69,6 +71,7 @@ export function horoscopeSearchToQuery(
   assign("matri_id", filters.matri_id.trim());
   assign("name", filters.name.trim());
   if (filters.religion_id) assign("religion_id", Number(filters.religion_id));
+  if (filters.caste_id) assign("caste_id", Number(filters.caste_id));
   if (filters.branch_id) assign("branch_id", Number(filters.branch_id));
   if (filters.pr_star) assign("pr_star", filters.pr_star);
   if (filters.rasi_id) assign("rasi_id", Number(filters.rasi_id));
@@ -96,6 +99,7 @@ export function hasActiveHoroscopeSearch(filters: HoroscopeSearchFiltersState): 
     || !!filters.matri_id.trim()
     || !!filters.name.trim()
     || !!filters.religion_id
+    || !!filters.caste_id
     || !!filters.branch_id
     || !!filters.pr_star
     || !!filters.rasi_id

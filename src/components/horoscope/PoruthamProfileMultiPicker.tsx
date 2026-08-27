@@ -12,6 +12,10 @@ import {
   rowToPoruthamSelection,
   type PoruthamNavSelectionItem,
 } from "@/lib/admin-api/horoscope";
+import {
+  poruthamPartnerFiltersToQuery,
+  type PoruthamPartnerFiltersState,
+} from "@/lib/poruthamPartnerFilters";
 import type { UserRole } from "@/types/user-role";
 
 function formatOptionLabel(item: PoruthamNavSelectionItem): string {
@@ -28,6 +32,10 @@ type PoruthamProfileMultiPickerProps = {
   instanceId: "bride" | "groom";
   /** When set to 1, only one profile can be selected (replaces on new pick). */
   maxSelection?: number;
+  /** Applied partner filters (religion, caste, star, etc.). */
+  partnerFilters?: PoruthamPartnerFiltersState;
+  /** Bump when user clicks Search on partner filters to refetch. */
+  filterVersion?: number;
 };
 
 export default function PoruthamProfileMultiPicker({
@@ -39,6 +47,8 @@ export default function PoruthamProfileMultiPicker({
   tabActive,
   instanceId,
   maxSelection,
+  partnerFilters,
+  filterVersion = 0,
 }: PoruthamProfileMultiPickerProps) {
   const [open, setOpen] = useState(false);
   const [searchDraft, setSearchDraft] = useState("");
@@ -57,14 +67,38 @@ export default function PoruthamProfileMultiPicker({
   const gender = instanceId === "bride" ? "F" : "M";
   const selectedIds = new Set(selected.map((s) => s.profile_id));
 
-  const { data, isLoading, isFetching } = useQuery({
-    queryKey: ["horoscope", role, "porutham-picker", instanceId, branchId, debouncedSearch, gender],
-    queryFn: () =>
-      fetchHoroscopeRecords(role, {
+  const filterQuery = partnerFilters
+    ? poruthamPartnerFiltersToQuery({
+        ...partnerFilters,
+        search: debouncedSearch || partnerFilters.search,
+      })
+    : {
         page: 1,
         page_size: 100,
-        branch_id: branchId,
         search: debouncedSearch || undefined,
+        exe_done: true as const,
+      };
+
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: [
+      "horoscope",
+      role,
+      "porutham-picker",
+      instanceId,
+      branchId,
+      debouncedSearch,
+      gender,
+      filterVersion,
+      partnerFilters?.religion_id,
+      partnerFilters?.caste_id,
+      partnerFilters?.pr_star,
+      partnerFilters?.rasi_id,
+      partnerFilters?.rajju,
+    ],
+    queryFn: () =>
+      fetchHoroscopeRecords(role, {
+        ...filterQuery,
+        branch_id: branchId,
         gender,
         exe_done: true,
       }),
@@ -72,6 +106,7 @@ export default function PoruthamProfileMultiPicker({
   });
 
   const rows = (data?.results ?? []).filter((r) => r.profile_id != null);
+  const totalCount = data?.count ?? rows.length;
 
   const toggle = (item: PoruthamNavSelectionItem) => {
     if (selectedIds.has(item.profile_id)) {
@@ -140,6 +175,11 @@ export default function PoruthamProfileMultiPicker({
               onChange={(e) => setSearchDraft(e.target.value)}
             />
           </div>
+          {totalCount > rows.length ? (
+            <p className="px-3 py-1.5 text-[11px] text-muted-foreground border-b">
+              Showing {rows.length} of {totalCount} — refine filters to narrow results.
+            </p>
+          ) : null}
           <div className="max-h-[280px] overflow-y-auto p-1">
             {isLoading || isFetching ? (
               <div className="flex justify-center py-6 text-muted-foreground">

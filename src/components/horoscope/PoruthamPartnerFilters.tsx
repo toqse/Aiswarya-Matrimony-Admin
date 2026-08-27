@@ -135,7 +135,7 @@ export default function PoruthamPartnerFilters({
             </SelectTrigger>
             <SelectContent className="max-h-64">
               <SelectItem value="all">All stars</SelectItem>
-              {NAKSHATRA_OPTIONS.map((s) => (
+              {NAKSHATRA_OPTIONS.filter((s) => s.value).map((s) => (
                 <SelectItem key={s.value} value={s.value}>
                   {s.label}
                 </SelectItem>
@@ -153,7 +153,7 @@ export default function PoruthamPartnerFilters({
             </SelectTrigger>
             <SelectContent className="max-h-64">
               <SelectItem value="all">All rasi</SelectItem>
-              {RASI_OPTIONS.map((r) => (
+              {RASI_OPTIONS.filter((r) => r.value).map((r) => (
                 <SelectItem key={r.value} value={r.value}>
                   {r.label}
                 </SelectItem>
@@ -171,7 +171,7 @@ export default function PoruthamPartnerFilters({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All rajju</SelectItem>
-              {RAJJU_OPTIONS.map((r) => (
+              {RAJJU_OPTIONS.filter((r) => r.value).map((r) => (
                 <SelectItem key={r.value} value={r.value}>
                   {r.label}
                 </SelectItem>

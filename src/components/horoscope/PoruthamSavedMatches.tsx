@@ -52,7 +52,7 @@ export default function PoruthamSavedMatches({
           Saved matches
         </CardTitle>
         <p className="text-xs text-muted-foreground">
-          Shared for this fixed profile — visible to admin, staff, and branch managers in scope.
+          Saved for this fixed profile in this browser. Reload keeps them until cleared.
         </p>
       </CardHeader>
       <CardContent>

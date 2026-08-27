@@ -319,10 +319,22 @@ export default function HoroscopeManagement() {
       if (!fixedProfile) return;
       setSavingMatches(true);
       try {
+        const idSet = new Set(partnerProfileIds);
+        const partners = collectedMatches
+          .filter((m) => !m.error && idSet.has(m.partner.profile_id))
+          .map((m) => ({
+            profile_id: m.partner.profile_id,
+            matri_id: m.partner.matri_id,
+            profile_name: m.partner.profile_name,
+            score: m.score,
+            max_score: m.max_score,
+            overall_result: m.overall_result,
+          }));
         await savePoruthamMatches(role, {
           mode: poruthamMode,
           fixed_profile_id: fixedProfile.profile_id,
           partner_profile_ids: partnerProfileIds,
+          partners,
         });
         await refetchSavedMatches();
         setSaveGeneration((g) => g + 1);
@@ -340,7 +352,7 @@ export default function HoroscopeManagement() {
         setSavingMatches(false);
       }
     },
-    [fixedProfile, poruthamMode, role, refetchSavedMatches, toast],
+    [fixedProfile, collectedMatches, poruthamMode, role, refetchSavedMatches, toast],
   );
 
   const handleUnsaveMatch = useCallback(

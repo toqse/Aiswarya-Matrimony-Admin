@@ -175,6 +175,11 @@ export async function deleteReligion(id: number) {
   if (!res.ok) throw new Error(getAuthApiErrorMessage(res.data as AuthApiEnvelope<unknown>));
 }
 
+export async function toggleReligionStatus(id: number) {
+  const res = await adminRequest<MasterItem>(`v1/admin/master/religions/${id}/toggle-status/`, { method: "PATCH" });
+  return unwrap(res);
+}
+
 export async function fetchCasteReligions() {
   const res = await adminRequest<MasterItem[]>("v1/admin/master/castes/religions/");
   return unwrap(res);
@@ -211,6 +216,11 @@ export async function deleteCaste(id: number) {
   if (!res.ok) throw new Error(getAuthApiErrorMessage(res.data as AuthApiEnvelope<unknown>));
 }
 
+export async function toggleCasteStatus(id: number) {
+  const res = await adminRequest<MasterItem>(`v1/admin/master/castes/${id}/toggle-status/`, { method: "PATCH" });
+  return unwrap(res);
+}
+
 export async function fetchMotherTongues(params?: { search?: string; page?: number; page_size?: number }) {
   const q = new URLSearchParams();
   if (params?.search) q.set("search", params.search);
@@ -244,6 +254,13 @@ export async function updateMotherTongue(id: number, body: { name?: string }) {
 export async function deleteMotherTongue(id: number) {
   const res = await adminRequest<unknown>(`v1/admin/master/mother-tongues/${id}/`, { method: "DELETE" });
   if (!res.ok) throw new Error(getAuthApiErrorMessage(res.data as AuthApiEnvelope<unknown>));
+}
+
+export async function toggleMotherTongueStatus(id: number) {
+  const res = await adminRequest<MasterItem>(`v1/admin/master/mother-tongues/${id}/toggle-status/`, {
+    method: "PATCH",
+  });
+  return unwrap(res);
 }
 
 export async function fetchCountries(params?: { search?: string; page?: number; page_size?: number }) {
@@ -314,6 +331,13 @@ export async function deleteCountry(id: number) {
   if (!res.ok) throw new Error(getAuthApiErrorMessage(res.data as AuthApiEnvelope<unknown>));
 }
 
+export async function toggleCountryStatus(id: number) {
+  const res = await adminRequest<AdminCountryItem>(`v1/admin/master/countries/${id}/toggle-status/`, {
+    method: "PATCH",
+  });
+  return unwrap(res);
+}
+
 export async function fetchStateCountries() {
   const res = await adminRequest<LocationParentTab[]>("v1/admin/master/states/countries/");
   return unwrap(res);
@@ -347,6 +371,11 @@ export async function updateState(id: number, body: { name?: string; country?: n
 export async function deleteState(id: number) {
   const res = await adminRequest<unknown>(`v1/admin/master/states/${id}/`, { method: "DELETE" });
   if (!res.ok) throw new Error(getAuthApiErrorMessage(res.data as AuthApiEnvelope<unknown>));
+}
+
+export async function toggleStateStatus(id: number) {
+  const res = await adminRequest<AdminStateItem>(`v1/admin/master/states/${id}/toggle-status/`, { method: "PATCH" });
+  return unwrap(res);
 }
 
 export async function fetchDistrictStates(countryId: number) {
@@ -384,6 +413,13 @@ export async function deleteDistrict(id: number) {
   if (!res.ok) throw new Error(getAuthApiErrorMessage(res.data as AuthApiEnvelope<unknown>));
 }
 
+export async function toggleDistrictStatus(id: number) {
+  const res = await adminRequest<AdminDistrictItem>(`v1/admin/master/districts/${id}/toggle-status/`, {
+    method: "PATCH",
+  });
+  return unwrap(res);
+}
+
 export async function fetchCityDistricts(stateId: number) {
   const res = await adminRequest<LocationParentTab[]>(`v1/admin/master/cities/districts/?state_id=${stateId}`);
   return unwrap(res);
@@ -417,6 +453,11 @@ export async function updateCity(id: number, body: { name?: string; district?: n
 export async function deleteCity(id: number) {
   const res = await adminRequest<unknown>(`v1/admin/master/cities/${id}/`, { method: "DELETE" });
   if (!res.ok) throw new Error(getAuthApiErrorMessage(res.data as AuthApiEnvelope<unknown>));
+}
+
+export async function toggleCityStatus(id: number) {
+  const res = await adminRequest<AdminCityItem>(`v1/admin/master/cities/${id}/toggle-status/`, { method: "PATCH" });
+  return unwrap(res);
 }
 
 export async function fetchEducations(params?: { search?: string; page?: number; page_size?: number }) {
@@ -481,6 +522,11 @@ export async function deleteEducation(id: number) {
   if (!res.ok) throw new Error(getAuthApiErrorMessage(res.data as AuthApiEnvelope<unknown>));
 }
 
+export async function toggleEducationStatus(id: number) {
+  const res = await adminRequest<EducationItem>(`v1/admin/master/educations/${id}/toggle-status/`, { method: "PATCH" });
+  return unwrap(res);
+}
+
 export async function fetchAdminEducationSubjects(params?: { search?: string; page?: number; page_size?: number }) {
   const q = new URLSearchParams();
   if (params?.search) q.set("search", params.search);
@@ -511,6 +557,13 @@ export async function deleteEducationSubject(id: number) {
   if (!res.ok) throw new Error(getAuthApiErrorMessage(res.data as AuthApiEnvelope<unknown>));
 }
 
+export async function toggleEducationSubjectStatus(id: number) {
+  const res = await adminRequest<EducationSubjectItem>(`v1/admin/master/education-subjects/${id}/toggle-status/`, {
+    method: "PATCH",
+  });
+  return unwrap(res);
+}
+
 export async function fetchAdminOccupations(params?: { search?: string; page?: number; page_size?: number }) {
   const q = new URLSearchParams();
   if (params?.search) q.set("search", params.search);
@@ -534,6 +587,13 @@ export async function updateOccupation(id: number, body: { name?: string }) {
 export async function deleteOccupation(id: number) {
   const res = await adminRequest<unknown>(`v1/admin/master/occupations/${id}/`, { method: "DELETE" });
   if (!res.ok) throw new Error(getAuthApiErrorMessage(res.data as AuthApiEnvelope<unknown>));
+}
+
+export async function toggleOccupationStatus(id: number) {
+  const res = await adminRequest<OccupationItem>(`v1/admin/master/occupations/${id}/toggle-status/`, {
+    method: "PATCH",
+  });
+  return unwrap(res);
 }
 
 export async function fetchEmploymentStatuses(params?: { search?: string; page?: number; page_size?: number }) {

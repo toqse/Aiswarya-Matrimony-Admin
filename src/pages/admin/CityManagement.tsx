@@ -23,16 +23,19 @@ import {
   fetchCityDistricts,
   fetchDistrictStates,
   fetchStateCountries,
+  toggleCityStatus,
   updateCity,
   type AdminCityItem,
 } from "@/lib/admin-api/master";
-import { Plus, Pencil, Trash2, Search, Loader2 } from "lucide-react";
+import { MasterRowActions, MasterStatusBadge, MasterToggleDialog } from "@/components/master/MasterStatusControls";
+import { Plus, Search, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function CityManagement() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editItem, setEditItem] = useState<AdminCityItem | null>(null);
   const [deleteItem, setDeleteItem] = useState<AdminCityItem | null>(null);
+  const [toggleItem, setToggleItem] = useState<AdminCityItem | null>(null);
   const [name, setName] = useState("");
   const [formDistrictId, setFormDistrictId] = useState("");
   const [filterCountry, setFilterCountry] = useState("");
@@ -133,6 +136,16 @@ export default function CityManagement() {
       invalidate();
     },
     onError: (e: Error) => toast.error(e.message || "Delete failed"),
+  });
+
+  const toggleMut = useMutation({
+    mutationFn: (id: number) => toggleCityStatus(id),
+    onSuccess: (data) => {
+      toast.success(data.is_active ? "Activated" : "Deactivated");
+      setToggleItem(null);
+      invalidate();
+    },
+    onError: (e: Error) => toast.error(e.message || "Status update failed"),
   });
 
   const openAdd = () => {
@@ -246,21 +259,26 @@ export default function CityManagement() {
               <TableRow>
                 <TableHead>City</TableHead>
                 <TableHead>District</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {items.map((i) => (
-                <TableRow key={i.id}>
+                <TableRow key={i.id} className={!i.is_active ? "opacity-60" : ""}>
                   <TableCell className="font-medium">{i.name}</TableCell>
                   <TableCell>{i.district_name ?? "—"}</TableCell>
+                  <TableCell>
+                    <MasterStatusBadge isActive={i.is_active} />
+                  </TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="icon" onClick={() => openEdit(i)}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => setDeleteItem(i)}>
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
+                    <MasterRowActions
+                      isActive={i.is_active}
+                      onEdit={() => openEdit(i)}
+                      onToggle={() => setToggleItem(i)}
+                      onDelete={() => setDeleteItem(i)}
+                      togglePending={toggleMut.isPending}
+                    />
                   </TableCell>
                 </TableRow>
               ))}
@@ -319,6 +337,14 @@ export default function CityManagement() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <MasterToggleDialog
+        item={toggleItem}
+        label="city"
+        pending={toggleMut.isPending}
+        onConfirm={() => toggleItem && toggleMut.mutate(toggleItem.id)}
+        onClose={() => setToggleItem(null)}
+      />
 
       <AlertDialog open={!!deleteItem} onOpenChange={(o) => !o && setDeleteItem(null)}>
         <AlertDialogContent>

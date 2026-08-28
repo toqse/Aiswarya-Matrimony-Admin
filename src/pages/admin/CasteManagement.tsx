@@ -16,14 +16,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { createCaste, deleteCaste, fetchCasteReligions, fetchCastes, updateCaste, type MasterItem } from "@/lib/admin-api/master";
-import { Plus, Pencil, Trash2, Search, Loader2 } from "lucide-react";
+import { createCaste, deleteCaste, fetchCasteReligions, fetchCastes, toggleCasteStatus, updateCaste, type MasterItem } from "@/lib/admin-api/master";
+import { MasterRowActions, MasterStatusBadge, MasterToggleDialog } from "@/components/master/MasterStatusControls";
+import { Plus, Search, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function CasteManagement() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editItem, setEditItem] = useState<MasterItem | null>(null);
   const [deleteItem, setDeleteItem] = useState<MasterItem | null>(null);
+  const [toggleItem, setToggleItem] = useState<MasterItem | null>(null);
   const [name, setName] = useState("");
   const [formReligionId, setFormReligionId] = useState<string>("");
   const [filterReligion, setFilterReligion] = useState<string>("");
@@ -84,7 +86,17 @@ export default function CasteManagement() {
       setDeleteItem(null);
       invalidate();
     },
-    onError: () => toast.error("Delete failed"),
+    onError: (e: Error) => toast.error(e.message || "Delete failed"),
+  });
+
+  const toggleMut = useMutation({
+    mutationFn: (id: number) => toggleCasteStatus(id),
+    onSuccess: (data) => {
+      toast.success(data.is_active ? "Activated" : "Deactivated");
+      setToggleItem(null);
+      invalidate();
+    },
+    onError: (e: Error) => toast.error(e.message || "Status update failed"),
   });
 
   const openAdd = () => {
@@ -157,21 +169,26 @@ export default function CasteManagement() {
               <TableRow>
                 <TableHead>Caste</TableHead>
                 <TableHead>Religion</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {items.map((i) => (
-                <TableRow key={i.id}>
+                <TableRow key={i.id} className={!i.is_active ? "opacity-60" : ""}>
                   <TableCell className="font-medium">{i.name}</TableCell>
                   <TableCell>{i.religion_name ?? "—"}</TableCell>
+                  <TableCell>
+                    <MasterStatusBadge isActive={i.is_active} />
+                  </TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="icon" onClick={() => openEdit(i)}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => setDeleteItem(i)}>
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
+                    <MasterRowActions
+                      isActive={i.is_active}
+                      onEdit={() => openEdit(i)}
+                      onToggle={() => setToggleItem(i)}
+                      onDelete={() => setDeleteItem(i)}
+                      togglePending={toggleMut.isPending}
+                    />
                   </TableCell>
                 </TableRow>
               ))}
@@ -235,6 +252,14 @@ export default function CasteManagement() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <MasterToggleDialog
+        item={toggleItem}
+        label="caste"
+        pending={toggleMut.isPending}
+        onConfirm={() => toggleItem && toggleMut.mutate(toggleItem.id)}
+        onClose={() => setToggleItem(null)}
+      />
 
       <AlertDialog open={!!deleteItem} onOpenChange={(o) => !o && setDeleteItem(null)}>
         <AlertDialogContent>

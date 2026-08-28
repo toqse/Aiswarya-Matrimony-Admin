@@ -18,10 +18,15 @@ export const FAMILY_TYPE_OPTIONS = [
 ] as const;
 
 export const FAMILY_STATUS_OPTIONS = [
+  "Lower Class",
+  "Lower Middle Class",
   "Middle Class",
   "Upper Middle Class",
-  "Rich / Affluent",
+  "Affluent",
+  "Rich",
   "High Class",
+  "Wealthy",
+  "Ultra Wealthy",
 ] as const;
 
 export const PARENT_STATUS_OPTIONS = ["Alive", "Late"] as const;

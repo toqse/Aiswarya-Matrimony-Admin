@@ -15,14 +15,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { createReligion, deleteReligion, fetchReligions, updateReligion, type MasterItem } from "@/lib/admin-api/master";
-import { Plus, Pencil, Trash2, Search, Loader2 } from "lucide-react";
+import { createReligion, deleteReligion, fetchReligions, toggleReligionStatus, updateReligion, type MasterItem } from "@/lib/admin-api/master";
+import { MasterRowActions, MasterStatusBadge, MasterToggleDialog } from "@/components/master/MasterStatusControls";
+import { Plus, Search, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function ReligionManagement() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editItem, setEditItem] = useState<MasterItem | null>(null);
   const [deleteItem, setDeleteItem] = useState<MasterItem | null>(null);
+  const [toggleItem, setToggleItem] = useState<MasterItem | null>(null);
   const [name, setName] = useState("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -61,7 +63,17 @@ export default function ReligionManagement() {
       setDeleteItem(null);
       invalidate();
     },
-    onError: () => toast.error("Delete failed"),
+    onError: (e: Error) => toast.error(e.message || "Delete failed"),
+  });
+
+  const toggleMut = useMutation({
+    mutationFn: (id: number) => toggleReligionStatus(id),
+    onSuccess: (data) => {
+      toast.success(data.is_active ? "Activated" : "Deactivated");
+      setToggleItem(null);
+      invalidate();
+    },
+    onError: (e: Error) => toast.error(e.message || "Status update failed"),
   });
 
   const openAdd = () => {
@@ -110,20 +122,25 @@ export default function ReligionManagement() {
             <TableHeader>
               <TableRow className="bg-muted/30">
                 <TableHead className="text-primary font-semibold">RELIGION NAME</TableHead>
+                <TableHead className="text-primary font-semibold">STATUS</TableHead>
                 <TableHead className="text-right text-primary font-semibold">ACTIONS</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {items.map((i) => (
-                <TableRow key={i.id}>
+                <TableRow key={i.id} className={!i.is_active ? "opacity-60" : ""}>
                   <TableCell className="font-medium">{i.name}</TableCell>
+                  <TableCell>
+                    <MasterStatusBadge isActive={i.is_active} />
+                  </TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="icon" onClick={() => openEdit(i)}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => setDeleteItem(i)}>
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
+                    <MasterRowActions
+                      isActive={i.is_active}
+                      onEdit={() => openEdit(i)}
+                      onToggle={() => setToggleItem(i)}
+                      onDelete={() => setDeleteItem(i)}
+                      togglePending={toggleMut.isPending}
+                    />
                   </TableCell>
                 </TableRow>
               ))}
@@ -175,6 +192,15 @@ export default function ReligionManagement() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <MasterToggleDialog
+        item={toggleItem}
+        label="religion"
+        extra="Nested castes will also be deactivated."
+        pending={toggleMut.isPending}
+        onConfirm={() => toggleItem && toggleMut.mutate(toggleItem.id)}
+        onClose={() => setToggleItem(null)}
+      />
 
       <AlertDialog open={!!deleteItem} onOpenChange={(o) => !o && setDeleteItem(null)}>
         <AlertDialogContent>

@@ -19,16 +19,19 @@ import {
   createEducation,
   deleteEducation,
   fetchAdminEducations,
+  toggleEducationStatus,
   updateEducation,
   type EducationItem,
 } from "@/lib/admin-api/master";
-import { Plus, Pencil, Trash2, Loader2 } from "lucide-react";
+import { MasterRowActions, MasterStatusBadge, MasterToggleDialog } from "@/components/master/MasterStatusControls";
+import { Plus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function EducationManagement() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editItem, setEditItem] = useState<EducationItem | null>(null);
   const [deleteItem, setDeleteItem] = useState<EducationItem | null>(null);
+  const [toggleItem, setToggleItem] = useState<EducationItem | null>(null);
   const [name, setName] = useState("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -67,7 +70,17 @@ export default function EducationManagement() {
       setDeleteItem(null);
       invalidate();
     },
-    onError: () => toast.error("Delete failed"),
+    onError: (e: Error) => toast.error(e.message || "Delete failed"),
+  });
+
+  const toggleMut = useMutation({
+    mutationFn: (id: number) => toggleEducationStatus(id),
+    onSuccess: (data) => {
+      toast.success(data.is_active ? "Activated" : "Deactivated");
+      setToggleItem(null);
+      invalidate();
+    },
+    onError: (e: Error) => toast.error(e.message || "Status update failed"),
   });
 
   return (
@@ -110,28 +123,29 @@ export default function EducationManagement() {
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {items.map((i) => (
-                <TableRow key={i.id}>
+                <TableRow key={i.id} className={!i.is_active ? "opacity-60" : ""}>
                   <TableCell className="font-medium">{i.name}</TableCell>
+                  <TableCell>
+                    <MasterStatusBadge isActive={i.is_active} />
+                  </TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => {
+                    <MasterRowActions
+                      isActive={i.is_active}
+                      onEdit={() => {
                         setEditItem(i);
                         setName(i.name);
                         setDialogOpen(true);
                       }}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => setDeleteItem(i)}>
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
+                      onToggle={() => setToggleItem(i)}
+                      onDelete={() => setDeleteItem(i)}
+                      togglePending={toggleMut.isPending}
+                    />
                   </TableCell>
                 </TableRow>
               ))}
@@ -181,6 +195,14 @@ export default function EducationManagement() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <MasterToggleDialog
+        item={toggleItem}
+        label="education"
+        pending={toggleMut.isPending}
+        onConfirm={() => toggleItem && toggleMut.mutate(toggleItem.id)}
+        onClose={() => setToggleItem(null)}
+      />
 
       <AlertDialog open={!!deleteItem} onOpenChange={(o) => !o && setDeleteItem(null)}>
         <AlertDialogContent>

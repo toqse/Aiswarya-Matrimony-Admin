@@ -17,4 +17,15 @@
 <IfModule mod_headers.c>
   # Prevent MIME type sniffing
   Header set X-Content-Type-Options "nosniff"
+
+  # Short cache on brand icons so crawlers drop the old Lovable favicon
+  <FilesMatch "^(favicon\.(ico|svg)|apple-touch-icon\.png|favicon-[0-9]+x[0-9]+\.png|android-chrome-.*\.png|og-image\.png)$">
+    Header set Cache-Control "public, max-age=86400, must-revalidate"
+  </FilesMatch>
+
+  # Lovable leftover placeholder — do not index
+  <Files "placeholder.svg">
+    Header set X-Robots-Tag "noindex, noimageindex, nofollow"
+    Header set Cache-Control "no-store"
+  </Files>
 </IfModule>

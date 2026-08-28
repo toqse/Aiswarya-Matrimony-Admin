@@ -40,6 +40,10 @@ const HoroscopeManagement = lazyRetry(
 );
 const SuccessStories = lazyRetry(() => import("@/pages/admin/SuccessStories"));
 const DistrictAnalysis = lazyRetry(() => import("@/pages/admin/DistrictAnalysis"));
+const CountryManagement = lazyRetry(() => import("@/pages/admin/CountryManagement"));
+const StateManagement = lazyRetry(() => import("@/pages/admin/StateManagement"));
+const DistrictManagement = lazyRetry(() => import("@/pages/admin/DistrictManagement"));
+const CityManagement = lazyRetry(() => import("@/pages/admin/CityManagement"));
 const CasteManagement = lazyRetry(() => import("@/pages/admin/CasteManagement"));
 const ReligionManagement = lazyRetry(
   () => import("@/pages/admin/ReligionManagement"),
@@ -136,6 +140,10 @@ const Index = () => {
             <Route path="/audit-log" element={<AuditLog />} />
             <Route path="/horoscope" element={<HoroscopeManagement />} />
             <Route path="/district-analysis" element={<DistrictAnalysis />} />
+            <Route path="/country" element={<CountryManagement />} />
+            <Route path="/state" element={<StateManagement />} />
+            <Route path="/district" element={<DistrictManagement />} />
+            <Route path="/city" element={<CityManagement />} />
             <Route path="/caste" element={<CasteManagement />} />
             <Route path="/religion" element={<ReligionManagement />} />
             <Route path="/mother-tongue" element={<MotherTongueManagement />} />

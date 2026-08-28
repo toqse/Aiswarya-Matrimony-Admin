@@ -28,6 +28,10 @@ import {
   BookOpen,
   Briefcase,
   Smartphone,
+  Globe,
+  MapPin,
+  Landmark,
+  Building,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -65,6 +69,10 @@ const adminItems = [
   //{ title: "Email Templates", url: "/email-templates", icon: Mail },
   //{ title: "Settings", url: "/settings", icon: Settings },
   { title: "Audit Log", url: "/audit-log", icon: ClipboardList },
+  { title: "Country", url: "/country", icon: Globe },
+  { title: "State", url: "/state", icon: Landmark },
+  { title: "District", url: "/district", icon: MapPin },
+  { title: "City", url: "/city", icon: Building },
   { title: "Caste", url: "/caste", icon: ScrollText },
   { title: "Religion", url: "/religion", icon: Church },
   { title: "Mother Tongue", url: "/mother-tongue", icon: Languages },

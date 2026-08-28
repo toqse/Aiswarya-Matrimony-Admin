@@ -28,6 +28,11 @@ import ProfileFormField, {
   type ProfileFieldErrors,
 } from "@/components/profile/ProfileFormField";
 import { firstErrorField, validateProfileForm } from "@/lib/profile-validation";
+import {
+  dobInputMax,
+  dobInputMin,
+  PROFILE_AGE_HINT,
+} from "@/lib/profileAge";
 import { ADMIN_PROFILE_FOR_OPTIONS } from "@/lib/profile-for-options";
 import { filterValidComplexions, isValidComplexionName } from "@/lib/complexion-options";
 import OccupationCombobox from "@/components/profile/OccupationCombobox";
@@ -431,11 +436,14 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
               <Input
                 id="profile-field-dob"
                 type="date"
+                min={dobInputMin()}
+                max={dobInputMax()}
                 value={form.dob}
                 onChange={(e) => update("dob", e.target.value)}
                 className={invalidInputClass(fieldError(fieldErrors, "dob"))}
                 aria-invalid={Boolean(fieldError(fieldErrors, "dob"))}
               />
+              <p className="text-xs text-muted-foreground">{PROFILE_AGE_HINT}</p>
               <label className="mt-2 flex items-center gap-2 text-sm cursor-pointer select-none">
                 <Checkbox
                   checked={form.hasHoroscope}

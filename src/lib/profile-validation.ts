@@ -1,6 +1,7 @@
 import type { FamilyFormFields } from "@/components/profile/FamilyDetailsSection";
 import type { PartnerPreferenceFields } from "@/components/profile/PartnerPreferenceSection";
 import type { ProfileFieldErrors } from "@/components/profile/ProfileFormField";
+import { profileAgeError } from "@/lib/profileAge";
 
 export interface ProfileValidationForm
   extends FamilyFormFields,
@@ -116,6 +117,9 @@ export function validateProfileForm(
   }
   if (!form.dob) {
     errs.dob = "Date of birth is required.";
+  } else {
+    const ageErr = profileAgeError(form.dob);
+    if (ageErr) errs.dob = ageErr;
   }
   if (!form.gender) {
     errs.gender = "Gender is required.";

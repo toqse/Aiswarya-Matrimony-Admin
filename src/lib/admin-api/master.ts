@@ -141,6 +141,15 @@ function parsePaginated<T>(res: { ok: boolean; data: unknown }): PaginatedMaster
   throw new Error("Invalid list response");
 }
 
+function neverMarriedFirst<T extends { name?: string | null }>(items: T[]): T[] {
+  return [...items].sort((a, b) => {
+    const aNever = (a.name ?? "").trim().toLowerCase() === "never married";
+    const bNever = (b.name ?? "").trim().toLowerCase() === "never married";
+    if (aNever === bNever) return 0;
+    return aNever ? -1 : 1;
+  });
+}
+
 export async function fetchReligions(params?: { search?: string; page?: number; page_size?: number }) {
   const q = new URLSearchParams();
   if (params?.search) q.set("search", params.search);
@@ -561,7 +570,8 @@ export async function fetchMaritalStatuses(params?: { page?: number; page_size?:
   if (params?.page_size) q.set("page_size", String(params.page_size));
   const qs = q.toString();
   const res = await adminRequest<never>(qs ? `v1/master/marital-status/?${qs}` : "v1/master/marital-status/");
-  return parsePaginated<MasterItem>(res);
+  const parsed = parsePaginated<MasterItem>(res);
+  return { ...parsed, results: neverMarriedFirst(parsed.results ?? []) };
 }
 
 export async function fetchComplexions(params?: { page?: number; page_size?: number }) {

@@ -30,9 +30,13 @@ import {
   MapPin,
   Landmark,
   Building,
+  ChevronDown,
 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { NavLink } from "@/components/NavLink";
 import { useRole } from "@/contexts/RoleContext";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Sidebar,
   SidebarContent,
@@ -156,35 +160,107 @@ const roleLabels = {
   "branch-manager": "Branch Manager",
 };
 
+function groupLabelForPath(groups: NavGroup[], pathname: string): string {
+  const match = groups.find((group) =>
+    group.items.some((item) => (item.url === "/" ? pathname === "/" : pathname === item.url)),
+  );
+  return match?.label ?? "";
+}
+
+function NavItemList({ items, collapsed }: { items: NavItem[]; collapsed: boolean }) {
+  return (
+    <SidebarMenu>
+      {items.map((item) => (
+        <SidebarMenuItem key={item.title + item.url}>
+          <SidebarMenuButton asChild>
+            <NavLink
+              to={item.url}
+              end={item.url === "/"}
+              className="text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+              activeClassName="bg-sidebar-accent text-sidebar-primary font-semibold"
+            >
+              <item.icon className="h-4 w-4 shrink-0" />
+              {!collapsed && <span>{item.title}</span>}
+            </NavLink>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      ))}
+    </SidebarMenu>
+  );
+}
+
 function SidebarNavGroups({ groups, collapsed }: { groups: NavGroup[]; collapsed: boolean }) {
+  const { pathname } = useLocation();
+  const [openGroups, setOpenGroups] = useState<string[]>(() => {
+    const active = groupLabelForPath(groups, pathname);
+    return active ? [active] : groups[0] ? [groups[0].label] : [];
+  });
+
+  useEffect(() => {
+    const active = groupLabelForPath(groups, pathname);
+    if (!active) return;
+    setOpenGroups((prev) => (prev.includes(active) ? prev : [...prev, active]));
+  }, [groups, pathname]);
+
+  const toggleGroup = (label: string, open: boolean) => {
+    setOpenGroups((prev) => {
+      if (open) return prev.includes(label) ? prev : [...prev, label];
+      return prev.filter((item) => item !== label);
+    });
+  };
+
+  if (collapsed || groups.length === 1) {
+    return (
+      <>
+        {groups.map((group) => (
+          <SidebarGroup key={group.label}>
+            {!collapsed && groups.length === 1 && (
+              <SidebarGroupLabel className="text-sidebar-foreground/60 uppercase text-[10px] tracking-wider">
+                {group.label}
+              </SidebarGroupLabel>
+            )}
+            <SidebarGroupContent>
+              <NavItemList items={group.items} collapsed={collapsed} />
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
+      </>
+    );
+  }
+
   return (
     <>
-      {groups.map((group) => (
-        <SidebarGroup key={group.label}>
-          <SidebarGroupLabel className="text-sidebar-foreground/60 uppercase text-[10px] tracking-wider">
-            {!collapsed && group.label}
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {group.items.map((item) => (
-                <SidebarMenuItem key={item.title + item.url}>
-                  <SidebarMenuButton asChild>
-                    <NavLink
-                      to={item.url}
-                      end={item.url === "/"}
-                      className="text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
-                      activeClassName="bg-sidebar-accent text-sidebar-primary font-semibold"
-                    >
-                      <item.icon className="h-4 w-4 shrink-0" />
-                      {!collapsed && <span>{item.title}</span>}
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      ))}
+      {groups.map((group) => {
+        const isOpen = openGroups.includes(group.label);
+        return (
+          <Collapsible
+            key={group.label}
+            open={isOpen}
+            onOpenChange={(open) => toggleGroup(group.label, open)}
+            className="group/collapsible"
+          >
+            <SidebarGroup>
+              <SidebarGroupLabel
+                asChild
+                className="h-8 cursor-pointer text-[10px] uppercase tracking-wider text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+              >
+                <CollapsibleTrigger className="flex w-full items-center gap-2">
+                  <span className="flex-1 truncate text-left">{group.label}</span>
+                  <ChevronDown
+                    className="ml-auto h-4 w-4 shrink-0 text-sidebar-foreground/80 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-180"
+                    aria-hidden
+                  />
+                </CollapsibleTrigger>
+              </SidebarGroupLabel>
+              <CollapsibleContent>
+                <SidebarGroupContent>
+                  <NavItemList items={group.items} collapsed={false} />
+                </SidebarGroupContent>
+              </CollapsibleContent>
+            </SidebarGroup>
+          </Collapsible>
+        );
+      })}
     </>
   );
 }

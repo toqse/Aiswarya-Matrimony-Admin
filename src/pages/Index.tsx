@@ -39,6 +39,7 @@ const HoroscopeManagement = lazyRetry(
   () => import("@/pages/admin/HoroscopeManagement"),
 );
 const SuccessStories = lazyRetry(() => import("@/pages/admin/SuccessStories"));
+const Testimonials = lazyRetry(() => import("@/pages/admin/Testimonials"));
 const DistrictAnalysis = lazyRetry(() => import("@/pages/admin/DistrictAnalysis"));
 const CountryManagement = lazyRetry(() => import("@/pages/admin/CountryManagement"));
 const StateManagement = lazyRetry(() => import("@/pages/admin/StateManagement"));
@@ -134,6 +135,7 @@ const Index = () => {
             <Route path="/app-config" element={<AppConfig />} />
             <Route path="/cash-payments" element={<CashPayments />} />
             <Route path="/success-stories" element={<SuccessStories />} />
+            <Route path="/testimonials" element={<Testimonials />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/email-templates" element={<EmailTemplates />} />
             <Route path="/profile" element={<MyProfile />} />

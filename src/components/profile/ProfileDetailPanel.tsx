@@ -21,19 +21,37 @@ export function displayOrDash(v: unknown): string {
   return String(v);
 }
 
-function formatPartnerCastePreferences(value: unknown): string {
+function formatPartnerCastePreferences(
+  value: unknown,
+  religion?: Record<string, unknown>,
+): string {
   if (value == null || value === "") return "-";
   if (typeof value === "string") return value.trim() || "-";
   if (Array.isArray(value)) return value.length ? value.join(", ") : "-";
   if (typeof value === "object") {
     const entries = Object.entries(value as Record<string, unknown>);
     if (!entries.length) return "-";
+    const idToName: Record<string, string> = {};
+    if (religion?.religion_id != null && religion.religion != null) {
+      idToName[String(religion.religion_id)] = String(religion.religion);
+    }
+    const ids = religion?.partner_religion_ids;
+    const names = religion?.partner_religion_names;
+    if (Array.isArray(ids) && Array.isArray(names)) {
+      ids.forEach((id, index) => {
+        const name = names[index];
+        if (id != null && name != null && String(name).trim() !== "") {
+          idToName[String(id)] = String(name);
+        }
+      });
+    }
     return entries
-      .map(([religion, castes]) => {
+      .map(([religionKey, castes]) => {
+        const label = idToName[religionKey] ?? religionKey;
         const casteList = Array.isArray(castes)
           ? castes.map(String).filter(Boolean).join(", ")
           : displayOrDash(castes);
-        return casteList && casteList !== "-" ? `${religion}: ${casteList}` : `${religion}: All`;
+        return casteList && casteList !== "-" ? `${label}: ${casteList}` : `${label}: All`;
       })
       .join(" · ");
   }
@@ -262,6 +280,7 @@ export function ProfileDetailPanel({ detail, showAdmin = true }: ProfileDetailPa
               "Partner caste preference",
               formatPartnerCastePreferences(
                 religion.partner_caste_preferences ?? religion.partner_caste_preference,
+                religion,
               ),
             ],
             ["Partner age range", partnerAgeRange(religion)],

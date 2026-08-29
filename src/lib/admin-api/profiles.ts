@@ -27,6 +27,22 @@ export interface ProfileListRow {
   is_blocked: boolean;
 }
 
+export function profileListRowStub(matriId: string, name = ""): ProfileListRow {
+  return {
+    matri_id: matriId,
+    name: name || matriId,
+    gender: "",
+    age: 0,
+    religion: "",
+    caste: "",
+    marital_status: "",
+    assigned_staff: "",
+    horoscope_available: false,
+    is_active: true,
+    is_blocked: false,
+  };
+}
+
 export interface ProfileListData {
   count: number;
   next: string | null;

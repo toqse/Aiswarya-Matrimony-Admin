@@ -19,6 +19,10 @@ export const EMPTY_PORUTHAM_PARTNER_FILTERS: PoruthamPartnerFiltersState = {
   rajju: "",
 };
 
+export function emptyPoruthamPartnerFilters(): PoruthamPartnerFiltersState {
+  return { ...EMPTY_PORUTHAM_PARTNER_FILTERS };
+}
+
 export function poruthamPartnerFiltersToQuery(
   filters: PoruthamPartnerFiltersState,
   paging?: { page?: number; page_size?: number },

@@ -88,6 +88,12 @@ export default function HoroscopeSearchFilters({
 
   return (
     <Card className="shadow-elegant border-0">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          onSearch();
+        }}
+      >
       <div className="flex items-center justify-between gap-2 px-4 pt-4">
         <button
           type="button"
@@ -101,7 +107,7 @@ export default function HoroscopeSearchFilters({
           <Button type="button" variant="outline" size="sm" onClick={onReset}>
             <RotateCcw className="h-3.5 w-3.5 mr-1" /> Reset
           </Button>
-          <Button type="button" size="sm" onClick={onSearch}>
+          <Button type="submit" size="sm">
             <Search className="h-3.5 w-3.5 mr-1" /> Search
           </Button>
         </div>
@@ -413,6 +419,7 @@ export default function HoroscopeSearchFilters({
           </div>
         </CardContent>
       ) : null}
+      </form>
     </Card>
   );
 }

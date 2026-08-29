@@ -101,7 +101,7 @@ const quickLinks = [
   },
   {
     title: "Horoscope Management",
-    desc: "Jathagam, Porutham, PDF generation",
+    desc: "Horoscopes, Porutham, Thalakkuri",
     icon: Sparkles,
     url: "/horoscope",
     color: "text-purple-600",

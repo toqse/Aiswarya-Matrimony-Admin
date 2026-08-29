@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,7 @@ import {
   patchProfileAssignStaff,
   fetchStaffProfiles,
   patchProfileBlock,
+  profileListRowStub,
   type ProfileListRow,
 } from "@/lib/admin-api/profiles";
 import { fetchAdminStaffList } from "@/lib/admin-api/staff";
@@ -58,6 +60,7 @@ export default function ProfileAdmin() {
   const { role } = useRole();
   const { toast } = useToast();
   const qc = useQueryClient();
+  const [searchParams] = useSearchParams();
   const [filters, setFilters] = useState(EMPTY_PROFILE_SEARCH);
   const [applied, setApplied] = useState(EMPTY_PROFILE_SEARCH);
   const [page, setPage] = useState(1);
@@ -71,6 +74,7 @@ export default function ProfileAdmin() {
 
   const [editRow, setEditRow] = useState<ProfileListRow | null>(null);
   const [editInitial, setEditInitial] = useState<WizardFormValues | null>(null);
+  const openedDeepLink = useRef("");
 
   const listQuery = useQuery({
     queryKey: ["admin", "profiles", role, applied, page, pageSize],
@@ -175,6 +179,17 @@ export default function ProfileAdmin() {
       setViewDetail(null);
     }
   };
+
+  const deepLinkMatri = (searchParams.get("matri_id") || "").trim();
+  useEffect(() => {
+    if (!deepLinkMatri || openedDeepLink.current === deepLinkMatri) return;
+    openedDeepLink.current = deepLinkMatri;
+    const next = { ...EMPTY_PROFILE_SEARCH, matri_id: deepLinkMatri };
+    setFilters(next);
+    setApplied(next);
+    setPage(1);
+    void openView(profileListRowStub(deepLinkMatri));
+  }, [deepLinkMatri]);
 
   const openEdit = async (row: ProfileListRow) => {
     setEditRow(row);

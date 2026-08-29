@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -49,6 +50,7 @@ import {
   patchBranchMyProfile,
   patchProfileAssignStaff,
   patchBranchMyProfileVerify,
+  profileListRowStub,
   type ProfileListRow,
 } from "@/lib/admin-api/profiles";
 import { fetchBranchStaffList } from "@/lib/admin-api/staff";
@@ -78,6 +80,19 @@ export default function BranchMyProfiles() {
   const [editInitial, setEditInitial] = useState<WizardFormValues | null>(null);
   const qc = useQueryClient();
   const { toast } = useToast();
+  const [searchParams] = useSearchParams();
+  const openedDeepLink = useRef("");
+
+  const deepLinkMatri = (searchParams.get("matri_id") || "").trim();
+  useEffect(() => {
+    if (!deepLinkMatri || openedDeepLink.current === deepLinkMatri) return;
+    openedDeepLink.current = deepLinkMatri;
+    const next = { ...EMPTY_PROFILE_SEARCH, matri_id: deepLinkMatri };
+    setFilters(next);
+    setApplied(next);
+    setPage(1);
+    setViewProfile(profileListRowStub(deepLinkMatri));
+  }, [deepLinkMatri]);
 
   const summaryQ = useQuery({
     queryKey: ["branch", "my-profiles", "summary"],

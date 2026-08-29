@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Check, ChevronsUpDown, Loader2, Search, X } from "lucide-react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { Check, ChevronLeft, ChevronRight, ChevronsUpDown, Loader2, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +21,8 @@ import type { UserRole } from "@/types/user-role";
 function formatOptionLabel(item: PoruthamNavSelectionItem): string {
   return `${item.profile_name || "—"} (${item.matri_id || "—"}) — ${item.profile_id}`;
 }
+
+const PICKER_PAGE_SIZE = 100;
 
 type PoruthamProfileMultiPickerProps = {
   selected: PoruthamNavSelectionItem[];
@@ -54,6 +56,7 @@ export default function PoruthamProfileMultiPicker({
   const [searchDraft, setSearchDraft] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [manualId, setManualId] = useState("");
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(searchDraft.trim()), 400);
@@ -61,20 +64,38 @@ export default function PoruthamProfileMultiPicker({
   }, [searchDraft]);
 
   useEffect(() => {
-    if (!open) setSearchDraft("");
+    if (!open) {
+      setSearchDraft("");
+      setDebouncedSearch("");
+      setPage(1);
+    }
   }, [open]);
+
+  useEffect(() => {
+    setSearchDraft("");
+    setDebouncedSearch("");
+    setManualId("");
+    setPage(1);
+  }, [filterVersion]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
 
   const gender = instanceId === "bride" ? "F" : "M";
   const selectedIds = new Set(selected.map((s) => s.profile_id));
 
   const filterQuery = partnerFilters
-    ? poruthamPartnerFiltersToQuery({
-        ...partnerFilters,
-        search: debouncedSearch || partnerFilters.search,
-      })
+    ? poruthamPartnerFiltersToQuery(
+        {
+          ...partnerFilters,
+          search: debouncedSearch || partnerFilters.search,
+        },
+        { page, page_size: PICKER_PAGE_SIZE },
+      )
     : {
-        page: 1,
-        page_size: 100,
+        page,
+        page_size: PICKER_PAGE_SIZE,
         search: debouncedSearch || undefined,
         exe_done: true as const,
       };
@@ -88,7 +109,9 @@ export default function PoruthamProfileMultiPicker({
       branchId,
       debouncedSearch,
       gender,
+      page,
       filterVersion,
+      partnerFilters?.search,
       partnerFilters?.religion_id,
       partnerFilters?.caste_id,
       partnerFilters?.pr_star,
@@ -101,12 +124,23 @@ export default function PoruthamProfileMultiPicker({
         branch_id: branchId,
         gender,
         exe_done: true,
+        page,
+        page_size: PICKER_PAGE_SIZE,
       }),
     enabled: tabActive && open,
+    placeholderData: keepPreviousData,
   });
 
   const rows = (data?.results ?? []).filter((r) => r.profile_id != null);
   const totalCount = data?.count ?? rows.length;
+  const totalPages = Math.max(1, Math.ceil(totalCount / PICKER_PAGE_SIZE));
+  const rangeStart = totalCount === 0 ? 0 : (page - 1) * PICKER_PAGE_SIZE + 1;
+  const rangeEnd = Math.min(page * PICKER_PAGE_SIZE, totalCount);
+  const showInitialLoading = isLoading && !data;
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   const toggle = (item: PoruthamNavSelectionItem) => {
     if (selectedIds.has(item.profile_id)) {
@@ -175,13 +209,16 @@ export default function PoruthamProfileMultiPicker({
               onChange={(e) => setSearchDraft(e.target.value)}
             />
           </div>
-          {totalCount > rows.length ? (
+          {totalCount > 0 ? (
             <p className="px-3 py-1.5 text-[11px] text-muted-foreground border-b">
-              Showing {rows.length} of {totalCount} — refine filters to narrow results.
+              Showing {rangeStart}–{rangeEnd} of {totalCount}
+              {isFetching && !showInitialLoading ? (
+                <Loader2 className="h-3 w-3 animate-spin inline ml-1.5 align-text-bottom" />
+              ) : null}
             </p>
           ) : null}
           <div className="max-h-[280px] overflow-y-auto p-1">
-            {isLoading || isFetching ? (
+            {showInitialLoading ? (
               <div className="flex justify-center py-6 text-muted-foreground">
                 <Loader2 className="h-5 w-5 animate-spin" />
               </div>
@@ -211,7 +248,38 @@ export default function PoruthamProfileMultiPicker({
               })
             )}
           </div>
-          <div className="border-t px-2 py-2 flex gap-2">
+          {totalCount > PICKER_PAGE_SIZE ? (
+            <div className="flex items-center justify-between gap-2 border-t px-2 py-1.5">
+              <span className="text-[11px] text-muted-foreground">
+                Page {page} of {totalPages}
+              </span>
+              <div className="flex gap-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2"
+                  disabled={page <= 1 || isFetching}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                  Prev
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2"
+                  disabled={page >= totalPages || isFetching}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                >
+                  Next
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          ) : null}
+          <div className="border-t px-2 py-2">
             <Input
               type="number"
               className="h-9"
@@ -225,9 +293,6 @@ export default function PoruthamProfileMultiPicker({
                 }
               }}
             />
-            <Button type="button" variant="secondary" size="sm" className="shrink-0" onClick={addManualId}>
-              Add
-            </Button>
           </div>
         </PopoverContent>
       </Popover>

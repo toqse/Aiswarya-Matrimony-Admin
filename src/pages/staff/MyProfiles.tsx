@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -61,6 +61,7 @@ import {
   fetchStaffProfiles,
   fetchStaffProfileDetail,
   patchStaffProfile,
+  profileListRowStub,
   toggleStaffProfileWishlist,
 } from "@/lib/admin-api/profiles";
 
@@ -80,12 +81,25 @@ export default function MyProfiles() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const openedDeepLink = useRef("");
 
   const goToCashPaymentForRenewal = (p: ProfileListRow) => {
     navigate("/cash-entry", {
       state: { renewProfile: { matri_id: p.matri_id, name: p.name } },
     });
   };
+
+  const deepLinkMatri = (searchParams.get("matri_id") || "").trim();
+  useEffect(() => {
+    if (!deepLinkMatri || openedDeepLink.current === deepLinkMatri) return;
+    openedDeepLink.current = deepLinkMatri;
+    const next = { ...EMPTY_PROFILE_SEARCH, matri_id: deepLinkMatri };
+    setFilters(next);
+    setApplied(next);
+    setPage(1);
+    setViewProfile(profileListRowStub(deepLinkMatri));
+  }, [deepLinkMatri]);
 
   const summaryQ = useQuery({
     queryKey: ["staff", "profiles", "summary"],

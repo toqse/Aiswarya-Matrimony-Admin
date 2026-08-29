@@ -153,7 +153,6 @@ export interface HoroscopeSummaryKpis {
   jathagam_generated: number;
   pending_generation: number;
   match_calculations: number;
-  mangal_dosham: number;
 }
 
 export function normalizeHoroscopeSummary(payload: unknown): HoroscopeSummaryKpis {
@@ -168,7 +167,6 @@ export function normalizeHoroscopeSummary(payload: unknown): HoroscopeSummaryKpi
     jathagam_generated: pickNum(p.jathagam_generated, p.generated, p.jathagam_ready, p.charts_generated),
     pending_generation: pickNum(p.pending_generation, p.pending, p.jathagam_pending, p.charts_pending),
     match_calculations: pickNum(p.match_calculations, p.porutham_count, p.matches_count),
-    mangal_dosham: pickNum(p.mangal_dosham, p.mangal_count, p.manglik_count),
   };
 }
 
@@ -903,12 +901,12 @@ export async function fetchJathakamPdfs(role: UserRole, query?: JathakamPdfsQuer
 }
 
 /* ------------------------------------------------------------------ *
- * Jathagam PDFs tab:
+ * Thalakkuri tab:
  *   GET <role>/horoscope/records/?page=&page_size=  -> horoscope list
- *   GET v1/astrology/jathagam/<horoscope_id>/       -> Jathagam PDF (blob)
+ *   GET v1/admin/horoscope/thalakkuri/<id>/         -> Thalakkuri PDF (blob)
  * ------------------------------------------------------------------ */
 
-/** Row shape used by the Jathagam PDFs tab. */
+/** Row shape used by the Thalakkuri tab. */
 export interface AstrologyHoroscopeRow {
   /** Horoscope id used by the PDF download endpoint. */
   horoscope_id: number;
@@ -965,27 +963,42 @@ export interface JathagamHoroscopesQuery {
   page_size?: number;
   search?: string;
   branch_id?: number;
+  /** "false" = pending (no EXE chart); omit for all. */
+  has_horoscope?: string;
 }
 
-/** Lists horoscopes for the Jathagam PDFs tab via the admin horoscope records endpoint. */
+export interface JathagamHoroscopesPage {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: AstrologyHoroscopeRow[];
+}
+
+/** Lists horoscopes for the Thalakkuri tab via the admin horoscope records endpoint. */
 export async function fetchJathagamHoroscopes(
   role: UserRole,
   query?: JathagamHoroscopesQuery,
-): Promise<AstrologyHoroscopeRow[]> {
+): Promise<JathagamHoroscopesPage> {
   const base = horoscopeBasePath(role);
   const q = toQs({
     page: query?.page ?? 1,
     page_size: query?.page_size ?? 100,
     search: query?.search?.trim() || undefined,
     branch_id: query?.branch_id,
+    has_horoscope: query?.has_horoscope,
     // Ask the backend to include the chart/display/readiness fields the tab needs.
     fields: "id,horoscope_id,name,pr_name,dob,pr_dob,pr_rasi,pr_star,star_display,dasa_display,is_ready,jathagam",
     include: "pr_rasi,star_display,dasa_display,is_ready,jathagam,horoscope_id",
   });
   const res = await adminRequest<unknown>(`${base}records/${q}`);
   const data = await unwrap(res);
-  const { results } = unwrapListPayload(data);
-  return results.map(normalizeAstrologyHoroscope);
+  const { count, next, previous, results } = unwrapListPayload(data);
+  return {
+    count,
+    next,
+    previous,
+    results: results.map(normalizeAstrologyHoroscope),
+  };
 }
 
 /** Reads a (possibly JSON) error blob and returns the backend's message. */

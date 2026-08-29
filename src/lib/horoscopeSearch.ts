@@ -82,7 +82,9 @@ export function horoscopeSearchToQuery(
   }
   assignYesNo(q, "has_horoscope", filters.has_horoscope);
   assignYesNo(q, "dosham", filters.dosham);
-  assignYesNo(q, "star_match", filters.star_match);
+  if (filters.star_match === "yes" || filters.star_match === "no") {
+    assign("star_match", filters.star_match);
+  }
 
   if (filters.rajju.trim()) assign("rajju", filters.rajju.trim());
   if (filters.match_matri_id.trim()) assign("match_matri_id", filters.match_matri_id.trim());

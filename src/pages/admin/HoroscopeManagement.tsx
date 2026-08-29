@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,10 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useRole } from "@/contexts/RoleContext";
 import { getApiErrorMessage } from "@/lib/admin-api/http";
 import {
@@ -32,7 +32,7 @@ import {
 } from "@/lib/admin-api/horoscope";
 import {
   Star, Eye, FileText,
-  CheckCircle, Clock, XCircle, AlertTriangle, Heart, Sparkles,
+  Clock, Heart, Sparkles,
   Shield, Loader2, ChevronLeft, ChevronRight, ExternalLink, Link2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -43,6 +43,13 @@ import PoruthamCollectedMatches from "@/components/horoscope/PoruthamCollectedMa
 import PoruthamSavedMatches from "@/components/horoscope/PoruthamSavedMatches";
 import { PoruthamResultView } from "@/components/horoscope/PoruthamResultView";
 import { JathagamTab } from "@/components/horoscope/JathagamTab";
+import { ProfileDetailPanel } from "@/components/profile/ProfileDetailPanel";
+import {
+  fetchAdminProfileDetail,
+  fetchBranchMyProfileDetail,
+  fetchStaffProfileDetail,
+} from "@/lib/admin-api/profiles";
+import type { UserRole } from "@/types/user-role";
 import {
   HoroscopeChart,
   extractHoroscopeCharts,
@@ -64,21 +71,15 @@ import {
   type HoroscopeSearchFiltersState,
 } from "@/lib/horoscopeSearch";
 import {
-  EMPTY_PORUTHAM_PARTNER_FILTERS,
+  emptyPoruthamPartnerFilters,
   type PoruthamPartnerFiltersState,
 } from "@/lib/poruthamPartnerFilters";
 
-const jathagamStatusConfig: Record<string, { icon: typeof CheckCircle; color: string; label: string }> = {
-  generated: { icon: CheckCircle, color: "bg-success/10 text-success", label: "Generated" },
-  pending: { icon: Clock, color: "bg-warning/10 text-warning", label: "Pending" },
-  failed: { icon: XCircle, color: "bg-destructive/10 text-destructive", label: "Failed" },
-  "not-applicable": { icon: AlertTriangle, color: "bg-muted text-muted-foreground", label: "N/A" },
-};
-
 /** Branch manager / staff: profile list route; admin uses Profile Admin. */
-function profilesListPath(role: "admin" | "staff" | "branch-manager"): string {
-  if (role === "admin") return "/profiles";
-  return "/my-profiles";
+function fetchMemberProfileDetail(role: UserRole, matriId: string) {
+  if (role === "branch-manager") return fetchBranchMyProfileDetail(matriId);
+  if (role === "staff") return fetchStaffProfileDetail(matriId);
+  return fetchAdminProfileDetail(matriId);
 }
 
 function formatLastEdited(label: string): string {
@@ -111,6 +112,8 @@ export default function HoroscopeManagement() {
   const [viewOpen, setViewOpen] = useState(false);
   const [viewUserUuid, setViewUserUuid] = useState<string | null>(null);
   const [viewRow, setViewRow] = useState<HoroscopeRecordRow | null>(null);
+  const [profileMatriId, setProfileMatriId] = useState<string | null>(null);
+  const [profileName, setProfileName] = useState("");
 
   const [selectedBrides, setSelectedBrides] = useState<PoruthamNavSelectionItem[]>([]);
   const [selectedGrooms, setSelectedGrooms] = useState<PoruthamNavSelectionItem[]>([]);
@@ -123,10 +126,10 @@ export default function HoroscopeManagement() {
   const [poruthamResult, setPoruthamResult] = useState<unknown>(null);
   const [collectedDetailIndex, setCollectedDetailIndex] = useState<number | null>(null);
   const [partnerFilterDraft, setPartnerFilterDraft] = useState<PoruthamPartnerFiltersState>(
-    EMPTY_PORUTHAM_PARTNER_FILTERS,
+    emptyPoruthamPartnerFilters,
   );
   const [partnerFilterApplied, setPartnerFilterApplied] = useState<PoruthamPartnerFiltersState>(
-    EMPTY_PORUTHAM_PARTNER_FILTERS,
+    emptyPoruthamPartnerFilters,
   );
   const [partnerFilterVersion, setPartnerFilterVersion] = useState(0);
   const [savingMatches, setSavingMatches] = useState(false);
@@ -166,8 +169,6 @@ export default function HoroscopeManagement() {
     ? viewableMatchIndices.indexOf(collectedDetailIndex!)
     : -1;
 
-  const profilesPath = profilesListPath(role);
-
   const handlePoruthamModeChange = useCallback((mode: PoruthamFixedMode) => {
     setPoruthamMode(mode);
     setSelectedBrides([]);
@@ -177,9 +178,9 @@ export default function HoroscopeManagement() {
     setBatchProgress(null);
     setCollectedDetailIndex(null);
     setPoruthamResult(null);
-    setPartnerFilterDraft(EMPTY_PORUTHAM_PARTNER_FILTERS);
-    setPartnerFilterApplied(EMPTY_PORUTHAM_PARTNER_FILTERS);
-    setPartnerFilterVersion(0);
+    setPartnerFilterDraft(emptyPoruthamPartnerFilters());
+    setPartnerFilterApplied(emptyPoruthamPartnerFilters());
+    setPartnerFilterVersion((v) => v + 1);
   }, []);
 
   const handlePoruthamResultOpenChange = useCallback((open: boolean) => {
@@ -422,9 +423,12 @@ export default function HoroscopeManagement() {
     isFetching: recordsFetching,
     error: recordsError,
   } = useQuery({
-    queryKey: ["horoscope", role, "records", applied, page, pageSize],
+    queryKey: ["horoscope", role, "records", applied, page, pageSize, horoscopeBranchId],
     queryFn: () =>
-      fetchHoroscopeRecords(role, horoscopeSearchToQuery(applied, { page, page_size: pageSize })),
+      fetchHoroscopeRecords(role, {
+        ...horoscopeSearchToQuery(applied, { page, page_size: pageSize }),
+        ...(horoscopeBranchId != null ? { branch_id: horoscopeBranchId } : {}),
+      }),
   });
 
   const { data: detailPayload, isLoading: detailLoading, error: detailError } = useQuery({
@@ -438,6 +442,19 @@ export default function HoroscopeManagement() {
     setViewRow(row);
     setViewOpen(true);
   };
+
+  const openMemberProfile = useCallback((matriId: string, name?: string) => {
+    const id = (matriId || "").trim();
+    if (!id) return;
+    setProfileMatriId(id);
+    setProfileName((name || "").trim() || id);
+  }, []);
+
+  const { data: memberProfile, isLoading: memberProfileLoading, error: memberProfileError } = useQuery({
+    queryKey: ["horoscope", role, "member-profile", profileMatriId],
+    queryFn: () => fetchMemberProfileDetail(role, profileMatriId!),
+    enabled: !!profileMatriId,
+  });
 
   const totalPages = Math.max(1, Math.ceil((recordsPage?.count ?? 0) / pageSize));
 
@@ -462,14 +479,12 @@ export default function HoroscopeManagement() {
         { label: "Thalakkuri Generated", value: summary.jathagam_generated, icon: FileText, color: "text-success" },
         { label: "Pending Generation", value: summary.pending_generation, icon: Clock, color: "text-warning" },
         { label: "Match Calculations", value: summary.match_calculations, icon: Heart, color: "text-primary" },
-        { label: "Mangal Dosham", value: summary.mangal_dosham, icon: AlertTriangle, color: "text-destructive" },
       ]
     : [
         { label: "Total Horoscopes", value: 0, icon: Star, color: "text-accent" },
         { label: "Thalakkuri Generated", value: 0, icon: FileText, color: "text-success" },
         { label: "Pending Generation", value: 0, icon: Clock, color: "text-warning" },
         { label: "Match Calculations", value: 0, icon: Heart, color: "text-primary" },
-        { label: "Mangal Dosham", value: 0, icon: AlertTriangle, color: "text-destructive" },
       ];
 
   const detailRow = detailPayload
@@ -502,7 +517,7 @@ export default function HoroscopeManagement() {
         )}
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {kpis.map((kpi) => (
           <Card key={kpi.label} className="shadow-elegant border-0">
             <CardContent className="pt-4 pb-3">
@@ -524,7 +539,7 @@ export default function HoroscopeManagement() {
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="horoscopes" className="text-xs gap-1"><Star className="h-3 w-3" /> Horoscopes</TabsTrigger>
           <TabsTrigger value="matches" className="text-xs gap-1"><Heart className="h-3 w-3" /> Porutham Matches</TabsTrigger>
-          <TabsTrigger value="jathagam" className="text-xs gap-1"><FileText className="h-3 w-3" /> Jathagam PDFs</TabsTrigger>
+          <TabsTrigger value="jathagam" className="text-xs gap-1"><FileText className="h-3 w-3" /> Thalakkuri</TabsTrigger>
         </TabsList>
 
         <TabsContent value="horoscopes" className="space-y-4">
@@ -558,8 +573,6 @@ export default function HoroscopeManagement() {
                       <TableHead>DOB</TableHead>
                       <TableHead>Rasi</TableHead>
                       <TableHead>Nakshatram</TableHead>
-                      <TableHead>Mangal</TableHead>
-                      <TableHead>Jathagam</TableHead>
                       <TableHead>Last Edited</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
@@ -567,19 +580,16 @@ export default function HoroscopeManagement() {
                   <TableBody>
                     {recordsLoading ? (
                       <TableRow>
-                        <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                           <Loader2 className="h-6 w-6 animate-spin inline mr-2" /> Loading…
                         </TableCell>
                       </TableRow>
                     ) : (recordsPage?.results ?? []).length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">No records</TableCell>
+                        <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No records</TableCell>
                       </TableRow>
                     ) : (
-                      (recordsPage?.results ?? []).map((h) => {
-                        const jConfig = jathagamStatusConfig[h.jathagam_status] ?? jathagamStatusConfig.pending;
-                        const JIcon = jConfig.icon;
-                        return (
+                      (recordsPage?.results ?? []).map((h) => (
                           <TableRow key={`${h.user_uuid}-${h.matri_id}`}>
                             <TableCell>
                               <span className="font-medium">{h.profile_name || "—"}</span>
@@ -593,34 +603,26 @@ export default function HoroscopeManagement() {
                             <TableCell className="text-sm">{formatDate(h.dob)}</TableCell>
                             <TableCell className="text-sm font-medium">{h.rasi || <span className="text-muted-foreground">—</span>}</TableCell>
                             <TableCell className="text-sm">{h.nakshatram || <span className="text-muted-foreground">—</span>}</TableCell>
-                            <TableCell>
-                              {h.mangal ? (
-                                <Badge variant="destructive" className="text-[10px]">Yes</Badge>
-                              ) : (
-                                <span className="text-xs text-muted-foreground">No</span>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              <Badge className={`${jConfig.color} text-[10px] gap-1`}><JIcon className="h-3 w-3" /> {jConfig.label}</Badge>
-                            </TableCell>
                             <TableCell className="text-xs text-muted-foreground max-w-[180px]">
                               {formatLastEdited(h.last_edited_label || "")}
                             </TableCell>
                             <TableCell>
                               <div className="flex gap-1">
                                 {h.matri_id ? (
-                                  <Button variant="ghost" size="icon" asChild title={isAdmin ? "Open in Profile Admin" : "Open in My Profiles"}>
-                                    <Link to={profilesPath}>
-                                      <Link2 className="h-4 w-4" />
-                                    </Link>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    title="View member profile"
+                                    onClick={() => openMemberProfile(h.matri_id, h.profile_name)}
+                                  >
+                                    <Link2 className="h-4 w-4" />
                                   </Button>
                                 ) : null}
                                 <Button variant="ghost" size="icon" onClick={() => openView(h)} title="View"><Eye className="h-4 w-4" /></Button>
                               </div>
                             </TableCell>
                           </TableRow>
-                        );
-                      })
+                      ))
                     )}
                   </TableBody>
                 </Table>
@@ -698,15 +700,16 @@ export default function HoroscopeManagement() {
               )}
 
               <PoruthamPartnerFilters
+                key={partnerFilterVersion}
                 value={partnerFilterDraft}
                 onChange={setPartnerFilterDraft}
                 onApply={() => {
-                  setPartnerFilterApplied(partnerFilterDraft);
+                  setPartnerFilterApplied({ ...partnerFilterDraft });
                   setPartnerFilterVersion((v) => v + 1);
                 }}
                 onReset={() => {
-                  setPartnerFilterDraft(EMPTY_PORUTHAM_PARTNER_FILTERS);
-                  setPartnerFilterApplied(EMPTY_PORUTHAM_PARTNER_FILTERS);
+                  setPartnerFilterDraft(emptyPoruthamPartnerFilters());
+                  setPartnerFilterApplied(emptyPoruthamPartnerFilters());
                   setPartnerFilterVersion((v) => v + 1);
                 }}
               />
@@ -810,11 +813,17 @@ export default function HoroscopeManagement() {
         <TabsContent value="jathagam" className="space-y-4">
           <div>
             <h2 className="text-base font-semibold flex items-center gap-2">
-              <FileText className="h-4 w-4 text-primary" /> Jathagam PDFs
+              <FileText className="h-4 w-4 text-primary" /> Thalakkuri
             </h2>
-            <p className="text-xs text-muted-foreground mt-0.5">Download horoscope documents for members</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Download Thalakkuri documents for members</p>
           </div>
-          <JathagamTab active={activeTab === "jathagam"} role={role} branchId={horoscopeBranchId} />
+          <JathagamTab
+            active={activeTab === "jathagam"}
+            role={role}
+            branchId={horoscopeBranchId}
+            summary={summary}
+            summaryLoading={summaryLoading}
+          />
         </TabsContent>
       </Tabs>
 
@@ -833,8 +842,7 @@ export default function HoroscopeManagement() {
               detailRow={detailRow}
               detailError={detailError}
               horoscopeAvailable={horoscopeAvailable}
-              profilesPath={profilesPath}
-              isAdmin={isAdmin}
+              onOpenMemberProfile={openMemberProfile}
             />
           ) : (
             <p className="text-sm text-muted-foreground">No detail returned.</p>
@@ -842,6 +850,38 @@ export default function HoroscopeManagement() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setViewOpen(false)}>Close</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!profileMatriId}
+        onOpenChange={(o) => {
+          if (!o) {
+            setProfileMatriId(null);
+            setProfileName("");
+          }
+        }}
+      >
+        <DialogContent className="max-w-4xl h-[90vh] max-h-[90vh] flex flex-col gap-0 overflow-hidden p-0">
+          <DialogHeader className="px-6 pt-6 pb-2 shrink-0">
+            <DialogTitle>Profile Details — {profileMatriId}</DialogTitle>
+            <DialogDescription className="sr-only">
+              View {profileName || "member"} profile.
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="min-h-0 flex-1 px-6 pb-6">
+            {memberProfileLoading ? (
+              <div className="flex items-center gap-2 py-8 text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" /> Loading profile…
+              </div>
+            ) : memberProfileError ? (
+              <p className="text-sm text-destructive py-4">{errMsg(memberProfileError)}</p>
+            ) : memberProfile ? (
+              <ProfileDetailPanel detail={memberProfile} showAdmin={isAdmin} />
+            ) : (
+              <p className="text-sm text-muted-foreground py-4">No profile found.</p>
+            )}
+          </ScrollArea>
         </DialogContent>
       </Dialog>
 
@@ -960,8 +1000,7 @@ interface HoroscopeDetailBodyProps {
   detailRow: ReturnType<typeof normalizeHoroscopeRecord>;
   detailError?: unknown;
   horoscopeAvailable: boolean;
-  profilesPath: string;
-  isAdmin: boolean;
+  onOpenMemberProfile: (matriId: string, name?: string) => void;
 }
 
 function HoroscopeDetailBody({
@@ -969,8 +1008,7 @@ function HoroscopeDetailBody({
   detailRow,
   detailError,
   horoscopeAvailable,
-  profilesPath,
-  isAdmin,
+  onOpenMemberProfile,
 }: HoroscopeDetailBodyProps) {
   const payload = (detailPayload ?? {}) as Record<string, unknown>;
   const record = (payload.record && typeof payload.record === "object" && !Array.isArray(payload.record)
@@ -1116,11 +1154,14 @@ function HoroscopeDetailBody({
       )}
 
       {detailRow.matri_id ? (
-        <Button variant="outline" size="sm" asChild>
-          <Link to={profilesPath} className="gap-2">
-            <ExternalLink className="h-4 w-4" />
-            {isAdmin ? "Open Profile Admin" : "Open My Profiles"} ({detailRow.matri_id})
-          </Link>
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-2"
+          onClick={() => onOpenMemberProfile(detailRow.matri_id, detailRow.profile_name)}
+        >
+          <ExternalLink className="h-4 w-4" />
+          View profile ({detailRow.matri_id})
         </Button>
       ) : null}
     </div>

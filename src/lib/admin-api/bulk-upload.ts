@@ -1,7 +1,7 @@
 import { unwrap } from "@/lib/admin-api/http";
 import { adminFetchBlob, adminRequest, downloadBlob } from "@/lib/api-client";
 
-const LEGACY_TEMPLATE_CSV_FILENAME = "matrimony_import_template.csv";
+const LEGACY_TEMPLATE_CSV_FILENAME = "matrimony_import_template_with_reg_no.csv";
 
 export async function fetchBulkTemplateColumns() {
   const res = await adminRequest<{ columns: string[] } | string[]>(

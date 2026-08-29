@@ -689,27 +689,25 @@ export default function HoroscopeManagement() {
                 </RadioGroup>
               </div>
 
-              {poruthamMode === "fixed-bride" ? (
-                <p className="text-xs text-muted-foreground -mt-2">
-                  Filters below apply to partner grooms.
-                </p>
-              ) : (
-                <p className="text-xs text-muted-foreground -mt-2">
-                  Filters below apply to partner brides.
-                </p>
-              )}
+              <p className="text-xs text-muted-foreground -mt-2">
+                Star, rasi, and rajju apply as soon as you choose them — open either list to see matching profiles.
+              </p>
 
               <PoruthamPartnerFilters
                 key={partnerFilterVersion}
                 value={partnerFilterDraft}
-                onChange={setPartnerFilterDraft}
+                onChange={(next) => {
+                  setPartnerFilterDraft(next);
+                  setPartnerFilterApplied({ ...next });
+                }}
                 onApply={() => {
                   setPartnerFilterApplied({ ...partnerFilterDraft });
                   setPartnerFilterVersion((v) => v + 1);
                 }}
                 onReset={() => {
-                  setPartnerFilterDraft(emptyPoruthamPartnerFilters());
-                  setPartnerFilterApplied(emptyPoruthamPartnerFilters());
+                  const empty = emptyPoruthamPartnerFilters();
+                  setPartnerFilterDraft(empty);
+                  setPartnerFilterApplied(empty);
                   setPartnerFilterVersion((v) => v + 1);
                 }}
               />
@@ -732,12 +730,8 @@ export default function HoroscopeManagement() {
                     tabActive={activeTab === "matches"}
                     instanceId="bride"
                     maxSelection={poruthamMode === "fixed-bride" ? 1 : undefined}
-                    partnerFilters={
-                      poruthamMode === "fixed-groom" ? partnerFilterApplied : undefined
-                    }
-                    filterVersion={
-                      poruthamMode === "fixed-groom" ? partnerFilterVersion : undefined
-                    }
+                    partnerFilters={partnerFilterApplied}
+                    filterVersion={partnerFilterVersion}
                   />
                 </div>
                 <div className="space-y-2">
@@ -757,12 +751,8 @@ export default function HoroscopeManagement() {
                     tabActive={activeTab === "matches"}
                     instanceId="groom"
                     maxSelection={poruthamMode === "fixed-groom" ? 1 : undefined}
-                    partnerFilters={
-                      poruthamMode === "fixed-bride" ? partnerFilterApplied : undefined
-                    }
-                    filterVersion={
-                      poruthamMode === "fixed-bride" ? partnerFilterVersion : undefined
-                    }
+                    partnerFilters={partnerFilterApplied}
+                    filterVersion={partnerFilterVersion}
                   />
                 </div>
               </div>

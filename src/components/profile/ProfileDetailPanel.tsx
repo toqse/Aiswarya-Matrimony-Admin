@@ -133,6 +133,7 @@ export function ProfileDetailPanel({ detail, showAdmin = true }: ProfileDetailPa
         <FieldGrid
           rows={[
             ["Matrimony ID", detail.matri_id],
+            ["Reg No", detail.reg_no],
             ["Profile UUID", detail.id],
           ]}
         />

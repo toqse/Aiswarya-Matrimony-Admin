@@ -13,6 +13,7 @@ import {
   type PoruthamNavSelectionItem,
 } from "@/lib/admin-api/horoscope";
 import {
+  emptyPoruthamPartnerFilters,
   poruthamPartnerFiltersToQuery,
   type PoruthamPartnerFiltersState,
 } from "@/lib/poruthamPartnerFilters";
@@ -49,7 +50,7 @@ export default function PoruthamProfileMultiPicker({
   tabActive,
   instanceId,
   maxSelection,
-  partnerFilters,
+  partnerFilters = emptyPoruthamPartnerFilters(),
   filterVersion = 0,
 }: PoruthamProfileMultiPickerProps) {
   const [open, setOpen] = useState(false);
@@ -80,25 +81,26 @@ export default function PoruthamProfileMultiPicker({
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch]);
+  }, [
+    debouncedSearch,
+    partnerFilters.pr_star,
+    partnerFilters.rasi_id,
+    partnerFilters.rajju,
+    partnerFilters.religion_id,
+    partnerFilters.caste_id,
+    partnerFilters.search,
+  ]);
 
   const gender = instanceId === "bride" ? "F" : "M";
   const selectedIds = new Set(selected.map((s) => s.profile_id));
 
-  const filterQuery = partnerFilters
-    ? poruthamPartnerFiltersToQuery(
-        {
-          ...partnerFilters,
-          search: debouncedSearch || partnerFilters.search,
-        },
-        { page, page_size: PICKER_PAGE_SIZE },
-      )
-    : {
-        page,
-        page_size: PICKER_PAGE_SIZE,
-        search: debouncedSearch || undefined,
-        exe_done: true as const,
-      };
+  const filterQuery = poruthamPartnerFiltersToQuery(
+    {
+      ...partnerFilters,
+      search: debouncedSearch || partnerFilters.search,
+    },
+    { page, page_size: PICKER_PAGE_SIZE },
+  );
 
   const { data, isLoading, isFetching } = useQuery({
     queryKey: [
@@ -111,12 +113,12 @@ export default function PoruthamProfileMultiPicker({
       gender,
       page,
       filterVersion,
-      partnerFilters?.search,
-      partnerFilters?.religion_id,
-      partnerFilters?.caste_id,
-      partnerFilters?.pr_star,
-      partnerFilters?.rasi_id,
-      partnerFilters?.rajju,
+      partnerFilters.search,
+      partnerFilters.religion_id,
+      partnerFilters.caste_id,
+      partnerFilters.pr_star,
+      partnerFilters.rasi_id,
+      partnerFilters.rajju,
     ],
     queryFn: () =>
       fetchHoroscopeRecords(role, {

@@ -320,8 +320,11 @@ function ddmmyyyyToIso(value: unknown): string {
   if (!s) return "";
   // Already ISO (YYYY-MM-DD)
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  const m = s.match(/^(\d{2})-(\d{2})-(\d{4})$/);
-  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+  // Day-first API / typed values: 6/3/2000, 06-03-2000, 06/03/2000
+  const m = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (m) {
+    return `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+  }
   return s;
 }
 

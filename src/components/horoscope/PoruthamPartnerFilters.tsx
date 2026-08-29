@@ -61,14 +61,20 @@ export default function PoruthamPartnerFilters({
   const castes = castesQuery.data?.results ?? [];
 
   return (
-    <div className="rounded-lg border bg-muted/20 p-3 space-y-3">
+    <form
+      className="rounded-lg border bg-muted/20 p-3 space-y-3"
+      onSubmit={(e) => {
+        e.preventDefault();
+        onApply();
+      }}
+    >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm font-medium">Partner search filters</p>
         <div className="flex gap-2">
           <Button type="button" variant="outline" size="sm" onClick={onReset}>
             <RotateCcw className="h-3.5 w-3.5 mr-1" /> Reset
           </Button>
-          <Button type="button" size="sm" onClick={onApply}>
+          <Button type="submit" size="sm">
             <Search className="h-3.5 w-3.5 mr-1" /> Search
           </Button>
         </div>
@@ -180,7 +186,7 @@ export default function PoruthamPartnerFilters({
           </Select>
         </Field>
       </div>
-    </div>
+    </form>
   );
 }
 

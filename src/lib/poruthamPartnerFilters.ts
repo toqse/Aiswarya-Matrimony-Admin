@@ -36,9 +36,18 @@ export function poruthamPartnerFiltersToQuery(
   if (search) q.search = search;
   if (filters.religion_id) q.religion_id = Number(filters.religion_id);
   if (filters.caste_id) q.caste_id = Number(filters.caste_id);
-  if (filters.pr_star) q.pr_star = filters.pr_star;
-  if (filters.rasi_id) q.rasi_id = Number(filters.rasi_id);
-  if (filters.rajju.trim()) q.rajju = filters.rajju.trim();
+  const starNum = Number(filters.pr_star);
+  if (Number.isInteger(starNum) && starNum >= 1 && starNum <= 27) {
+    q.pr_star = String(starNum);
+  }
+  const rasiNum = Number(filters.rasi_id);
+  if (Number.isInteger(rasiNum) && rasiNum >= 1 && rasiNum <= 12) {
+    q.rasi_id = rasiNum;
+  }
+  const rajju = filters.rajju.trim();
+  if (rajju && rajju.toLowerCase() !== "all") {
+    q.rajju = rajju;
+  }
   return q;
 }
 

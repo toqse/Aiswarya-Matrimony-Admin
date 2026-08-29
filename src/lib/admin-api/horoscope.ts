@@ -243,8 +243,12 @@ export async function fetchHoroscopeRecords(role: UserRole, filters?: HoroscopeR
     page_size: filters?.page_size,
     gender: filters?.gender?.trim() || undefined,
     exe_done: filters?.exe_done ? "true" : undefined,
-    pr_star: filters?.pr_star,
-    rasi_id: filters?.rasi_id,
+    pr_star: filters?.pr_star != null && String(filters.pr_star).trim() !== ""
+      ? String(filters.pr_star)
+      : undefined,
+    rasi_id: filters?.rasi_id != null && String(filters.rasi_id).trim() !== ""
+      ? String(filters.rasi_id)
+      : undefined,
     has_horoscope: filters?.has_horoscope,
     planet: filters?.planet?.trim() || undefined,
     planet_house: filters?.planet_house,

@@ -166,6 +166,12 @@ export default function ProfileSearchFilters({
 
   return (
     <Card className="border shadow-sm">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          onSearch();
+        }}
+      >
       <div className="flex items-center justify-between gap-2 px-4 py-3 border-b">
         <button
           type="button"
@@ -181,7 +187,7 @@ export default function ProfileSearchFilters({
             <RotateCcw className="h-4 w-4 mr-1" />
             Reset
           </Button>
-          <Button type="button" size="sm" onClick={onSearch}>
+          <Button type="submit" size="sm">
             Search
           </Button>
         </div>
@@ -724,6 +730,7 @@ export default function ProfileSearchFilters({
           </div>
         </CardContent>
       ) : null}
+      </form>
     </Card>
   );
 }

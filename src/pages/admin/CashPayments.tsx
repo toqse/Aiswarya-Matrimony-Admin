@@ -21,6 +21,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -43,14 +53,17 @@ import {
   Smartphone,
   TrendingUp,
   XCircle,
+  Ban,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useRole } from "@/contexts/RoleContext";
 import { formatDate, formatDateTime, formatTime } from "@/lib/format-date";
 import {
   fetchPaymentDetail,
   fetchPayments,
   fetchPaymentsSummary,
   rejectPayment,
+  voidPayment,
   type PaymentListRow,
   type PaymentMode,
   type PaymentStatus,
@@ -128,6 +141,8 @@ function paymentRowDateOnly(row: PaymentListRow, dateFilterYmd: string) {
 export default function CashPayments() {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const { role } = useRole();
+  const canVoid = role === "admin";
 
   const [modeFilter, setModeFilter] = useState<"all" | PaymentMode>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | PaymentStatus>(
@@ -141,6 +156,7 @@ export default function CashPayments() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+  const [voidTarget, setVoidTarget] = useState<PaymentListRow | null>(null);
 
   const queryParams = {
     mode: modeFilter === "all" ? undefined : modeFilter,
@@ -194,6 +210,27 @@ export default function CashPayments() {
     onError: (e: Error) =>
       toast({
         title: "Reject failed",
+        description: e.message,
+        variant: "destructive",
+      }),
+  });
+
+  const voidMut = useMutation({
+    mutationFn: (id: number) => voidPayment(id),
+    onSuccess: (data) => {
+      toast({
+        title: "Payment voided",
+        description: data.plan_removed
+          ? "The cash payment and the customer's plan were removed."
+          : "The cash payment was removed from the ledger.",
+      });
+      setVoidTarget(null);
+      setDetailOpen(false);
+      qc.invalidateQueries({ queryKey: ["admin", "payments"] });
+    },
+    onError: (e: Error) =>
+      toast({
+        title: "Void failed",
         description: e.message,
         variant: "destructive",
       }),
@@ -538,14 +575,27 @@ export default function CashPayments() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 text-xs gap-1"
-                        onClick={() => openDetails(t)}
-                      >
-                        <Eye className="h-3.5 w-3.5" /> View
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-xs gap-1"
+                          onClick={() => openDetails(t)}
+                        >
+                          <Eye className="h-3.5 w-3.5" /> View
+                        </Button>
+                        {canVoid && t.mode === "cash" && t.status === "verified" && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-xs gap-1 text-destructive hover:text-destructive"
+                            onClick={() => setVoidTarget(t)}
+                            disabled={voidMut.isPending}
+                          >
+                            <Ban className="h-3.5 w-3.5" /> Void
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
@@ -769,12 +819,46 @@ export default function CashPayments() {
           )}
 
           <DialogFooter>
+            {canVoid && selectedTxn?.mode === "cash" && selectedTxn.status === "verified" && (
+              <Button
+                variant="destructive"
+                size="sm"
+                className="mr-auto gap-1"
+                onClick={() => setVoidTarget(selectedTxn)}
+                disabled={voidMut.isPending}
+              >
+                <Ban className="h-3.5 w-3.5" /> Void payment
+              </Button>
+            )}
             <Button variant="outline" onClick={() => setDetailOpen(false)}>
               Close
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={voidTarget != null} onOpenChange={(o) => !o && setVoidTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Void this cash payment?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {voidTarget
+                ? `This will remove ${voidTarget.customer_name}'s ${voidTarget.plan || "plan"} payment of ₹${Number(voidTarget.amount).toLocaleString()} (${voidTarget.receipt_txn_id}) from the ledger. If this is their only successful purchase, their subscription will be removed too.`
+                : "This will remove the verified cash payment from the ledger."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => voidTarget && voidMut.mutate(voidTarget.id)}
+              disabled={voidMut.isPending}
+            >
+              {voidMut.isPending ? "Voiding..." : "Void payment"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

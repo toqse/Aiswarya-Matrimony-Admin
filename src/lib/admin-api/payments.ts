@@ -104,6 +104,14 @@ export async function rejectPayment(id: number, reason: string) {
   return unwrap(res);
 }
 
+export async function voidPayment(id: number) {
+  const res = await adminRequest<{ id: number; removed: boolean; plan_removed: boolean }>(
+    `v1/admin/payments/${id}/void/`,
+    { method: "PATCH" },
+  );
+  return unwrap(res);
+}
+
 export async function createManualPayment(body: {
   customer_matri_id: string;
   plan_id: number;

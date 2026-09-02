@@ -14,6 +14,7 @@ export interface PlanRow {
   profile_view_limit: number;
   has_horoscope: boolean;
   is_highlighted: boolean;
+  is_published: boolean;
   is_active: boolean;
   subscriber_count: number;
   description: string;
@@ -37,6 +38,13 @@ export async function updatePlan(id: number, body: Record<string, unknown>) {
 
 export async function togglePlanStatus(id: number) {
   const res = await adminRequest<never>(`v1/admin/plans/${id}/toggle-status/`, { method: "PATCH" });
+  const raw = res.data as unknown as { success?: boolean; error?: { message?: string } };
+  if (!res.ok || raw.success === false) throw new Error(getAuthApiErrorMessage(res.data));
+  return res.data;
+}
+
+export async function togglePlanPublish(id: number) {
+  const res = await adminRequest<never>(`v1/admin/plans/${id}/toggle-publish/`, { method: "PATCH" });
   const raw = res.data as unknown as { success?: boolean; error?: { message?: string } };
   if (!res.ok || raw.success === false) throw new Error(getAuthApiErrorMessage(res.data));
   return res.data;

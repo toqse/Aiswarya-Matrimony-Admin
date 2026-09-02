@@ -94,7 +94,8 @@ function formatPlanDurationDays(days: number) {
 
 function planOptionLabel(p: PlanRow) {
   const dur = formatPlanDurationDays(p.duration_days);
-  return dur ? `${p.name} — ${dur} — ${formatInr(Number(p.price))}` : `${p.name} — ${formatInr(Number(p.price))}`;
+  const base = dur ? `${p.name} — ${dur} — ${formatInr(Number(p.price))}` : `${p.name} — ${formatInr(Number(p.price))}`;
+  return p.is_published === false ? `${base} (Internal)` : base;
 }
 
 export default function CashPaymentDashboard() {

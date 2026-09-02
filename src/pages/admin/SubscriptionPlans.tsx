@@ -18,7 +18,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { createPlan, fetchPlans, togglePlanStatus, updatePlan, type PlanRow } from "@/lib/admin-api/plans";
+import { createPlan, fetchPlans, togglePlanPublish, togglePlanStatus, updatePlan, type PlanRow } from "@/lib/admin-api/plans";
 import { Plus, Edit, Check, X, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -26,6 +26,7 @@ export default function SubscriptionPlans() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<PlanRow | null>(null);
   const [togglePlan, setTogglePlan] = useState<PlanRow | null>(null);
+  const [publishPlan, setPublishPlan] = useState<PlanRow | null>(null);
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -53,7 +54,7 @@ export default function SubscriptionPlans() {
   const saveMut = useMutation({
     mutationFn: async () => {
       if (!form.name || !form.duration_days) throw new Error("Name and duration required");
-      const body = {
+      const body: Record<string, unknown> = {
         name: form.name,
         price: form.price,
         duration_days: form.duration_days,
@@ -64,10 +65,9 @@ export default function SubscriptionPlans() {
         profile_view_limit: form.profile_view_limit,
         description: form.description,
         is_highlighted: form.highlighted,
-        is_active: true,
       };
       if (editing) return updatePlan(editing.id, body);
-      return createPlan(body);
+      return createPlan({ ...body, is_active: true, is_published: false });
     },
     onSuccess: () => {
       toast({ title: editing ? "Plan updated" : "Plan created" });
@@ -82,6 +82,18 @@ export default function SubscriptionPlans() {
     onSuccess: () => {
       toast({ title: "Plan status toggled" });
       setTogglePlan(null);
+      invalidate();
+    },
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const publishMut = useMutation({
+    mutationFn: (id: number) => togglePlanPublish(id),
+    onSuccess: (_, id) => {
+      const current = plans.find((p) => p.id === id);
+      const nowPublished = !(current?.is_published ?? false);
+      toast({ title: nowPublished ? "Plan published" : "Plan unpublished" });
+      setPublishPlan(null);
       invalidate();
     },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
@@ -154,6 +166,7 @@ export default function SubscriptionPlans() {
                 <TableHead>Horoscope</TableHead>
                 <TableHead>Highlighted</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Published</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -173,12 +186,20 @@ export default function SubscriptionPlans() {
                     </Badge>
                   </TableCell>
                   <TableCell>
+                    <Badge variant={p.is_published ? "default" : "secondary"} className={p.is_published ? "bg-success text-success-foreground" : ""}>
+                      {p.is_published ? "published" : "unpublished"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
                     <div className="flex gap-1">
                       <Button variant="ghost" size="icon" onClick={() => openEdit(p)}>
                         <Edit className="h-4 w-4" />
                       </Button>
                       <Button variant="ghost" size="sm" onClick={() => setTogglePlan(p)} className="text-xs" disabled={toggleMut.isPending}>
                         Toggle
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => setPublishPlan(p)} className="text-xs" disabled={publishMut.isPending}>
+                        {p.is_published ? "Unpublish" : "Publish"}
                       </Button>
                     </div>
                   </TableCell>
@@ -303,6 +324,30 @@ export default function SubscriptionPlans() {
               disabled={toggleMut.isPending}
             >
               {toggleMut.isPending ? "Please wait..." : togglePlan?.is_active ? "Deactivate" : "Activate"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={publishPlan != null} onOpenChange={(o) => !o && setPublishPlan(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{publishPlan?.is_published ? "Unpublish plan?" : "Publish plan?"}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {publishPlan?.is_published
+                ? `This will hide "${publishPlan.name}" from the website. Admin, staff, and branch can still sell it via cash payment.`
+                : publishPlan
+                  ? `This will show "${publishPlan.name}" on the website and allow members to buy it online.`
+                  : "Are you sure you want to change this plan's website visibility?"}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => publishPlan?.id != null && publishMut.mutate(publishPlan.id)}
+              disabled={publishMut.isPending}
+            >
+              {publishMut.isPending ? "Please wait..." : publishPlan?.is_published ? "Unpublish" : "Publish"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

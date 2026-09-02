@@ -57,6 +57,16 @@ export interface PaymentCustomerLookupData {
   mobile: string;
 }
 
+export interface PaymentCustomerOtpSendData {
+  customer_matri_id: string;
+  otp?: string;
+}
+
+export interface PaymentCustomerOtpVerifyData {
+  customer_matri_id: string;
+  verified?: boolean;
+}
+
 export interface StaffPaymentQuoteData {
   plan_amount?: number;
   plan_price?: number;
@@ -140,7 +150,7 @@ export async function postPaymentCustomerOtpSend(_role: UserRole, body: { custom
   if (res.status === 404) {
     res = await postStaffCustomerOtpSendAt("customer_otp/send/", body);
   }
-  return unwrap(res);
+  return unwrap<PaymentCustomerOtpSendData>(res);
 }
 
 async function postStaffCustomerOtpVerifyAt(pathSuffix: string, body: { customer_matri_id: string; otp: string }) {

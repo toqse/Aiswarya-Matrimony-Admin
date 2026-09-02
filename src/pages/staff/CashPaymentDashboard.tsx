@@ -70,6 +70,13 @@ function emptyOtpDigits(): string[] {
   return Array.from({ length: PAYMENT_OTP_LENGTH }, () => "");
 }
 
+function otpDigitsFromString(raw: string): string[] {
+  const clean = raw.replace(/\D/g, "").slice(0, PAYMENT_OTP_LENGTH);
+  const digits = emptyOtpDigits();
+  for (let i = 0; i < clean.length; i++) digits[i] = clean[i] ?? "";
+  return digits;
+}
+
 function formatInr(n: number) {
   return `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 }
@@ -304,10 +311,18 @@ export default function CashPaymentDashboard() {
       postPaymentCustomerOtpSend(payRole, {
         customer_matri_id: form.customerMatriId || form.profileId.trim(),
       }),
-    onSuccess: () => {
-      setForm((f) => ({ ...f, otpSent: true, otp: emptyOtpDigits() }));
+    onSuccess: (data) => {
+      const debugOtp =
+        typeof data?.otp === "string" ? data.otp.replace(/\D/g, "").slice(0, PAYMENT_OTP_LENGTH) : "";
+      const prefilled = debugOtp.length === PAYMENT_OTP_LENGTH ? otpDigitsFromString(debugOtp) : emptyOtpDigits();
+      setForm((f) => ({ ...f, otpSent: true, otp: prefilled }));
       setOtpTimer(600);
-      toast({ title: "OTP sent", description: "Verification code sent to the customer's registered mobile." });
+      toast({
+        title: "OTP sent",
+        description: debugOtp
+          ? `OTP (debug): ${debugOtp}`
+          : "Verification code sent to the customer's registered mobile.",
+      });
     },
     onError: (e: Error) =>
       toast({ title: "Could not send OTP", description: e.message, variant: "destructive" }),
@@ -371,12 +386,9 @@ export default function CashPaymentDashboard() {
     verifyOtpMut.mutate(code);
   };
 
-  const applyOtpDigits = (digits: string) => {
-    const clean = digits.replace(/\D/g, "").slice(0, PAYMENT_OTP_LENGTH);
-    const newOtp = emptyOtpDigits();
-    for (let i = 0; i < clean.length; i++) newOtp[i] = clean[i] ?? "";
-    setForm((f) => ({ ...f, otp: newOtp }));
-  };
+  const applyOtpDigits = useCallback((digits: string) => {
+    setForm((f) => ({ ...f, otp: otpDigitsFromString(digits) }));
+  }, []);
 
   useEffect(() => {
     if (step !== 3 || paymentMode !== "Cash" || !form.otpSent || form.otpVerified) return;
@@ -392,9 +404,7 @@ export default function CashPaymentDashboard() {
       })
       .catch(() => {});
     return () => ac.abort();
-    // Re-subscribe when the OTP step is shown.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, paymentMode, form.otpSent, form.otpVerified]);
+  }, [step, paymentMode, form.otpSent, form.otpVerified, applyOtpDigits]);
 
   const completePayment = () => {
     if (paymentRecorded) {

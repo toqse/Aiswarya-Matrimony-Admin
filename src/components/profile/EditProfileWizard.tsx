@@ -29,6 +29,7 @@ import ProfileFormField, {
 import { ADMIN_PROFILE_FOR_OPTIONS } from "@/lib/profile-for-options";
 import { filterValidComplexions, isValidComplexionName, normalizeComplexionOption } from "@/lib/complexion-options";
 import OccupationCombobox from "@/components/profile/OccupationCombobox";
+import LocationMasterCombobox from "@/components/profile/LocationMasterCombobox";
 import type { WizardFormValues } from "@/lib/admin-api/profile-registration";
 import { firstErrorField, validateProfileForm } from "@/lib/profile-validation";
 import {
@@ -40,8 +41,6 @@ import {
   fetchCastes,
   fetchCities,
   fetchComplexions,
-  fetchCountries,
-  fetchDistricts,
   fetchEducations,
   fetchEducationSubjects,
   fetchEmploymentStatuses,
@@ -49,7 +48,6 @@ import {
   fetchMaritalStatuses,
   fetchPublicMotherTongues,
   fetchReligions,
-  fetchStates,
 } from "@/lib/admin-api/master";
 
 const profileForOptions = ADMIN_PROFILE_FOR_OPTIONS;
@@ -144,6 +142,9 @@ function emptyForm(): WizardFormValues {
     countryId: "",
     stateId: "",
     districtId: "",
+    countryName: "",
+    stateName: "",
+    districtName: "",
     cityId: "",
     address: "",
     religionId: "",
@@ -261,21 +262,6 @@ export default function EditProfileWizard({
     queryKey: ["master", "mother-tongues", "edit-form"],
     queryFn: () => fetchPublicMotherTongues({ page_size: 500 }),
     enabled: open,
-  });
-  const countriesQ = useQuery({
-    queryKey: ["master", "countries", "edit-form"],
-    queryFn: () => fetchCountries({ page_size: 200 }),
-    enabled: open,
-  });
-  const statesQ = useQuery({
-    queryKey: ["master", "states", "edit-form", form.countryId],
-    queryFn: () => fetchStates({ country_id: Number(form.countryId), page_size: 200 }),
-    enabled: open && !!form.countryId,
-  });
-  const districtsQ = useQuery({
-    queryKey: ["master", "districts", "edit-form", form.stateId],
-    queryFn: () => fetchDistricts({ state_id: Number(form.stateId), page_size: 200 }),
-    enabled: open && !!form.stateId,
   });
   const citiesQ = useQuery({
     queryKey: ["master", "cities", "edit-form", form.districtId],
@@ -429,61 +415,52 @@ export default function EditProfileWizard({
             </ProfileFormField>
             <div>
               <Label>Country</Label>
-              <Select
+              <LocationMasterCombobox
+                kind="country"
                 value={form.countryId}
+                initialLabel={form.countryName}
                 onValueChange={(v) =>
-                  setForm((p) => ({ ...p, countryId: v, stateId: "", districtId: "", cityId: "" }))
+                  setForm((p) => ({
+                    ...p,
+                    countryId: v,
+                    stateId: "",
+                    districtId: "",
+                    cityId: "",
+                    stateName: "",
+                    districtName: "",
+                  }))
                 }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select country" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(countriesQ.data?.results ?? []).map((c) => (
-                    <SelectItem key={c.id} value={String(c.id)}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              />
             </div>
             <div>
               <Label>State</Label>
-              <Select
+              <LocationMasterCombobox
+                kind="state"
                 value={form.stateId}
-                onValueChange={(v) => setForm((p) => ({ ...p, stateId: v, districtId: "", cityId: "" }))}
+                parentId={form.countryId ? Number(form.countryId) : undefined}
+                initialLabel={form.stateName}
+                onValueChange={(v) =>
+                  setForm((p) => ({
+                    ...p,
+                    stateId: v,
+                    districtId: "",
+                    cityId: "",
+                    districtName: "",
+                  }))
+                }
                 disabled={!form.countryId}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select state" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(statesQ.data?.results ?? []).map((s) => (
-                    <SelectItem key={s.id} value={String(s.id)}>
-                      {s.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              />
             </div>
             <div>
               <Label>District</Label>
-              <Select
+              <LocationMasterCombobox
+                kind="district"
                 value={form.districtId}
+                parentId={form.stateId ? Number(form.stateId) : undefined}
+                initialLabel={form.districtName}
                 onValueChange={(v) => setForm((p) => ({ ...p, districtId: v, cityId: "" }))}
                 disabled={!form.stateId}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select district" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(districtsQ.data?.results ?? []).map((d) => (
-                    <SelectItem key={d.id} value={String(d.id)}>
-                      {d.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              />
             </div>
             <div>
               <Label>City</Label>

@@ -284,6 +284,9 @@ export interface WizardFormValues extends FamilyFormFields, PartnerPreferenceFie
   countryId: string;
   stateId: string;
   districtId: string;
+  countryName?: string;
+  stateName?: string;
+  districtName?: string;
   cityId: string;
   address: string;
   religionId: string;
@@ -399,6 +402,9 @@ export function mapDetailToWizardForm(
     countryId: idToString(location.country_id),
     stateId: idToString(location.state_id),
     districtId: idToString(location.district_id),
+    countryName: String(location.country ?? ""),
+    stateName: String(location.state ?? ""),
+    districtName: String(location.district ?? ""),
     cityId: idToString(location.city_id),
     address: String(location.address ?? ""),
     religionId: idToString(religion.religion_id),

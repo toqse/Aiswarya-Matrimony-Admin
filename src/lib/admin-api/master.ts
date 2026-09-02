@@ -131,6 +131,18 @@ export interface PaginatedMaster<T> {
   total?: number;
 }
 
+/** Matches backend MasterListPagination default for public v1/master/* endpoints. */
+export const MASTER_LIST_PAGE_SIZE = 20;
+
+function appendPublicMasterPaging(
+  q: URLSearchParams,
+  params?: { page?: number; page_size?: number; limit?: number },
+) {
+  if (params?.page) q.set("page", String(params.page));
+  const limit = params?.limit ?? params?.page_size;
+  if (limit) q.set("limit", String(Math.min(Number(limit), 200)));
+}
+
 function parsePaginated<T>(res: { ok: boolean; data: unknown }): PaginatedMaster<T> {
   if (!res.ok) throw new Error(getAuthApiErrorMessage(res.data as AuthApiEnvelope<unknown>));
   const d = res.data as Record<string, unknown>;
@@ -263,44 +275,63 @@ export async function toggleMotherTongueStatus(id: number) {
   return unwrap(res);
 }
 
-export async function fetchCountries(params?: { search?: string; page?: number; page_size?: number }) {
+export async function fetchCountries(params?: {
+  search?: string;
+  page?: number;
+  page_size?: number;
+  limit?: number;
+}) {
   const q = new URLSearchParams();
   if (params?.search) q.set("search", params.search);
-  if (params?.page) q.set("page", String(params.page));
-  if (params?.page_size) q.set("page_size", String(params.page_size));
+  appendPublicMasterPaging(q, params);
   const qs = q.toString();
   const res = await adminRequest<never>(qs ? `v1/master/countries/?${qs}` : "v1/master/countries/");
   return parsePaginated<CountryItem>(res);
 }
 
-export async function fetchStates(params: { country_id: number; search?: string; page?: number; page_size?: number }) {
+export async function fetchStates(params: {
+  country_id: number;
+  search?: string;
+  page?: number;
+  page_size?: number;
+  limit?: number;
+}) {
   const q = new URLSearchParams();
   q.set("country_id", String(params.country_id));
   if (params.search) q.set("search", params.search);
-  if (params.page) q.set("page", String(params.page));
-  if (params.page_size) q.set("page_size", String(params.page_size));
+  appendPublicMasterPaging(q, params);
   const qs = q.toString();
   const res = await adminRequest<never>(`v1/master/states/?${qs}`);
   return parsePaginated<StateItem>(res);
 }
 
-export async function fetchDistricts(params: { state_id: number; search?: string; page?: number; page_size?: number }) {
+export async function fetchDistricts(params: {
+  state_id: number;
+  search?: string;
+  page?: number;
+  page_size?: number;
+  limit?: number;
+}) {
   const q = new URLSearchParams();
   q.set("state_id", String(params.state_id));
   if (params.search) q.set("search", params.search);
-  if (params.page) q.set("page", String(params.page));
-  if (params.page_size) q.set("page_size", String(params.page_size));
+  appendPublicMasterPaging(q, params);
   const qs = q.toString();
   const res = await adminRequest<never>(`v1/master/districts/?${qs}`);
   return parsePaginated<DistrictItem>(res);
 }
 
-export async function fetchCities(params: { district_id: number; search?: string; page?: number; page_size?: number }) {
+export async function fetchCities(params: {
+  district_id: number;
+  search?: string;
+  page?: number;
+  page_size?: number;
+  limit?: number;
+}) {
   const q = new URLSearchParams();
   q.set("district_id", String(params.district_id));
   if (params.search) q.set("search", params.search);
-  if (params.page) q.set("page", String(params.page));
-  if (params.page_size) q.set("page_size", String(params.page_size));
+  appendPublicMasterPaging(q, params);
   const qs = q.toString();
   const res = await adminRequest<never>(`v1/master/cities/?${qs}`);
   return parsePaginated<CityItem>(res);

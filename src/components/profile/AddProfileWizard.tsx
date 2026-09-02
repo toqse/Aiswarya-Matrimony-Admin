@@ -36,11 +36,10 @@ import {
 import { ADMIN_PROFILE_FOR_OPTIONS } from "@/lib/profile-for-options";
 import { filterValidComplexions, isValidComplexionName } from "@/lib/complexion-options";
 import OccupationCombobox from "@/components/profile/OccupationCombobox";
+import LocationMasterCombobox from "@/components/profile/LocationMasterCombobox";
 import {
   fetchCastes,
   fetchComplexions,
-  fetchCountries,
-  fetchDistricts,
   fetchEducations,
   fetchEducationSubjects,
   fetchEmploymentStatuses,
@@ -48,7 +47,6 @@ import {
   fetchMaritalStatuses,
   fetchPublicMotherTongues,
   fetchReligions,
-  fetchStates,
 } from "@/lib/admin-api/master";
 
 const profileForOptions = ADMIN_PROFILE_FOR_OPTIONS;
@@ -318,23 +316,6 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
     queryFn: () => fetchPublicMotherTongues({ page_size: 500 }),
   });
 
-  const countriesQ = useQuery({
-    queryKey: ["master", "countries", "profile-form"],
-    queryFn: () => fetchCountries({ page_size: 200 }),
-  });
-
-  const statesQ = useQuery({
-    queryKey: ["master", "states", "profile-form", form.countryId],
-    queryFn: () => fetchStates({ country_id: Number(form.countryId), page_size: 200 }),
-    enabled: !!form.countryId,
-  });
-
-  const districtsQ = useQuery({
-    queryKey: ["master", "districts", "profile-form", form.stateId],
-    queryFn: () => fetchDistricts({ state_id: Number(form.stateId), page_size: 200 }),
-    enabled: !!form.stateId,
-  });
-
   const educationsQ = useQuery({
     queryKey: ["master", "educations", "profile-form"],
     queryFn: () => fetchEducations({ page_size: 500 }),
@@ -473,7 +454,8 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
             </ProfileFormField>
             <div>
               <Label>Country</Label>
-              <Select
+              <LocationMasterCombobox
+                kind="country"
                 value={form.countryId}
                 onValueChange={(v) => {
                   setForm((p) => ({
@@ -484,23 +466,14 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
                     cityId: "",
                   }));
                 }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select country" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(countriesQ.data?.results ?? []).map((c) => (
-                    <SelectItem key={c.id} value={String(c.id)}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              />
             </div>
             <div>
               <Label>State</Label>
-              <Select
+              <LocationMasterCombobox
+                kind="state"
                 value={form.stateId}
+                parentId={form.countryId ? Number(form.countryId) : undefined}
                 onValueChange={(v) => {
                   setForm((p) => ({
                     ...p,
@@ -510,23 +483,14 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
                   }));
                 }}
                 disabled={!form.countryId}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select state" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(statesQ.data?.results ?? []).map((s) => (
-                    <SelectItem key={s.id} value={String(s.id)}>
-                      {s.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              />
             </div>
             <div>
               <Label>District</Label>
-              <Select
+              <LocationMasterCombobox
+                kind="district"
                 value={form.districtId}
+                parentId={form.stateId ? Number(form.stateId) : undefined}
                 onValueChange={(v) => {
                   setForm((p) => ({
                     ...p,
@@ -535,18 +499,7 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
                   }));
                 }}
                 disabled={!form.stateId}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select district" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(districtsQ.data?.results ?? []).map((d) => (
-                    <SelectItem key={d.id} value={String(d.id)}>
-                      {d.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              />
             </div>
             <div>
               <Label>City</Label>

@@ -12,16 +12,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
+import LocationMasterCombobox from "@/components/profile/LocationMasterCombobox";
 import {
   fetchCastes,
   fetchCountries,
-  fetchDistricts,
   fetchEducations,
   fetchIncomeRanges,
   fetchMaritalStatuses,
   fetchOccupations,
   fetchReligions,
-  fetchStates,
 } from "@/lib/admin-api/master";
 import { fetchPlans } from "@/lib/admin-api/plans";
 import { fetchAdminStaffList, fetchBranchStaffList } from "@/lib/admin-api/staff";
@@ -106,19 +105,6 @@ export default function ProfileSearchFilters({
     return india?.id ? String(india.id) : "";
   }, [countriesQuery.data]);
 
-  const effectiveStateId = value.state_id;
-  const statesQuery = useQuery({
-    queryKey: ["master", "states", "profile-search", indiaCountryId],
-    queryFn: () => fetchStates({ country_id: Number(indiaCountryId), page_size: 200 }),
-    enabled: !!indiaCountryId,
-  });
-
-  const districtsQuery = useQuery({
-    queryKey: ["master", "districts", "profile-search", effectiveStateId],
-    queryFn: () => fetchDistricts({ state_id: Number(effectiveStateId), page_size: 300 }),
-    enabled: !!effectiveStateId,
-  });
-
   const educationsQuery = useQuery({
     queryKey: ["master", "educations", "profile-search"],
     queryFn: () => fetchEducations({ page_size: 200 }),
@@ -155,8 +141,6 @@ export default function ProfileSearchFilters({
 
   const religions = religionsQuery.data?.results ?? [];
   const castes = castesQuery.data?.results ?? [];
-  const states = statesQuery.data?.results ?? [];
-  const districts = districtsQuery.data?.results ?? [];
   const educations = educationsQuery.data?.results ?? [];
   const occupations = occupationsQuery.data?.results ?? [];
   const maritalStatuses = maritalQuery.data?.results ?? [];
@@ -337,44 +321,31 @@ export default function ProfileSearchFilters({
             </Field>
 
             <Field label="State">
-              <Select
+              <LocationMasterCombobox
+                kind="state"
                 value={value.state_id || "all"}
+                parentId={indiaCountryId ? Number(indiaCountryId) : undefined}
+                allowAll
+                allLabel="All states"
+                placeholder="All states"
+                disabled={!indiaCountryId}
                 onValueChange={(v) =>
                   patch({ state_id: v === "all" ? "" : v, district_id: "" })
                 }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="All states" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All states</SelectItem>
-                  {states.map((s) => (
-                    <SelectItem key={s.id} value={String(s.id)}>
-                      {s.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              />
             </Field>
 
             <Field label="District">
-              <Select
+              <LocationMasterCombobox
+                kind="district"
                 value={value.district_id || "all"}
-                onValueChange={(v) => patch({ district_id: v === "all" ? "" : v })}
+                parentId={value.state_id ? Number(value.state_id) : undefined}
+                allowAll
+                allLabel="All districts"
+                placeholder={value.state_id ? "All districts" : "Select state first"}
                 disabled={!value.state_id}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={value.state_id ? "All districts" : "Select state first"} />
-                </SelectTrigger>
-                <SelectContent className="max-h-64">
-                  <SelectItem value="all">All districts</SelectItem>
-                  {districts.map((d) => (
-                    <SelectItem key={d.id} value={String(d.id)}>
-                      {d.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onValueChange={(v) => patch({ district_id: v === "all" ? "" : v })}
+              />
             </Field>
 
             <Field label="Education">

@@ -243,11 +243,15 @@ export async function fetchMotherTongues(params?: { search?: string; page?: numb
   return parsePaginated<MasterItem>(res);
 }
 
-export async function fetchPublicMotherTongues(params?: { search?: string; page?: number; page_size?: number }) {
+export async function fetchPublicMotherTongues(params?: {
+  search?: string;
+  page?: number;
+  page_size?: number;
+  limit?: number;
+}) {
   const q = new URLSearchParams();
   if (params?.search) q.set("search", params.search);
-  if (params?.page) q.set("page", String(params.page));
-  if (params?.page_size) q.set("page_size", String(params.page_size));
+  appendPublicMasterPaging(q, params);
   const qs = q.toString();
   const res = await adminRequest<never>(qs ? `v1/master/mother-tongues/?${qs}` : "v1/master/mother-tongues/");
   return parsePaginated<MasterItem>(res);
@@ -491,22 +495,31 @@ export async function toggleCityStatus(id: number) {
   return unwrap(res);
 }
 
-export async function fetchEducations(params?: { search?: string; page?: number; page_size?: number }) {
+export async function fetchEducations(params?: {
+  search?: string;
+  page?: number;
+  page_size?: number;
+  limit?: number;
+}) {
   const q = new URLSearchParams();
   if (params?.search) q.set("search", params.search);
-  if (params?.page) q.set("page", String(params.page));
-  if (params?.page_size) q.set("page_size", String(params.page_size));
+  appendPublicMasterPaging(q, params);
   const qs = q.toString();
   const res = await adminRequest<never>(qs ? `v1/master/educations/?${qs}` : "v1/master/educations/");
   return parsePaginated<EducationItem>(res);
 }
 
-export async function fetchEducationSubjects(params?: { education_id?: number; search?: string; page?: number; page_size?: number }) {
+export async function fetchEducationSubjects(params?: {
+  education_id?: number;
+  search?: string;
+  page?: number;
+  page_size?: number;
+  limit?: number;
+}) {
   const q = new URLSearchParams();
   if (params?.education_id != null) q.set("education_id", String(params.education_id));
   if (params?.search) q.set("search", params.search);
-  if (params?.page) q.set("page", String(params.page));
-  if (params?.page_size) q.set("page_size", String(params.page_size));
+  appendPublicMasterPaging(q, params);
   const qs = q.toString();
   const res = await adminRequest<never>(qs ? `v1/master/education-subjects/?${qs}` : "v1/master/education-subjects/");
   return parsePaginated<EducationSubjectItem>(res);
@@ -520,9 +533,7 @@ export async function fetchOccupations(params?: {
 }) {
   const q = new URLSearchParams();
   if (params?.search) q.set("search", params.search);
-  if (params?.page) q.set("page", String(params.page));
-  const limit = params?.limit ?? params?.page_size;
-  if (limit) q.set("limit", String(Math.min(Number(limit), 200)));
+  appendPublicMasterPaging(q, params);
   const qs = q.toString();
   const res = await adminRequest<never>(qs ? `v1/master/occupations/?${qs}` : "v1/master/occupations/");
   return parsePaginated<OccupationItem>(res);
@@ -627,48 +638,48 @@ export async function toggleOccupationStatus(id: number) {
   return unwrap(res);
 }
 
-export async function fetchEmploymentStatuses(params?: { search?: string; page?: number; page_size?: number }) {
+export async function fetchEmploymentStatuses(params?: {
+  search?: string;
+  page?: number;
+  page_size?: number;
+  limit?: number;
+}) {
   const q = new URLSearchParams();
   if (params?.search) q.set("search", params.search);
-  if (params?.page) q.set("page", String(params.page));
-  if (params?.page_size) q.set("page_size", String(params.page_size));
+  appendPublicMasterPaging(q, params);
   const qs = q.toString();
   const res = await adminRequest<never>(qs ? `v1/master/employment-statuses/?${qs}` : "v1/master/employment-statuses/");
   return parsePaginated<EmploymentStatusItem>(res);
 }
 
-export async function fetchIncomeRanges(params?: { page?: number; page_size?: number }) {
+export async function fetchIncomeRanges(params?: { page?: number; page_size?: number; limit?: number }) {
   const q = new URLSearchParams();
-  if (params?.page) q.set("page", String(params.page));
-  if (params?.page_size) q.set("page_size", String(params.page_size));
+  appendPublicMasterPaging(q, params);
   const qs = q.toString();
   const res = await adminRequest<never>(qs ? `v1/master/income-ranges/?${qs}` : "v1/master/income-ranges/");
   return parsePaginated<IncomeRangeItem>(res);
 }
 
-export async function fetchHeights(params?: { page?: number; page_size?: number }) {
+export async function fetchHeights(params?: { page?: number; page_size?: number; limit?: number }) {
   const q = new URLSearchParams();
-  if (params?.page) q.set("page", String(params.page));
-  if (params?.page_size) q.set("page_size", String(params.page_size));
+  appendPublicMasterPaging(q, params);
   const qs = q.toString();
   const res = await adminRequest<never>(qs ? `v1/master/heights/?${qs}` : "v1/master/heights/");
   return parsePaginated<HeightItem>(res);
 }
 
-export async function fetchMaritalStatuses(params?: { page?: number; page_size?: number }) {
+export async function fetchMaritalStatuses(params?: { page?: number; page_size?: number; limit?: number }) {
   const q = new URLSearchParams();
-  if (params?.page) q.set("page", String(params.page));
-  if (params?.page_size) q.set("page_size", String(params.page_size));
+  appendPublicMasterPaging(q, params);
   const qs = q.toString();
   const res = await adminRequest<never>(qs ? `v1/master/marital-status/?${qs}` : "v1/master/marital-status/");
   const parsed = parsePaginated<MasterItem>(res);
   return { ...parsed, results: neverMarriedFirst(parsed.results ?? []) };
 }
 
-export async function fetchComplexions(params?: { page?: number; page_size?: number }) {
+export async function fetchComplexions(params?: { page?: number; page_size?: number; limit?: number }) {
   const q = new URLSearchParams();
-  if (params?.page) q.set("page", String(params.page));
-  if (params?.page_size) q.set("page_size", String(params.page_size));
+  appendPublicMasterPaging(q, params);
   const qs = q.toString();
   const res = await adminRequest<never>(qs ? `v1/master/complexions/?${qs}` : "v1/master/complexions/");
   return parsePaginated<MasterItem>(res);

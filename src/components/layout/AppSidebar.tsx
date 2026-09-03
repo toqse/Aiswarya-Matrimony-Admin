@@ -27,6 +27,7 @@ import {
   BookOpen,
   Briefcase,
   Smartphone,
+  MessageSquare,
   Globe,
   MapPin,
   Landmark,
@@ -119,7 +120,10 @@ const adminGroups: NavGroup[] = [
   },
   {
     label: "System",
-    items: [{ title: "App Versions", url: "/app-config", icon: Smartphone }],
+    items: [
+      { title: "App Versions", url: "/app-config", icon: Smartphone },
+      { title: "MSG Settings", url: "/msg-settings", icon: MessageSquare },
+    ],
   },
 ];
 

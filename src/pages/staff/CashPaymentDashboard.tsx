@@ -62,7 +62,7 @@ export type CashEntryLocationState = {
 };
 
 const STEPS_CASH = ["Customer Details", "Plan Selection", "Receipt & Cashier", "OTP Verification", "Confirmation"];
-const STEPS_UPI = ["Customer Details", "Plan Selection", "UPI Payment", "Verification", "Confirmation"];
+const STEPS_UPI = ["Customer Details", "Plan Selection", "UPI Payment", "OTP Verification", "Confirmation"];
 
 const PAYMENT_OTP_LENGTH = 6;
 
@@ -354,11 +354,11 @@ export default function CashPaymentDashboard() {
         plan_id: form.planId,
         amount: finalAmount,
         discount_amount: form.discount > 0 ? form.discount : undefined,
+        otp: form.otp.join(""),
         ...(mode === "cash"
           ? {
               physical_receipt_no: form.physicalReceiptNo.trim(),
               cashier_receipt_no: form.cashierReceiptNo.trim(),
-              otp: form.otp.join(""),
             }
           : { reference_no: form.upiRefNo.trim() }),
       };
@@ -392,7 +392,7 @@ export default function CashPaymentDashboard() {
   }, []);
 
   useEffect(() => {
-    if (step !== 3 || paymentMode !== "Cash" || !form.otpSent || form.otpVerified) return;
+    if (step !== 3 || !form.otpSent || form.otpVerified) return;
     if (!("OTPCredential" in window)) return;
     const ac = new AbortController();
     const creds = navigator.credentials as CredentialsContainer & {
@@ -405,7 +405,7 @@ export default function CashPaymentDashboard() {
       })
       .catch(() => {});
     return () => ac.abort();
-  }, [step, paymentMode, form.otpSent, form.otpVerified, applyOtpDigits]);
+  }, [step, form.otpSent, form.otpVerified, applyOtpDigits]);
 
   const completePayment = () => {
     if (paymentRecorded) {
@@ -431,20 +431,18 @@ export default function CashPaymentDashboard() {
         Math.abs(cashCollectedNum - finalAmount) < 0.01
       );
     if (step === 2 && paymentMode === "GPay/UPI") return !!form.upiRefNo.trim();
-    if (step === 3 && paymentMode === "Cash") return form.otpVerified;
-    if (step === 3 && paymentMode === "GPay/UPI") return true;
+    if (step === 3) return form.otpVerified;
     return true;
   };
 
   const canSubmitPayment = () => {
     const matri = (form.customerMatriId || form.profileId).trim();
     if (!matri || !form.customerName.trim() || form.planId == null || finalAmount <= 0) return false;
+    if (!form.otpVerified || form.otp.join("").length < PAYMENT_OTP_LENGTH) return false;
     if (paymentMode === "Cash") {
       return (
         !!form.physicalReceiptNo.trim() &&
         !!form.cashierReceiptNo.trim() &&
-        form.otpVerified &&
-        form.otp.join("").length >= PAYMENT_OTP_LENGTH &&
         Math.abs(cashCollectedNum - finalAmount) < 0.01
       );
     }
@@ -717,16 +715,30 @@ export default function CashPaymentDashboard() {
         </div>
       );
 
-    if (step === 3 && paymentMode === "Cash")
+    if (step === 3)
       return (
         <div className="space-y-5">
           <div className="flex items-center gap-3 p-4 rounded-xl bg-info/10 border border-info/20">
             <ShieldCheck className="h-8 w-8 text-info" />
             <div>
               <p className="font-bold text-foreground">Customer OTP Verification</p>
-              <p className="text-xs text-muted-foreground">Confirm that customer authorized this payment</p>
+              <p className="text-xs text-muted-foreground">
+                Confirm that customer authorized this {paymentMode === "Cash" ? "cash" : "UPI"} payment
+              </p>
             </div>
           </div>
+          {paymentMode === "GPay/UPI" ? (
+            <div className="rounded-lg border p-4 text-sm space-y-2 bg-muted/30">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">UPI reference</span>
+                <span className="font-mono font-medium">{form.upiRefNo || "—"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Amount</span>
+                <span className="font-semibold">{formatInr(finalAmount)}</span>
+              </div>
+            </div>
+          ) : null}
           {!form.otpVerified ? (
             <div className="space-y-4">
               {!form.otpSent ? (
@@ -802,29 +814,6 @@ export default function CashPaymentDashboard() {
               <p className="text-sm text-muted-foreground">Payment authorization confirmed</p>
             </div>
           )}
-        </div>
-      );
-
-    if (step === 3 && paymentMode === "GPay/UPI")
-      return (
-        <div className="space-y-5">
-          <div className="flex items-center gap-3 p-4 rounded-xl bg-success/10 border border-success/20">
-            <ShieldCheck className="h-8 w-8 text-success" />
-            <div>
-              <p className="font-bold text-foreground">Payment verification</p>
-              <p className="text-xs text-muted-foreground">Confirm the UPI reference before recording the payment</p>
-            </div>
-          </div>
-          <div className="rounded-lg border p-4 text-sm space-y-2 bg-muted/30">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">UPI reference</span>
-              <span className="font-mono font-medium">{form.upiRefNo || "—"}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Amount</span>
-              <span className="font-semibold">{formatInr(finalAmount)}</span>
-            </div>
-          </div>
         </div>
       );
 

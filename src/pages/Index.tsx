@@ -31,6 +31,7 @@ const NewsletterSubscribers = lazyRetry(
   () => import("@/pages/admin/NewsletterSubscribers"),
 );
 const AppConfig = lazyRetry(() => import("@/pages/admin/AppConfig"));
+const MsgSettings = lazyRetry(() => import("@/pages/admin/MsgSettings"));
 const CashPayments = lazyRetry(() => import("@/pages/admin/CashPayments"));
 const Reports = lazyRetry(() => import("@/pages/admin/Reports"));
 const EmailTemplates = lazyRetry(() => import("@/pages/admin/EmailTemplates"));
@@ -133,6 +134,7 @@ const Index = () => {
             <Route path="/enquiries" element={<EnquiryOverview />} />
             <Route path="/newsletter" element={<NewsletterSubscribers />} />
             <Route path="/app-config" element={<AppConfig />} />
+            <Route path="/msg-settings" element={<MsgSettings />} />
             <Route path="/cash-payments" element={<CashPayments />} />
             <Route path="/success-stories" element={<SuccessStories />} />
             <Route path="/testimonials" element={<Testimonials />} />

@@ -15,6 +15,7 @@ export interface StaffListRow {
   target_progress: { achieved: number; target: number };
   status: string;
   is_active: boolean;
+  account_role?: string;
 }
 
 export interface StaffListData {

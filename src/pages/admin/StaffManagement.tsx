@@ -232,6 +232,9 @@ function ViewSectionTitle({
 export default function StaffManagement() {
   const { role } = useRole();
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">(
+    "all",
+  );
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState("20");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -259,19 +262,24 @@ export default function StaffManagement() {
   const branchOptions = branchesQuery.data?.results ?? [];
 
   const listQuery = useQuery({
-    queryKey: ["staff", "list", role, search, page, pageSize],
-    queryFn: () =>
-      role === "admin"
+    queryKey: ["staff", "list", role, search, statusFilter, page, pageSize],
+    queryFn: () => {
+      const status =
+        statusFilter === "all" ? undefined : statusFilter;
+      return role === "admin"
         ? fetchAdminStaffList({
             search: search.trim() || undefined,
+            status,
             page,
             page_size: Number(pageSize),
           })
         : fetchBranchStaffList({
             search: search.trim() || undefined,
+            status,
             page,
             page_size: Number(pageSize),
-          }),
+          });
+    },
   });
 
   const staffRows = listQuery.data?.results ?? [];
@@ -361,12 +369,24 @@ export default function StaffManagement() {
   const deleteMut = useMutation({
     mutationFn: (id: number) => deleteStaff(id),
     onSuccess: () => {
-      toast({ title: "Staff removed" });
+      toast({
+        title: "Staff removed",
+        description: "Their mobile number is now free to reuse.",
+      });
       invalidate();
     },
     onError: (e: Error) =>
       toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
+
+  const confirmDelete = (s: StaffListRow) => {
+    const roleLabel =
+      s.account_role === "branch_manager" ? "branch manager" : "staff member";
+    const ok = window.confirm(
+      `Delete ${s.name} (${roleLabel})?\n\nThis removes them from the list and frees their mobile number so it can be used for a new staff member.\n\nDeactivate only blocks login and keeps the record — use that if you may Activate them later.`,
+    );
+    if (ok) deleteMut.mutate(s.id);
+  };
 
   const toggleMut = useMutation({
     mutationFn: (id: number) => toggleStaffStatus(id),
@@ -563,20 +583,38 @@ export default function StaffManagement() {
 
       <Card className="shadow-elegant border-0">
         <CardHeader className="pb-3">
-          <div className="relative max-w-sm flex items-center gap-2">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search staff..."
-              value={search}
-              onChange={(e) => {
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative max-w-sm flex items-center gap-2 flex-1 min-w-[200px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search staff..."
+                value={search}
+                onChange={(e) => {
+                  setPage(1);
+                  setSearch(e.target.value);
+                }}
+                className="pl-9"
+              />
+              {listQuery.isLoading && (
+                <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+              )}
+            </div>
+            <Select
+              value={statusFilter}
+              onValueChange={(v) => {
                 setPage(1);
-                setSearch(e.target.value);
+                setStatusFilter(v as "all" | "active" | "inactive");
               }}
-              className="pl-9"
-            />
-            {listQuery.isLoading && (
-              <Loader2 className="h-4 w-4 animate-spin shrink-0" />
-            )}
+            >
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardHeader>
         <CardContent>
@@ -586,6 +624,7 @@ export default function StaffManagement() {
                 <TableHead className="w-12"></TableHead>
                 <TableHead>Emp Code</TableHead>
                 <TableHead>Name</TableHead>
+                <TableHead>Role</TableHead>
                 <TableHead>Branch</TableHead>
                 <TableHead>Designation</TableHead>
                 <TableHead>Salary</TableHead>
@@ -597,6 +636,12 @@ export default function StaffManagement() {
             </TableHeader>
             <TableBody>
               {staffRows.map((s) => {
+                const roleLabel =
+                  s.account_role === "branch_manager"
+                    ? "Branch Manager"
+                    : s.account_role === "staff"
+                      ? "Staff"
+                      : s.account_role || "—";
                 return (
                   <TableRow key={s.id}>
                     <TableCell>
@@ -624,6 +669,9 @@ export default function StaffManagement() {
                       {s.emp_code}
                     </TableCell>
                     <TableCell className="font-medium">{s.name}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {roleLabel}
+                    </TableCell>
                     <TableCell>{s.branch_name}</TableCell>
                     <TableCell>{s.designation}</TableCell>
                     <TableCell>
@@ -680,8 +728,9 @@ export default function StaffManagement() {
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8"
-                          onClick={() => deleteMut.mutate(s.id)}
-                          title="Delete"
+                          onClick={() => confirmDelete(s)}
+                          disabled={deleteMut.isPending}
+                          title="Delete (frees mobile number)"
                         >
                           <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
@@ -691,6 +740,11 @@ export default function StaffManagement() {
                           className="text-xs"
                           onClick={() => toggleMut.mutate(s.id)}
                           disabled={toggleMut.isPending}
+                          title={
+                            s.status === "active"
+                              ? "Deactivate (blocks login, keeps record)"
+                              : "Activate (restores login)"
+                          }
                         >
                           {s.status === "active" ? "Deactivate" : "Activate"}
                         </Button>

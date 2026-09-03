@@ -11,12 +11,6 @@ import { postSendOtp, postVerifyOtp, getAuthApiErrorMessage } from "@/lib/auth-a
 import { userRoleToApiRole } from "@/lib/role-mapping";
 import type { MatrimonyAdminSession } from "@/lib/matrimony-admin-storage";
 
-const DEMO_ACCOUNTS: Record<UserRole, { mobile: string; label: string }> = {
-  admin: { mobile: "9876543210", label: "Super Admin" },
-  "branch-manager": { mobile: "9876543211", label: "Branch Manager" },
-  staff: { mobile: "9876543212", label: "Staff" },
-};
-
 const ROLES: { value: UserRole; label: string; desc: string; emoji: string }[] = [
   { value: "admin", label: "Admin", desc: "Full system access", emoji: "👑" },
   { value: "branch-manager", label: "Branch\nManager", desc: "Branch-level management", emoji: "🏢" },
@@ -243,19 +237,6 @@ export default function Login() {
                 </Button>
 
                 <p className="text-center text-xs text-muted-foreground">Secure login with OTP verification</p>
-
-                {/* Demo accounts hint */}
-                <div className="rounded-lg bg-muted/60 p-3 space-y-1.5">
-                  <p className="text-xs font-semibold text-muted-foreground">Demo Accounts</p>
-                  {ROLES.map((r) => {
-                    const d = DEMO_ACCOUNTS[r.value];
-                    return (
-                      <p key={r.value} className="text-xs text-muted-foreground font-mono">
-                        {r.label.replace("\n", " ")}: {d.mobile} (OTP from SMS)
-                      </p>
-                    );
-                  })}
-                </div>
               </>
             ) : (
               <>

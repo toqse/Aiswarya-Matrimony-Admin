@@ -180,12 +180,20 @@ function FormField({
     <div
       id={fieldId ? `staff-field-${fieldId}` : undefined}
       className="space-y-1.5"
+      data-invalid={error ? "true" : undefined}
     >
       <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
         {label} {required && <span className="text-destructive">*</span>}
       </Label>
       {children}
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      {error ? (
+        <p
+          role="alert"
+          className="text-xs font-medium text-destructive leading-snug"
+        >
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -528,6 +536,12 @@ export default function StaffManagement() {
     if (!form.designation.trim()) errs.designation = "Designation is required";
     if (form.joiningDate && form.joiningDate > todayISO)
       errs.joiningDate = "Joining date cannot be in the future";
+    if (!form.salary || form.salary <= 0)
+      errs.salary = "Salary must be a positive number";
+    if (form.commissionRate < 0 || form.commissionRate > 100)
+      errs.commissionRate = "Commission rate must be between 0 and 100";
+    if (!form.target || form.target <= 0)
+      errs.target = "Monthly target must be a positive number";
     if (!form.address.trim()) errs.address = "Street address is required";
     if (!form.city.trim()) errs.city = "City is required";
     if (!form.state.trim()) errs.state = "State is required";
@@ -538,15 +552,32 @@ export default function StaffManagement() {
     if (!form.accountNumber.trim())
       errs.accountNumber = "Account number is required";
     if (!form.ifsc.trim()) errs.ifsc = "IFSC code is required";
+    else if (!/^[A-Za-z]{4}0[A-Za-z0-9]{6}$/.test(form.ifsc.trim()))
+      errs.ifsc = "Enter a valid IFSC (e.g. HDFC0001234)";
     if (!form.upiId.trim()) errs.upiId = "UPI ID is required";
     return errs;
   };
 
   useEffect(() => {
     if (!scrollToField) return;
-    document
-      .getElementById(`staff-field-${scrollToField}`)
-      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    const el = document.getElementById(`staff-field-${scrollToField}`);
+    if (!el) {
+      setScrollToField(null);
+      return;
+    }
+    // Dialog uses Radix ScrollArea — window scrollIntoView often does nothing.
+    const viewport = el.closest(
+      "[data-radix-scroll-area-viewport]",
+    ) as HTMLElement | null;
+    if (viewport) {
+      const elRect = el.getBoundingClientRect();
+      const vpRect = viewport.getBoundingClientRect();
+      const offset =
+        elRect.top - vpRect.top - vpRect.height / 2 + elRect.height / 2;
+      viewport.scrollBy({ top: offset, behavior: "smooth" });
+    } else {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
     setScrollToField(null);
   }, [scrollToField, fieldErrors]);
 
@@ -1016,27 +1047,63 @@ export default function StaffManagement() {
                 </div>
                 <Separator />
                 <div className="grid grid-cols-3 gap-4">
-                  <FormField label="Salary (₹)">
+                  <FormField
+                    label="Salary (₹)"
+                    required
+                    error={fieldErrors.salary}
+                    fieldId="salary"
+                  >
                     <Input
                       type="number"
+                      min={1}
                       value={form.salary || ""}
                       onChange={(e) => update("salary", +e.target.value)}
+                      className={
+                        fieldErrors.salary
+                          ? "border-destructive focus-visible:ring-destructive"
+                          : ""
+                      }
+                      aria-invalid={Boolean(fieldErrors.salary)}
                     />
                   </FormField>
-                  <FormField label="Commission %">
+                  <FormField
+                    label="Commission %"
+                    error={fieldErrors.commissionRate}
+                    fieldId="commissionRate"
+                  >
                     <Input
                       type="number"
+                      min={0}
+                      max={100}
                       value={form.commissionRate || ""}
                       onChange={(e) =>
                         update("commissionRate", +e.target.value)
                       }
+                      className={
+                        fieldErrors.commissionRate
+                          ? "border-destructive focus-visible:ring-destructive"
+                          : ""
+                      }
+                      aria-invalid={Boolean(fieldErrors.commissionRate)}
                     />
                   </FormField>
-                  <FormField label="Monthly Target">
+                  <FormField
+                    label="Monthly Target"
+                    required
+                    error={fieldErrors.target}
+                    fieldId="target"
+                  >
                     <Input
                       type="number"
+                      min={1}
                       value={form.target || ""}
                       onChange={(e) => update("target", +e.target.value)}
+                      className={
+                        fieldErrors.target
+                          ? "border-destructive focus-visible:ring-destructive"
+                          : ""
+                      }
+                      aria-invalid={Boolean(fieldErrors.target)}
                     />
                   </FormField>
                 </div>
@@ -1217,11 +1284,32 @@ export default function StaffManagement() {
           <DialogFooter className="px-6 py-4 border-t bg-muted/30">
             <div className="flex flex-col items-end gap-3 w-full">
               {Object.keys(fieldErrors).length > 0 && (
-                <p className="w-full rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-                  Please complete all required fields. {Object.keys(fieldErrors).length}{" "}
-                  field{Object.keys(fieldErrors).length === 1 ? "" : "s"} need attention —
-                  see errors above.
-                </p>
+                <div className="w-full rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive space-y-1">
+                  <p className="font-medium">
+                    Please complete all required fields.{" "}
+                    {Object.keys(fieldErrors).length} field
+                    {Object.keys(fieldErrors).length === 1 ? "" : "s"} need
+                    attention:
+                  </p>
+                  <ul className="list-disc pl-5 space-y-0.5">
+                    {(
+                      Object.entries(fieldErrors) as [
+                        keyof StaffForm,
+                        string,
+                      ][]
+                    ).map(([key, msg]) => (
+                      <li key={key}>
+                        <button
+                          type="button"
+                          className="underline underline-offset-2 text-left hover:opacity-80"
+                          onClick={() => setScrollToField(key)}
+                        >
+                          {msg}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
               <div className="flex justify-end gap-2 w-full">
               <Button variant="outline" onClick={() => setDialogOpen(false)}>

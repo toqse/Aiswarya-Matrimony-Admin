@@ -48,7 +48,10 @@ export default function CountryManagement() {
   const canPrev = Boolean(data?.previous) && page > 1;
   const canNext = Boolean(data?.next);
 
-  const invalidate = () => qc.invalidateQueries({ queryKey: ["master", "countries"] });
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["master", "countries"] });
+    qc.invalidateQueries({ queryKey: ["master", "location"] });
+  };
 
   const saveMut = useMutation({
     mutationFn: async () => {

@@ -111,7 +111,10 @@ export default function CityManagement() {
   const canPrev = Boolean(data?.previous) && page > 1;
   const canNext = Boolean(data?.next);
 
-  const invalidate = () => qc.invalidateQueries({ queryKey: ["master", "cities"] });
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["master", "cities"] });
+    qc.invalidateQueries({ queryKey: ["master", "location"] });
+  };
 
   const saveMut = useMutation({
     mutationFn: async () => {

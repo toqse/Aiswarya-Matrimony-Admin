@@ -90,7 +90,10 @@ export default function DistrictManagement() {
   const canPrev = Boolean(data?.previous) && page > 1;
   const canNext = Boolean(data?.next);
 
-  const invalidate = () => qc.invalidateQueries({ queryKey: ["master", "districts"] });
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["master", "districts"] });
+    qc.invalidateQueries({ queryKey: ["master", "location"] });
+  };
 
   const saveMut = useMutation({
     mutationFn: async () => {

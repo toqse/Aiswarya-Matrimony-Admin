@@ -1282,36 +1282,7 @@ export default function StaffManagement() {
           </ScrollArea>
 
           <DialogFooter className="px-6 py-4 border-t bg-muted/30">
-            <div className="flex flex-col items-end gap-3 w-full">
-              {Object.keys(fieldErrors).length > 0 && (
-                <div className="w-full rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive space-y-1">
-                  <p className="font-medium">
-                    Please complete all required fields.{" "}
-                    {Object.keys(fieldErrors).length} field
-                    {Object.keys(fieldErrors).length === 1 ? "" : "s"} need
-                    attention:
-                  </p>
-                  <ul className="list-disc pl-5 space-y-0.5">
-                    {(
-                      Object.entries(fieldErrors) as [
-                        keyof StaffForm,
-                        string,
-                      ][]
-                    ).map(([key, msg]) => (
-                      <li key={key}>
-                        <button
-                          type="button"
-                          className="underline underline-offset-2 text-left hover:opacity-80"
-                          onClick={() => setScrollToField(key)}
-                        >
-                          {msg}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              <div className="flex justify-end gap-2 w-full">
+            <div className="flex justify-end gap-2 w-full">
               <Button variant="outline" onClick={() => setDialogOpen(false)}>
                 Cancel
               </Button>
@@ -1324,7 +1295,6 @@ export default function StaffManagement() {
                   "Create Staff"
                 )}
               </Button>
-              </div>
             </div>
           </DialogFooter>
         </DialogContent>

@@ -39,6 +39,7 @@ import OccupationCombobox from "@/components/profile/OccupationCombobox";
 import LocationMasterCombobox from "@/components/profile/LocationMasterCombobox";
 import {
   fetchCastes,
+  fetchCities,
   fetchComplexions,
   fetchEducations,
   fetchEducationSubjects,
@@ -316,6 +317,12 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
     queryFn: () => fetchPublicMotherTongues({ page_size: 500 }),
   });
 
+  const citiesQ = useQuery({
+    queryKey: ["master", "cities", "profile-form", form.districtId],
+    queryFn: () => fetchCities({ district_id: Number(form.districtId), page_size: 500 }),
+    enabled: !!form.districtId,
+  });
+
   const educationsQ = useQuery({
     queryKey: ["master", "educations", "profile-form"],
     queryFn: () => fetchEducations({ page_size: 500 }),
@@ -503,11 +510,22 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
             </div>
             <div>
               <Label>City</Label>
-              <Input
-                value={form.city}
-                onChange={(e) => update("city", e.target.value)}
-                placeholder="Enter city"
-              />
+              <Select
+                value={form.cityId}
+                onValueChange={(v) => update("cityId", v)}
+                disabled={!form.districtId}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={form.districtId ? "Select city" : "Select district first"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {(citiesQ.data?.results ?? []).map((c) => (
+                    <SelectItem key={c.id} value={String(c.id)}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="sm:col-span-2">
               <Label>Address</Label>

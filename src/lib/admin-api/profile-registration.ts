@@ -222,7 +222,7 @@ export async function buildProfileRegistrationFormData(
       country_id: form.countryId ? Number(form.countryId) : undefined,
       state_id: form.stateId ? Number(form.stateId) : undefined,
       district_id: form.districtId ? Number(form.districtId) : undefined,
-      city: form.city ? String(form.city).trim() : undefined,
+      city_id: form.cityId ? Number(form.cityId) : undefined,
       address: form.address || undefined,
     },
     religion_details: {

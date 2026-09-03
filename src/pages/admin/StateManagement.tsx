@@ -70,7 +70,10 @@ export default function StateManagement() {
   const canPrev = Boolean(data?.previous) && page > 1;
   const canNext = Boolean(data?.next);
 
-  const invalidate = () => qc.invalidateQueries({ queryKey: ["master", "states"] });
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["master", "states"] });
+    qc.invalidateQueries({ queryKey: ["master", "location"] });
+  };
 
   const saveMut = useMutation({
     mutationFn: async () => {

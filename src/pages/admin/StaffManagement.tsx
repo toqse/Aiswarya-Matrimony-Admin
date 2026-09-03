@@ -232,9 +232,9 @@ function ViewSectionTitle({
 export default function StaffManagement() {
   const { role } = useRole();
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">(
-    "all",
-  );
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "active" | "deactivated"
+  >("all");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState("20");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -603,16 +603,16 @@ export default function StaffManagement() {
               value={statusFilter}
               onValueChange={(v) => {
                 setPage(1);
-                setStatusFilter(v as "all" | "active" | "inactive");
+                setStatusFilter(v as "all" | "active" | "deactivated");
               }}
             >
-              <SelectTrigger className="w-[140px]">
+              <SelectTrigger className="w-[160px]">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All statuses</SelectItem>
                 <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="inactive">Inactive</SelectItem>
+                <SelectItem value="deactivated">Deactivated</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -686,10 +686,14 @@ export default function StaffManagement() {
                         className={
                           s.status === "active"
                             ? "bg-success text-success-foreground"
-                            : ""
+                            : s.status === "deleted"
+                              ? "bg-destructive/15 text-destructive"
+                              : "bg-muted text-muted-foreground"
                         }
                       >
-                        {s.status}
+                        {s.status === "deactivated" || s.status === "inactive"
+                          ? "deactivated"
+                          : s.status}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -739,11 +743,13 @@ export default function StaffManagement() {
                           size="sm"
                           className="text-xs"
                           onClick={() => toggleMut.mutate(s.id)}
-                          disabled={toggleMut.isPending}
+                          disabled={toggleMut.isPending || s.status === "deleted"}
                           title={
                             s.status === "active"
                               ? "Deactivate (blocks login, keeps record)"
-                              : "Activate (restores login)"
+                              : s.status === "deleted"
+                                ? "Deleted — use Add Staff with a new record if needed"
+                                : "Activate (restores login)"
                           }
                         >
                           {s.status === "active" ? "Deactivate" : "Activate"}

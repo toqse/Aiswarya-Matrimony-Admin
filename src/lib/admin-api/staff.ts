@@ -28,7 +28,7 @@ export interface StaffListData {
 export async function fetchAdminStaffList(params?: {
   search?: string;
   branch_id?: number;
-  status?: "active" | "inactive";
+  status?: "active" | "inactive" | "deactivated";
   page?: number;
   page_size?: number;
 }) {
@@ -45,7 +45,7 @@ export async function fetchAdminStaffList(params?: {
 
 export async function fetchBranchStaffList(params?: {
   search?: string;
-  status?: "active" | "inactive";
+  status?: "active" | "inactive" | "deactivated";
   branch_id?: number;
   page?: number;
   page_size?: number;

@@ -1,21 +1,35 @@
-/** Profile age must satisfy 18 < age < 80 (completed years). */
+/** Profile age must satisfy 18 <= age < 80 (completed years). */
 
 export const PROFILE_AGE_ERROR =
-  "Age must be greater than 18 and less than 80 years";
+  "Age must be at least 18 and less than 80 years";
 
 export const PROFILE_AGE_HINT =
-  "Must be older than 18 and younger than 80";
+  "Must be 18 or older and younger than 80";
+
+export function isProfileAgeLimitError(message: string): boolean {
+  return /Age must be (at least|greater than) 18 and less than 80 years/i.test(
+    message,
+  );
+}
 
 function startOfLocalDay(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
-function parseIsoDateLocal(iso: string): Date | null {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso.trim());
-  if (!m) return null;
-  const y = Number(m[1]);
-  const mo = Number(m[2]);
-  const d = Number(m[3]);
+function parseProfileDobLocal(value: string): Date | null {
+  const s = value.trim();
+  const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (iso) {
+    return dateFromParts(Number(iso[1]), Number(iso[2]), Number(iso[3]));
+  }
+  const dmy = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(s);
+  if (dmy) {
+    return dateFromParts(Number(dmy[3]), Number(dmy[2]), Number(dmy[1]));
+  }
+  return null;
+}
+
+function dateFromParts(y: number, mo: number, d: number): Date | null {
   const dt = new Date(y, mo - 1, d);
   if (dt.getFullYear() !== y || dt.getMonth() !== mo - 1 || dt.getDate() !== d) {
     return null;
@@ -42,7 +56,7 @@ export function calculateAge(
   isoDate: string,
   today = new Date(),
 ): number | null {
-  const dob = parseIsoDateLocal(isoDate);
+  const dob = parseProfileDobLocal(isoDate);
   if (!dob) return null;
   const t = startOfLocalDay(today);
   let age = t.getFullYear() - dob.getFullYear();
@@ -55,9 +69,9 @@ export function calculateAge(
   return age;
 }
 
-/** Latest allowed DOB (youngest member): exactly 19 years old today. */
+/** Latest allowed DOB (youngest member): exactly 18 years old today. */
 export function dobInputMax(today = new Date()): string {
-  return formatIsoDateLocal(shiftYears(startOfLocalDay(today), -19));
+  return formatIsoDateLocal(shiftYears(startOfLocalDay(today), -18));
 }
 
 /** Earliest allowed DOB (oldest member): the day after the 80th birthday. */
@@ -72,12 +86,12 @@ export function profileAgeError(
   today = new Date(),
 ): string | undefined {
   if (!isoDate.trim()) return undefined;
-  const dob = parseIsoDateLocal(isoDate);
+  const dob = parseProfileDobLocal(isoDate);
   if (!dob) return "Invalid date of birth.";
   const t = startOfLocalDay(today);
   if (dob > t) return "DOB cannot be in the future";
   const age = calculateAge(isoDate, today);
-  if (age == null || !(age > 18 && age < 80)) {
+  if (age == null || !(age >= 18 && age < 80)) {
     return PROFILE_AGE_ERROR;
   }
   return undefined;

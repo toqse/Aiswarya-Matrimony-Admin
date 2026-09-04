@@ -32,6 +32,7 @@ import {
   dobInputMax,
   dobInputMin,
   PROFILE_AGE_HINT,
+  profileAgeError,
 } from "@/lib/profileAge";
 import { ADMIN_PROFILE_FOR_OPTIONS } from "@/lib/profile-for-options";
 import { filterValidComplexions, isValidComplexionName } from "@/lib/complexion-options";
@@ -361,6 +362,7 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
 
   const activeReligionName =
     (religionsQ.data?.results ?? []).find((r) => String(r.id) === form.religionId)?.name ?? "";
+  const dobErr = fieldError(fieldErrors, "dob") || profileAgeError(form.dob);
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -419,7 +421,7 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
             <ProfileFormField
               label="Date of Birth"
               required
-              error={fieldError(fieldErrors, "dob")}
+              error={dobErr}
             >
               <Input
                 id="profile-field-dob"
@@ -428,10 +430,12 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
                 max={dobInputMax()}
                 value={form.dob}
                 onChange={(e) => update("dob", e.target.value)}
-                className={invalidInputClass(fieldError(fieldErrors, "dob"))}
-                aria-invalid={Boolean(fieldError(fieldErrors, "dob"))}
+                className={invalidInputClass(dobErr)}
+                aria-invalid={Boolean(dobErr)}
               />
-              <p className="text-xs text-muted-foreground">{PROFILE_AGE_HINT}</p>
+              {!dobErr && (
+                <p className="text-xs text-muted-foreground">{PROFILE_AGE_HINT}</p>
+              )}
               <label className="mt-2 flex items-center gap-2 text-sm cursor-pointer select-none">
                 <Checkbox
                   checked={form.hasHoroscope}

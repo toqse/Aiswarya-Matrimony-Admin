@@ -36,6 +36,7 @@ import {
   dobInputMax,
   dobInputMin,
   PROFILE_AGE_HINT,
+  profileAgeError,
 } from "@/lib/profileAge";
 import {
   fetchCastes,
@@ -326,6 +327,8 @@ export default function EditProfileWizard({
     onComplete(form);
   };
 
+  const dobErr = fieldError(fieldErrors, "dob") || profileAgeError(form.dob);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -373,7 +376,7 @@ export default function EditProfileWizard({
             <ProfileFormField
               label="Date of Birth"
               required
-              error={fieldError(fieldErrors, "dob")}
+              error={dobErr}
             >
               <Input
                 id="profile-field-dob"
@@ -382,10 +385,12 @@ export default function EditProfileWizard({
                 max={dobInputMax()}
                 value={form.dob}
                 onChange={(e) => update("dob", e.target.value)}
-                className={invalidInputClass(fieldError(fieldErrors, "dob"))}
-                aria-invalid={Boolean(fieldError(fieldErrors, "dob"))}
+                className={invalidInputClass(dobErr)}
+                aria-invalid={Boolean(dobErr)}
               />
-              <p className="text-xs text-muted-foreground">{PROFILE_AGE_HINT}</p>
+              {!dobErr && (
+                <p className="text-xs text-muted-foreground">{PROFILE_AGE_HINT}</p>
+              )}
               <label className="mt-2 flex items-center gap-2 text-sm cursor-pointer select-none">
                 <Checkbox
                   checked={form.hasHoroscope}

@@ -38,9 +38,9 @@ import { ADMIN_PROFILE_FOR_OPTIONS } from "@/lib/profile-for-options";
 import { filterValidComplexions, isValidComplexionName } from "@/lib/complexion-options";
 import OccupationCombobox from "@/components/profile/OccupationCombobox";
 import LocationMasterCombobox from "@/components/profile/LocationMasterCombobox";
+import CityCombobox from "@/components/profile/CityCombobox";
 import {
   fetchCastes,
-  fetchCities,
   fetchComplexions,
   fetchEducations,
   fetchEducationSubjects,
@@ -81,6 +81,7 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
     stateId: "",
     districtId: "",
     cityId: "",
+    cityName: "",
     address: "",
     religionId: "",
     casteId: "",
@@ -146,6 +147,7 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
       stateId: "",
       districtId: "",
       cityId: "",
+      cityName: "",
       address: "",
       religionId: "",
       casteId: "",
@@ -318,12 +320,6 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
     queryFn: () => fetchPublicMotherTongues({ page_size: 500 }),
   });
 
-  const citiesQ = useQuery({
-    queryKey: ["master", "cities", "profile-form", form.districtId],
-    queryFn: () => fetchCities({ district_id: Number(form.districtId), page_size: 500 }),
-    enabled: !!form.districtId,
-  });
-
   const educationsQ = useQuery({
     queryKey: ["master", "educations", "profile-form"],
     queryFn: () => fetchEducations({ page_size: 500 }),
@@ -475,6 +471,7 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
                     stateId: "",
                     districtId: "",
                     cityId: "",
+                    cityName: "",
                   }));
                 }}
               />
@@ -491,6 +488,7 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
                     stateId: v,
                     districtId: "",
                     cityId: "",
+                    cityName: "",
                   }));
                 }}
                 disabled={!form.countryId}
@@ -507,6 +505,7 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
                     ...p,
                     districtId: v,
                     cityId: "",
+                    cityName: "",
                   }));
                 }}
                 disabled={!form.stateId}
@@ -514,22 +513,20 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
             </div>
             <div>
               <Label>City</Label>
-              <Select
-                value={form.cityId}
-                onValueChange={(v) => update("cityId", v)}
+              <CityCombobox
+                districtId={form.districtId}
+                cityId={form.cityId}
+                cityName={form.cityName || form.city || ""}
                 disabled={!form.districtId}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={form.districtId ? "Select city" : "Select district first"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {(citiesQ.data?.results ?? []).map((c) => (
-                    <SelectItem key={c.id} value={String(c.id)}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onChange={(next) => {
+                  setForm((p) => ({
+                    ...p,
+                    cityId: next.cityId,
+                    cityName: next.cityName,
+                    city: next.cityName,
+                  }));
+                }}
+              />
             </div>
             <div className="sm:col-span-2">
               <Label>Address</Label>

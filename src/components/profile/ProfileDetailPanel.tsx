@@ -15,22 +15,23 @@ const PHOTO_ORDER: { key: string; label: string }[] = [
 ];
 
 export function displayOrDash(v: unknown): string {
-  if (v == null || v === "") return "-";
+  if (v == null || v === "") return "NA";
   if (typeof v === "boolean") return v ? "Yes" : "No";
-  if (Array.isArray(v)) return v.length ? v.join(", ") : "-";
-  return String(v);
+  if (Array.isArray(v)) return v.length ? v.join(", ") : "NA";
+  const s = String(v).trim();
+  return s || "NA";
 }
 
 function formatPartnerCastePreferences(
   value: unknown,
   religion?: Record<string, unknown>,
 ): string {
-  if (value == null || value === "") return "-";
-  if (typeof value === "string") return value.trim() || "-";
-  if (Array.isArray(value)) return value.length ? value.join(", ") : "-";
+  if (value == null || value === "") return "NA";
+  if (typeof value === "string") return value.trim() || "NA";
+  if (Array.isArray(value)) return value.length ? value.join(", ") : "NA";
   if (typeof value === "object") {
     const entries = Object.entries(value as Record<string, unknown>);
-    if (!entries.length) return "-";
+    if (!entries.length) return "NA";
     const idToName: Record<string, string> = {};
     if (religion?.religion_id != null && religion.religion != null) {
       idToName[String(religion.religion_id)] = String(religion.religion);
@@ -51,7 +52,7 @@ function formatPartnerCastePreferences(
         const casteList = Array.isArray(castes)
           ? castes.map(String).filter(Boolean).join(", ")
           : displayOrDash(castes);
-        return casteList && casteList !== "-" ? `${label}: ${casteList}` : `${label}: All`;
+        return casteList && casteList !== "NA" ? `${label}: ${casteList}` : `${label}: All`;
       })
       .join(" · ");
   }
@@ -80,7 +81,7 @@ function partnerAgeRange(religion: Record<string, unknown>): string {
   if (hasFrom && hasTo) return `${from} – ${to}`;
   if (hasFrom) return `From ${from}`;
   if (hasTo) return `Up to ${to}`;
-  return "-";
+  return "NA";
 }
 
 function Section({ title, children }: { title: string; children: ReactNode }) {

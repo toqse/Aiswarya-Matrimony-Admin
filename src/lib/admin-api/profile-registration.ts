@@ -222,7 +222,17 @@ export async function buildProfileRegistrationFormData(
       country_id: form.countryId ? Number(form.countryId) : undefined,
       state_id: form.stateId ? Number(form.stateId) : undefined,
       district_id: form.districtId ? Number(form.districtId) : undefined,
-      city_id: form.cityId ? Number(form.cityId) : undefined,
+      ...(form.cityId
+        ? {
+            city_id: Number(form.cityId),
+            city_name: String(form.cityName || form.city || "").trim() || undefined,
+          }
+        : String(form.cityName || form.city || "").trim()
+          ? {
+              city_id: null,
+              city_name: String(form.cityName || form.city || "").trim(),
+            }
+          : { city_id: undefined }),
       address: form.address || undefined,
     },
     religion_details: {
@@ -288,6 +298,7 @@ export interface WizardFormValues extends FamilyFormFields, PartnerPreferenceFie
   stateName?: string;
   districtName?: string;
   cityId: string;
+  cityName?: string;
   address: string;
   religionId: string;
   casteId: string;
@@ -406,6 +417,7 @@ export function mapDetailToWizardForm(
     stateName: String(location.state ?? ""),
     districtName: String(location.district ?? ""),
     cityId: idToString(location.city_id),
+    cityName: String(location.city_name ?? location.city ?? ""),
     address: String(location.address ?? ""),
     religionId: idToString(religion.religion_id),
     casteId: idToString(religion.caste_id),
@@ -490,7 +502,17 @@ export async function buildProfileEditFormData(form: WizardFormValues): Promise<
       country_id: form.countryId ? Number(form.countryId) : undefined,
       state_id: form.stateId ? Number(form.stateId) : undefined,
       district_id: form.districtId ? Number(form.districtId) : undefined,
-      city_id: form.cityId ? Number(form.cityId) : undefined,
+      ...(form.cityId
+        ? {
+            city_id: Number(form.cityId),
+            city_name: String(form.cityName || form.city || "").trim() || undefined,
+          }
+        : String(form.cityName || form.city || "").trim()
+          ? {
+              city_id: null,
+              city_name: String(form.cityName || form.city || "").trim(),
+            }
+          : { city_id: undefined }),
       address: form.address || undefined,
     },
     religion_details: {

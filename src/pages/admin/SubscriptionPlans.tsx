@@ -38,7 +38,6 @@ export default function SubscriptionPlans() {
     contact_view_limit: 0,
     chat_limit: 0,
     horoscope_match_limit: 0,
-    profile_view_limit: 0,
     horoscope: false,
     highlighted: false,
     description: "",
@@ -62,7 +61,7 @@ export default function SubscriptionPlans() {
         contact_view_limit: form.contact_view_limit,
         chat_limit: form.chat_limit,
         horoscope_match_limit: form.horoscope ? Math.max(form.horoscope_match_limit, 1) : 0,
-        profile_view_limit: form.profile_view_limit,
+        profile_view_limit: form.contact_view_limit,
         description: form.description,
         is_highlighted: form.highlighted,
       };
@@ -109,7 +108,6 @@ export default function SubscriptionPlans() {
       contact_view_limit: 0,
       chat_limit: 0,
       horoscope_match_limit: 0,
-      profile_view_limit: 0,
       horoscope: false,
       highlighted: false,
       description: "",
@@ -127,7 +125,6 @@ export default function SubscriptionPlans() {
       contact_view_limit: p.contact_view_limit,
       chat_limit: p.chat_limit,
       horoscope_match_limit: p.horoscope_match_limit,
-      profile_view_limit: p.profile_view_limit,
       horoscope: p.has_horoscope,
       highlighted: p.is_highlighted,
       description: p.description ?? "",
@@ -246,7 +243,6 @@ export default function SubscriptionPlans() {
                     ["Interest limit", "interest_limit"],
                     ["Contact view limit", "contact_view_limit"],
                     ["Chat limit", "chat_limit"],
-                    ["Profile view limit", "profile_view_limit"],
                     ["Horoscope match limit", "horoscope_match_limit"],
                   ] as const
                 ).map(([label, key]) => (

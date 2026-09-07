@@ -14,10 +14,10 @@ import { cn } from "@/lib/utils";
 
 const DEBOUNCE_MS = 300;
 
-export type CitySelection =
-  | { source: "master"; cityId: string; cityName: string }
-  | { source: "user"; cityId: ""; cityName: string }
-  | { source: null; cityId: ""; cityName: string };
+export type CitySelection = {
+  cityId: string;
+  cityName: string;
+};
 
 interface Props {
   districtId: string;
@@ -68,17 +68,12 @@ export default function CityCombobox({
   const ranked = useMemo(() => rankCitySuggestions(input, cities), [input, cities]);
   const query = sanitizeCityName(input);
   const hasExact = ranked.exact.length > 0;
-  const showManual =
-    !!query &&
-    !hasExact &&
-    !loading &&
-    (loadError ||
-      (ranked.fuzzy.length === 0 && ranked.rest.length === 0) ||
-      districtEmpty);
+  // Always offer manual entry when typed text has no exact master match.
+  const showManual = !!query && !hasExact;
 
   const commitMaster = useCallback(
     (id: number, name: string) => {
-      onChange({ source: "master", cityId: String(id), cityName: name });
+      onChange({ cityId: String(id), cityName: name });
       setInput(name);
       setOpen(false);
     },
@@ -89,7 +84,7 @@ export default function CityCombobox({
     (name: string) => {
       const cleaned = sanitizeCityName(name);
       if (!cleaned) return;
-      onChange({ source: "user", cityId: "", cityName: cleaned });
+      onChange({ cityId: "", cityName: cleaned });
       setInput(cleaned);
       setOpen(false);
     },
@@ -97,7 +92,7 @@ export default function CityCombobox({
   );
 
   const clear = () => {
-    onChange({ source: null, cityId: "", cityName: "" });
+    onChange({ cityId: "", cityName: "" });
     setInput("");
   };
 
@@ -108,7 +103,24 @@ export default function CityCombobox({
 
   return (
     <div className="space-y-1.5">
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next);
+          if (!next) {
+            const cleaned = sanitizeCityName(input);
+            if (!cleaned) return;
+            const exactHit = cities.find((c) => isExactCityMatch(cleaned, c.name));
+            if (exactHit) {
+              commitMaster(exactHit.id, exactHit.name);
+              return;
+            }
+            if (!cityId || cityName !== cleaned) {
+              commitManual(cleaned);
+            }
+          }
+        }}
+      >
         <div className="flex gap-1">
           <PopoverTrigger asChild>
             <Button
@@ -140,7 +152,8 @@ export default function CityCombobox({
               onChange={(e) => {
                 const v = e.target.value;
                 setInput(v);
-                onChange({ source: null, cityId: "", cityName: "" });
+                // Keep draft city_name so save works without an extra click.
+                onChange({ cityId: "", cityName: sanitizeCityName(v) });
               }}
               autoFocus
             />
@@ -206,7 +219,7 @@ export default function CityCombobox({
 
             {showManual && query ? (
               <>
-                {!loadError && !districtEmpty ? (
+                {ranked.fuzzy.length + ranked.rest.length === 0 && !loadError && !districtEmpty ? (
                   <p className="px-2 pt-2 text-xs text-muted-foreground">No matching city found.</p>
                 ) : null}
                 <button
@@ -221,31 +234,7 @@ export default function CityCombobox({
                 </p>
               </>
             ) : null}
-
-            {!loading &&
-            !loadError &&
-            !showManual &&
-            query &&
-            ranked.exact.length + ranked.fuzzy.length + ranked.rest.length === 0 ? (
-              <p className="px-2 py-3 text-sm text-muted-foreground text-center">No results</p>
-            ) : null}
           </div>
-          {query &&
-          cities.some((c) => isExactCityMatch(query, c.name)) === false &&
-          !showManual &&
-          open ? (
-            <div className="border-t p-2">
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                className="w-full"
-                onClick={() => commitManual(query)}
-              >
-                Use &quot;{query}&quot; as city
-              </Button>
-            </div>
-          ) : null}
         </PopoverContent>
       </Popover>
       {cityId ? (

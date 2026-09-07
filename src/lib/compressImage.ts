@@ -3,9 +3,9 @@
  * Shrinks phone-camera originals so profile PATCH/POST finishes faster on VPS.
  */
 
-const DEFAULT_MAX_EDGE = 1600;
+export const DEFAULT_MAX_EDGE = 1600;
 const AADHAAR_MAX_EDGE = 2000;
-const JPEG_QUALITY = 0.82;
+export const JPEG_QUALITY = 0.82;
 
 const AADHAAR_KEYS = new Set(["aadhaar_front", "aadhaar_back"]);
 

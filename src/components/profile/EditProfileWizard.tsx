@@ -33,6 +33,9 @@ import LocationMasterCombobox from "@/components/profile/LocationMasterCombobox"
 import CityCombobox from "@/components/profile/CityCombobox";
 import type { WizardFormValues } from "@/lib/admin-api/profile-registration";
 import { firstErrorField, validateProfileForm } from "@/lib/profile-validation";
+import ProfilePhotosSection, {
+  type ProfilePhotoKey,
+} from "@/components/profile/CroppablePhotoField";
 import {
   dobInputMax,
   dobInputMin,
@@ -54,77 +57,6 @@ import {
 const profileForOptions = ADMIN_PROFILE_FOR_OPTIONS;
 
 const CHILDREN_MARITAL = ["Divorced", "Widowed", "Awaiting Divorce", "Separated"];
-
-type PhotoKey =
-  | "full_photo"
-  | "passport_photo"
-  | "profile_photo"
-  | "selfie_photo"
-  | "family_photo"
-  | "aadhaar_front"
-  | "aadhaar_back";
-
-const PHOTO_FIELDS: { key: PhotoKey; label: string; fullWidth?: boolean }[] = [
-  { key: "full_photo", label: "Full Photo" },
-  { key: "passport_photo", label: "Passport Photo" },
-  { key: "profile_photo", label: "Profile Photo" },
-  { key: "selfie_photo", label: "Selfie Photo" },
-  { key: "family_photo", label: "Family Photo" },
-  { key: "aadhaar_front", label: "Aadhaar Front" },
-  { key: "aadhaar_back", label: "Aadhaar Back", fullWidth: true },
-];
-
-function PhotoField({
-  label,
-  file,
-  existingUrl,
-  onSelect,
-}: {
-  label: string;
-  file: File | null;
-  existingUrl?: string | null;
-  onSelect: (file: File | null) => void;
-}) {
-  const [preview, setPreview] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (file) {
-      const url = URL.createObjectURL(file);
-      setPreview(url);
-      return () => URL.revokeObjectURL(url);
-    }
-    setPreview(null);
-  }, [file]);
-
-  const shownUrl = preview ?? existingUrl ?? null;
-
-  return (
-    <div>
-      <Label>{label}</Label>
-      <div className="mt-1 flex items-start gap-3">
-        {shownUrl ? (
-          <a href={shownUrl} target="_blank" rel="noreferrer" className="shrink-0">
-            <img
-              src={shownUrl}
-              alt={label}
-              className="h-20 w-20 rounded-md border object-cover"
-            />
-          </a>
-        ) : (
-          <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-md border border-dashed text-center text-[10px] text-muted-foreground">
-            No image
-          </div>
-        )}
-        <div className="flex-1">
-          <Input type="file" accept="image/*" onChange={(e) => onSelect(e.target.files?.[0] ?? null)} />
-          <p className="mt-1 text-xs text-muted-foreground">
-            {preview ? "New image selected" : existingUrl ? "Current image" : "No image uploaded"}
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function emptyForm(): WizardFormValues {
   return {
@@ -198,6 +130,7 @@ export default function EditProfileWizard({
   const [horoExpanded, setHoroExpanded] = useState(true);
   const [fieldErrors, setFieldErrors] = useState<ProfileFieldErrors>({});
   const [scrollToField, setScrollToField] = useState<string | null>(null);
+  const [isCropping, setIsCropping] = useState(false);
   const [form, setForm] = useState<WizardFormValues>(emptyForm());
 
   // Load the mapped detail into the form whenever a new profile is opened.
@@ -308,6 +241,7 @@ export default function EditProfileWizard({
     const errs = validateProfileForm(form, {
       requireProfileFor: false,
       requireMobile: false,
+      requirePhotos: true,
     });
     setFieldErrors(errs);
     if (Object.keys(errs).length > 0) {
@@ -323,11 +257,35 @@ export default function EditProfileWizard({
     onComplete(form);
   };
 
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen && isCropping) return;
+    onOpenChange(nextOpen);
+  };
+
+  const updatePhoto = (key: ProfilePhotoKey, file: File | null) => {
+    clearFieldError(key);
+    setForm((prev) => ({ ...prev, [key]: file }));
+  };
+
   const dobErr = fieldError(fieldErrors, "dob") || profileAgeError(form.dob);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent
+        className="max-w-4xl max-h-[90vh] overflow-y-auto"
+        onPointerDownOutside={(e) => {
+          if (isCropping) e.preventDefault();
+        }}
+        onInteractOutside={(e) => {
+          if (isCropping) e.preventDefault();
+        }}
+        onFocusOutside={(e) => {
+          if (isCropping) e.preventDefault();
+        }}
+        onEscapeKeyDown={(e) => {
+          if (isCropping) e.preventDefault();
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Edit Profile</DialogTitle>
         </DialogHeader>
@@ -843,21 +801,22 @@ export default function EditProfileWizard({
             <Textarea value={form.aboutMe} onChange={(e) => update("aboutMe", e.target.value)} rows={4} />
           </div>
 
-          <div>
-            <p className="mb-3 text-sm font-medium">Photos &amp; Documents</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {PHOTO_FIELDS.map(({ key, label, fullWidth }) => (
-                <div key={key} className={fullWidth ? "sm:col-span-2" : undefined}>
-                  <PhotoField
-                    label={label}
-                    file={form[key]}
-                    existingUrl={form.existingPhotos?.[key] ?? null}
-                    onSelect={(file) => update(key, file)}
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
+          <ProfilePhotosSection
+            files={{
+              full_photo: form.full_photo,
+              passport_photo: form.passport_photo,
+              profile_photo: form.profile_photo,
+              selfie_photo: form.selfie_photo,
+              family_photo: form.family_photo,
+              aadhaar_front: form.aadhaar_front,
+              aadhaar_back: form.aadhaar_back,
+            }}
+            existingUrls={form.existingPhotos}
+            errors={fieldErrors}
+            requirePhotos
+            onFileChange={updatePhoto}
+            onCroppingChange={setIsCropping}
+          />
 
           <div className="flex flex-col items-end gap-3">
             {Object.keys(fieldErrors).length > 0 && (
@@ -867,7 +826,7 @@ export default function EditProfileWizard({
               </p>
             )}
             <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
+            <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} disabled={submitting}>
               Cancel
             </Button>
             <Button type="button" variant="default" onClick={submit} disabled={submitting}>

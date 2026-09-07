@@ -314,6 +314,7 @@ export default function BranchMyProfiles() {
               <TableRow>
                 <TableHead>Matri ID</TableHead>
                 <TableHead>Name</TableHead>
+                <TableHead>Created by</TableHead>
                 <TableHead>Gender</TableHead>
                 <TableHead>Age</TableHead>
                 <TableHead>Plan</TableHead>
@@ -326,6 +327,9 @@ export default function BranchMyProfiles() {
                 <TableRow key={r.matri_id}>
                   <TableCell>{r.matri_id}</TableCell>
                   <TableCell className="font-medium">{r.name}</TableCell>
+                  <TableCell className="text-sm">
+                    {r.created_by || "—"}
+                  </TableCell>
                   <TableCell>{r.gender}</TableCell>
                   <TableCell>{r.age}</TableCell>
                   <TableCell>{r.planText}</TableCell>

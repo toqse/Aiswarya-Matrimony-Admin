@@ -14,6 +14,7 @@ export interface ProfileListRow {
   plan?: string;
   subscription_plan?: string;
   assigned_staff: string;
+  created_by?: string;
   verified?: boolean;
   is_verified?: boolean;
   completion_percent?: number;
@@ -37,6 +38,7 @@ export function profileListRowStub(matriId: string, name = ""): ProfileListRow {
     caste: "",
     marital_status: "",
     assigned_staff: "",
+    created_by: "",
     horoscope_available: false,
     is_active: true,
     is_blocked: false,

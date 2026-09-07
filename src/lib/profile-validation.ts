@@ -20,11 +20,15 @@ export interface ProfileValidationForm
   hasHoroscope: boolean;
   timeOfBirth: string;
   placeOfBirth: string;
+  profile_photo?: File | null;
+  full_photo?: File | null;
+  existingPhotos?: Partial<Record<"profile_photo" | "full_photo", string | null>>;
 }
 
 export interface ProfileValidationOptions {
   requireProfileFor?: boolean;
   requireMobile?: boolean;
+  requirePhotos?: boolean;
 }
 
 export function validateFamilyFieldErrors(values: FamilyFormFields): ProfileFieldErrors {
@@ -101,7 +105,7 @@ export function validateProfileForm(
   form: ProfileValidationForm,
   options: ProfileValidationOptions = {},
 ): ProfileFieldErrors {
-  const { requireProfileFor = false, requireMobile = false } = options;
+  const { requireProfileFor = false, requireMobile = false, requirePhotos = false } = options;
   const errs: ProfileFieldErrors = {};
 
   if (requireProfileFor && !form.profileFor) {
@@ -152,6 +156,17 @@ export function validateProfileForm(
     }
     if (!form.placeOfBirth.trim()) {
       errs.placeOfBirth = "Place of birth is required.";
+    }
+  }
+
+  if (requirePhotos) {
+    const hasProfilePhoto = Boolean(form.profile_photo) || Boolean(form.existingPhotos?.profile_photo);
+    const hasFullPhoto = Boolean(form.full_photo) || Boolean(form.existingPhotos?.full_photo);
+    if (!hasProfilePhoto) {
+      errs.profile_photo = "Profile Photo is required.";
+    }
+    if (!hasFullPhoto) {
+      errs.full_photo = "Full Photo is required.";
     }
   }
 

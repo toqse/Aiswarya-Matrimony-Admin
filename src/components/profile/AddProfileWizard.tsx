@@ -28,6 +28,9 @@ import ProfileFormField, {
   type ProfileFieldErrors,
 } from "@/components/profile/ProfileFormField";
 import { firstErrorField, validateProfileForm } from "@/lib/profile-validation";
+import ProfilePhotosSection, {
+  type ProfilePhotoKey,
+} from "@/components/profile/CroppablePhotoField";
 import {
   dobInputMax,
   dobInputMin,
@@ -64,6 +67,7 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
   const [horoExpanded, setHoroExpanded] = useState(true);
   const [fieldErrors, setFieldErrors] = useState<ProfileFieldErrors>({});
   const [scrollToField, setScrollToField] = useState<string | null>(null);
+  const [isCropping, setIsCropping] = useState(false);
   const [form, setForm] = useState({
     profileFor: "",
     fullName: "",
@@ -218,6 +222,7 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
     const errs = validateProfileForm(form, {
       requireProfileFor: true,
       requireMobile: true,
+      requirePhotos: true,
     });
     setFieldErrors(errs);
     if (Object.keys(errs).length > 0) {
@@ -352,8 +357,14 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
   });
 
   const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen && isCropping) return;
     if (!nextOpen) reset();
     onOpenChange(nextOpen);
+  };
+
+  const updatePhoto = (key: ProfilePhotoKey, file: File | null) => {
+    clearFieldError(key);
+    setForm((prev) => ({ ...prev, [key]: file }));
   };
 
   const activeReligionName =
@@ -362,7 +373,21 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent
+        className="max-w-4xl max-h-[90vh] overflow-y-auto"
+        onPointerDownOutside={(e) => {
+          if (isCropping) e.preventDefault();
+        }}
+        onInteractOutside={(e) => {
+          if (isCropping) e.preventDefault();
+        }}
+        onFocusOutside={(e) => {
+          if (isCropping) e.preventDefault();
+        }}
+        onEscapeKeyDown={(e) => {
+          if (isCropping) e.preventDefault();
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Add New Profile</DialogTitle>
         </DialogHeader>
@@ -895,36 +920,21 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
             <Textarea value={form.aboutMe} onChange={(e) => update("aboutMe", e.target.value)} rows={4} />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <Label>full_photo</Label>
-              <Input type="file" accept="image/*" onChange={(e) => setForm((p) => ({ ...p, full_photo: e.target.files?.[0] ?? null }))} />
-            </div>
-            <div>
-              <Label>passport_photo</Label>
-              <Input type="file" accept="image/*" onChange={(e) => setForm((p) => ({ ...p, passport_photo: e.target.files?.[0] ?? null }))} />
-            </div>
-            <div>
-              <Label>profile_photo</Label>
-              <Input type="file" accept="image/*" onChange={(e) => setForm((p) => ({ ...p, profile_photo: e.target.files?.[0] ?? null }))} />
-            </div>
-            <div>
-              <Label>selfie_photo</Label>
-              <Input type="file" accept="image/*" onChange={(e) => setForm((p) => ({ ...p, selfie_photo: e.target.files?.[0] ?? null }))} />
-            </div>
-            <div>
-              <Label>family_photo</Label>
-              <Input type="file" accept="image/*" onChange={(e) => setForm((p) => ({ ...p, family_photo: e.target.files?.[0] ?? null }))} />
-            </div>
-            <div>
-              <Label>aadhaar_front</Label>
-              <Input type="file" accept="image/*" onChange={(e) => setForm((p) => ({ ...p, aadhaar_front: e.target.files?.[0] ?? null }))} />
-            </div>
-            <div className="sm:col-span-2">
-              <Label>aadhaar_back</Label>
-              <Input type="file" accept="image/*" onChange={(e) => setForm((p) => ({ ...p, aadhaar_back: e.target.files?.[0] ?? null }))} />
-            </div>
-          </div>
+          <ProfilePhotosSection
+            files={{
+              full_photo: form.full_photo,
+              passport_photo: form.passport_photo,
+              profile_photo: form.profile_photo,
+              selfie_photo: form.selfie_photo,
+              family_photo: form.family_photo,
+              aadhaar_front: form.aadhaar_front,
+              aadhaar_back: form.aadhaar_back,
+            }}
+            errors={fieldErrors}
+            requirePhotos
+            onFileChange={updatePhoto}
+            onCroppingChange={setIsCropping}
+          />
 
           <div className="flex flex-col items-end gap-3">
             {Object.keys(fieldErrors).length > 0 && (

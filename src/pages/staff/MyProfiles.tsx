@@ -364,6 +364,7 @@ export default function MyProfiles() {
               <TableRow>
                 <TableHead>Profile ID</TableHead>
                 <TableHead>Name</TableHead>
+                <TableHead>Created by</TableHead>
                 <TableHead>Gender</TableHead>
                 <TableHead>Age</TableHead>
                 <TableHead>Religion / Caste</TableHead>
@@ -379,6 +380,9 @@ export default function MyProfiles() {
                     {p.matri_id}
                   </TableCell>
                   <TableCell className="font-medium">{p.name}</TableCell>
+                  <TableCell className="text-sm">
+                    {p.created_by || "—"}
+                  </TableCell>
                   <TableCell>{p.gender}</TableCell>
                   <TableCell>{p.age}</TableCell>
                   <TableCell className="text-sm">

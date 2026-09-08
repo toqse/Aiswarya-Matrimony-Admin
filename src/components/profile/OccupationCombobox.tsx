@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 
 interface OccupationComboboxProps {
   value: string;
-  onValueChange: (id: string) => void;
+  onValueChange: (id: string, name?: string) => void;
   initialLabel?: string;
 }
 
@@ -106,7 +106,7 @@ export default function OccupationCombobox({
                       key={o.id}
                       value={String(o.id)}
                       onSelect={() => {
-                        onValueChange(String(o.id));
+                        onValueChange(String(o.id), o.name);
                         setLabels((prev) => ({ ...prev, [String(o.id)]: o.name }));
                         setOpen(false);
                       }}

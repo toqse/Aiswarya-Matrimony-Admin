@@ -33,7 +33,7 @@ interface LocationItem {
 interface LocationMasterComboboxProps {
   kind: LocationKind;
   value: string;
-  onValueChange: (id: string) => void;
+  onValueChange: (id: string, name?: string) => void;
   parentId?: number;
   disabled?: boolean;
   placeholder?: string;
@@ -221,7 +221,7 @@ export default function LocationMasterCombobox({
                       key={row.id}
                       value={String(row.id)}
                       onSelect={() => {
-                        onValueChange(String(row.id));
+                        onValueChange(String(row.id), row.name);
                         setLabels((prev) => ({ ...prev, [String(row.id)]: row.name }));
                         setOpen(false);
                       }}

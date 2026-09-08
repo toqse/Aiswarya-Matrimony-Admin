@@ -27,6 +27,7 @@ const SalaryPayroll = lazyRetry(() => import("@/pages/admin/SalaryPayroll"));
 const ProfileAdmin = lazyRetry(() => import("@/pages/admin/ProfileAdmin"));
 const BulkUpload = lazyRetry(() => import("@/pages/admin/BulkUpload"));
 const EnquiryOverview = lazyRetry(() => import("@/pages/admin/EnquiryOverview"));
+const ProfileReports = lazyRetry(() => import("@/pages/admin/ProfileReports"));
 const NewsletterSubscribers = lazyRetry(
   () => import("@/pages/admin/NewsletterSubscribers"),
 );
@@ -132,6 +133,7 @@ const Index = () => {
             <Route path="/profiles" element={<ProfileAdmin />} />
             <Route path="/bulk-upload" element={<BulkUpload />} />
             <Route path="/enquiries" element={<EnquiryOverview />} />
+            <Route path="/profile-reports" element={<ProfileReports />} />
             <Route path="/newsletter" element={<NewsletterSubscribers />} />
             <Route path="/app-config" element={<AppConfig />} />
             <Route path="/msg-settings" element={<MsgSettings />} />

@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown, Loader2, Sparkles } from "lucide-react";
+import { toast } from "sonner";
 import PlacesAutocomplete from "@/components/profile/PlacesAutocomplete";
 import { TimeOfBirthPicker } from "@/components/profile/TimeOfBirthPicker";
 import FormSectionCard from "@/components/profile/FormSectionCard";
@@ -38,6 +39,8 @@ import {
   profileAgeError,
 } from "@/lib/profileAge";
 import { ADMIN_PROFILE_FOR_OPTIONS } from "@/lib/profile-for-options";
+import { buildAboutMeSuggestionsFromLabels } from "@/lib/buildAboutMeFromForm";
+import { displayOccupationName } from "@/lib/displayOccupationName";
 import { filterValidComplexions, isValidComplexionName } from "@/lib/complexion-options";
 import OccupationCombobox from "@/components/profile/OccupationCombobox";
 import LocationMasterCombobox from "@/components/profile/LocationMasterCombobox";
@@ -68,6 +71,10 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
   const [fieldErrors, setFieldErrors] = useState<ProfileFieldErrors>({});
   const [scrollToField, setScrollToField] = useState<string | null>(null);
   const [isCropping, setIsCropping] = useState(false);
+  const [stateName, setStateName] = useState("");
+  const [occupationName, setOccupationName] = useState("");
+  const [aboutSuggestions, setAboutSuggestions] = useState<string[]>([]);
+  const [aboutSuggestionIndex, setAboutSuggestionIndex] = useState(0);
   const [form, setForm] = useState({
     profileFor: "",
     fullName: "",
@@ -134,6 +141,10 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
     setHoroExpanded(true);
     setFieldErrors({});
     setScrollToField(null);
+    setStateName("");
+    setOccupationName("");
+    setAboutSuggestions([]);
+    setAboutSuggestionIndex(0);
     setForm({
       profileFor: "",
       fullName: "",
@@ -371,6 +382,43 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
     (religionsQ.data?.results ?? []).find((r) => String(r.id) === form.religionId)?.name ?? "";
   const dobErr = fieldError(fieldErrors, "dob") || profileAgeError(form.dob);
 
+  const handleAboutHelpMeWrite = () => {
+    const educationName =
+      (educationsQ.data?.results ?? []).find((e) => String(e.id) === form.highestEducationId)?.name ??
+      "";
+    const motherTongueName =
+      (motherTonguesQ.data?.results ?? []).find((m) => String(m.id) === form.motherTongueId)?.name ??
+      "";
+    const maritalLabel =
+      (maritalStatusesQ.data?.results ?? []).find((m) => m.name === form.maritalStatus)?.name ||
+      form.maritalStatus;
+
+    let suggestions = aboutSuggestions;
+    if (!suggestions.length) {
+      suggestions = buildAboutMeSuggestionsFromLabels({
+        city: form.cityName || form.city,
+        state: stateName || form.state,
+        education: educationName,
+        occupation: occupationName ? displayOccupationName(occupationName) : "",
+        religion: activeReligionName,
+        motherTongue: motherTongueName,
+        maritalStatus: maritalLabel,
+        height: form.height,
+      });
+      setAboutSuggestions(suggestions);
+      setAboutSuggestionIndex(0);
+    }
+    if (!suggestions.length) {
+      toast.error("Fill location, education, or other profile details first.");
+      return;
+    }
+    const index = aboutSuggestionIndex % suggestions.length;
+    const text = suggestions[index].slice(0, 500);
+    setForm((prev) => ({ ...prev, aboutMe: text }));
+    setAboutSuggestionIndex(index + 1);
+    toast.success("Suggestion added. You can edit it.");
+  };
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
@@ -490,10 +538,12 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
                 kind="country"
                 value={form.countryId}
                 onValueChange={(v) => {
+                  setStateName("");
                   setForm((p) => ({
                     ...p,
                     countryId: v,
                     stateId: "",
+                    state: "",
                     districtId: "",
                     cityId: "",
                     cityName: "",
@@ -507,10 +557,12 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
                 kind="state"
                 value={form.stateId}
                 parentId={form.countryId ? Number(form.countryId) : undefined}
-                onValueChange={(v) => {
+                onValueChange={(v, name) => {
+                  setStateName(name ?? "");
                   setForm((p) => ({
                     ...p,
                     stateId: v,
+                    state: name ?? "",
                     districtId: "",
                     cityId: "",
                     cityName: "",
@@ -821,7 +873,10 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
               <Label>Occupation</Label>
               <OccupationCombobox
                 value={form.occupationId}
-                onValueChange={(v) => update("occupationId", v)}
+                onValueChange={(v, name) => {
+                  setOccupationName(name ?? "");
+                  update("occupationId", v);
+                }}
               />
             </div>
             </div>
@@ -917,7 +972,25 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
 
           <div>
             <Label>About Me</Label>
-            <Textarea value={form.aboutMe} onChange={(e) => update("aboutMe", e.target.value)} rows={4} />
+            <Textarea
+              value={form.aboutMe}
+              onChange={(e) => update("aboutMe", e.target.value.slice(0, 500))}
+              rows={4}
+              placeholder="Write about yourself, or use Help me write this"
+            />
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={handleAboutHelpMeWrite}
+              >
+                <Sparkles className="h-4 w-4" />
+                Help me write this
+              </Button>
+              <p className="text-xs text-muted-foreground">{form.aboutMe.length}/500 characters</p>
+            </div>
           </div>
 
           <ProfilePhotosSection

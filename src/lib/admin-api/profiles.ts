@@ -626,3 +626,53 @@ export async function createAdminProfile(
   );
   return unwrap(res);
 }
+
+export interface GenerateAboutData {
+  about_me: string;
+  suggestions: string[];
+}
+
+function unwrapGenerateAbout(res: {
+  about_me?: string;
+  suggestions?: string[];
+}): GenerateAboutData {
+  const about_me = String(res.about_me ?? "").trim();
+  const suggestions = Array.isArray(res.suggestions)
+    ? res.suggestions.map((s) => String(s ?? "").trim()).filter(Boolean)
+    : [];
+  return {
+    about_me,
+    suggestions: suggestions.length ? suggestions : about_me ? [about_me] : [],
+  };
+}
+
+export async function generateAdminProfileAbout(matriId: string) {
+  const res = await adminRequest<GenerateAboutData>(
+    `v1/admin/profiles/${encodeURIComponent(matriId)}/generate-about/`,
+  );
+  return unwrapGenerateAbout(unwrap(res));
+}
+
+export async function generateStaffProfileAbout(matriId: string) {
+  const res = await adminRequest<GenerateAboutData>(
+    `v1/staff/profiles/${encodeURIComponent(matriId)}/generate-about/`,
+  );
+  return unwrapGenerateAbout(unwrap(res));
+}
+
+export async function generateBranchProfileAbout(matriId: string) {
+  const res = await adminRequest<GenerateAboutData>(
+    `v1/branch/my-profiles/${encodeURIComponent(matriId)}/generate-about/`,
+  );
+  return unwrapGenerateAbout(unwrap(res));
+}
+
+/** Role-aware About Me generator for Edit wizard Help me write. */
+export async function generateProfileAboutByRole(
+  matriId: string,
+  role: "admin" | "staff" | "branch-manager",
+) {
+  if (role === "staff") return generateStaffProfileAbout(matriId);
+  if (role === "branch-manager") return generateBranchProfileAbout(matriId);
+  return generateAdminProfileAbout(matriId);
+}

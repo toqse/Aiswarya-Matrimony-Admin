@@ -28,7 +28,6 @@ import { formatDateTime } from "@/lib/format-date";
 import {
   fetchBulkImportStatus,
   fetchBulkUploadHistory,
-  fetchBulkTemplateColumns,
   importBulkUpload,
   validateBulkUpload,
   downloadBulkTemplate,
@@ -49,7 +48,6 @@ export default function BulkUpload() {
   const [historyStatus, setHistoryStatus] = useState<string>("all");
   const [historyPage, setHistoryPage] = useState(1);
   const [currentJobStatus, setCurrentJobStatus] = useState<string | null>(null);
-  const [templateColumns, setTemplateColumns] = useState<string[]>([]);
   const importInFlight =
     importing || currentJobStatus === "queued" || currentJobStatus === "processing";
   const fileRef = useRef<HTMLInputElement>(null);
@@ -184,12 +182,6 @@ export default function BulkUpload() {
       return;
     }
   };
-
-  useEffect(() => {
-    fetchBulkTemplateColumns()
-      .then((cols) => setTemplateColumns(Array.isArray(cols) ? cols : []))
-      .catch(() => setTemplateColumns([]));
-  }, []);
 
   useEffect(() => {
     if (!taskId) return;
@@ -388,37 +380,6 @@ export default function BulkUpload() {
                 : "Upload & Import"}
             </Button>
           </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Template columns</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground leading-relaxed mb-4">
-            Use the downloaded template only. Column order and spelling must
-            match exactly.
-          </p>
-          {templateColumns.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-              {templateColumns.map((column, index) => (
-                <div
-                  key={`${index}-${column}`}
-                  className="flex items-start gap-2 rounded-md border bg-muted/20 px-3 py-2 text-sm"
-                >
-                  <span className="text-muted-foreground tabular-nums shrink-0">
-                    {index + 1}.
-                  </span>
-                  <span className="font-medium break-words">{column}</span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              Loading template columns...
-            </p>
-          )}
         </CardContent>
       </Card>
 

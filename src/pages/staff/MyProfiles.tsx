@@ -569,6 +569,7 @@ export default function MyProfiles() {
         open={showEditProfile}
         onOpenChange={setShowEditProfile}
         initial={editInitial}
+        matriId={editProfile?.matri_id ?? null}
         submitting={patchMut.isPending}
         onComplete={(form) => {
           if (!editProfile) return;

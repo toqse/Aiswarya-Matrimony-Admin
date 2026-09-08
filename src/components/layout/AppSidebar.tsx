@@ -33,6 +33,7 @@ import {
   Landmark,
   Building,
   ChevronDown,
+  Flag,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
@@ -63,6 +64,7 @@ const adminGroups: NavGroup[] = [
       { title: "Horoscope", url: "/horoscope", icon: Sparkles },
       { title: "Bulk Upload", url: "/bulk-upload", icon: Upload },
       { title: "Enquiries", url: "/enquiries", icon: MessageSquare },
+      { title: "Profile Reports", url: "/profile-reports", icon: Flag },
       { title: "Success Stories", url: "/success-stories", icon: FileText },
       { title: "Testimonials", url: "/testimonials", icon: Quote },
       { title: "Newsletter", url: "/newsletter", icon: Mail },

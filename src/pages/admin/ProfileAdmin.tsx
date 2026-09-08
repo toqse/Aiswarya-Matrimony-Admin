@@ -439,6 +439,7 @@ export default function ProfileAdmin() {
           }
         }}
         initial={editInitial}
+        matriId={editRow?.matri_id ?? null}
         submitting={editMut.isPending}
         onComplete={(form) => {
           if (!editRow) return;

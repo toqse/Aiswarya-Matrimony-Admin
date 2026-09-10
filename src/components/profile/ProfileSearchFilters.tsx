@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import LocationMasterCombobox from "@/components/profile/LocationMasterCombobox";
+import MasterSearchCombobox from "@/components/profile/MasterSearchCombobox";
 import {
   fetchCastes,
   fetchCountries,
@@ -22,6 +23,7 @@ import {
   fetchOccupations,
   fetchReligions,
 } from "@/lib/admin-api/master";
+import { displayOccupationName } from "@/lib/displayOccupationName";
 import { fetchPlans } from "@/lib/admin-api/plans";
 import { fetchAdminStaffList, fetchBranchStaffList } from "@/lib/admin-api/staff";
 import {
@@ -79,21 +81,6 @@ export default function ProfileSearchFilters({
   const patch = (partial: Partial<ProfileSearchFiltersState>) =>
     onChange({ ...value, ...partial });
 
-  const religionsQuery = useQuery({
-    queryKey: ["master", "religions", "profile-search"],
-    queryFn: () => fetchReligions({ page_size: 200 }),
-  });
-
-  const castesQuery = useQuery({
-    queryKey: ["master", "castes", "profile-search", value.religion_id],
-    queryFn: () =>
-      fetchCastes({
-        religion_id: Number(value.religion_id),
-        page_size: 300,
-      }),
-    enabled: !!value.religion_id,
-  });
-
   const countriesQuery = useQuery({
     queryKey: ["master", "countries", "profile-search"],
     queryFn: () => fetchCountries({ page_size: 50 }),
@@ -104,16 +91,6 @@ export default function ProfileSearchFilters({
     const india = rows.find((c) => /india/i.test(c.name));
     return india?.id ? String(india.id) : "";
   }, [countriesQuery.data]);
-
-  const educationsQuery = useQuery({
-    queryKey: ["master", "educations", "profile-search"],
-    queryFn: () => fetchEducations({ page_size: 200 }),
-  });
-
-  const occupationsQuery = useQuery({
-    queryKey: ["master", "occupations", "profile-search"],
-    queryFn: () => fetchOccupations({ page_size: 200 }),
-  });
 
   const maritalQuery = useQuery({
     queryKey: ["master", "marital", "profile-search"],
@@ -139,10 +116,6 @@ export default function ProfileSearchFilters({
     enabled: showAssignedStaff,
   });
 
-  const religions = religionsQuery.data?.results ?? [];
-  const castes = castesQuery.data?.results ?? [];
-  const educations = educationsQuery.data?.results ?? [];
-  const occupations = occupationsQuery.data?.results ?? [];
   const maritalStatuses = maritalQuery.data?.results ?? [];
   const incomeRanges = incomeQuery.data?.results ?? [];
   const plans = plansQuery.data ?? [];
@@ -280,44 +253,43 @@ export default function ProfileSearchFilters({
             </Field>
 
             <Field label="Religion">
-              <Select
-                value={value.religion_id || "all"}
+              <MasterSearchCombobox
+                value={value.religion_id}
+                allowAll
+                allLabel="All religions"
+                placeholder="All religions"
+                searchPlaceholder="Search religion..."
+                emptyText="No religion found."
+                queryKey={["master", "religions", "profile-search"]}
+                fetchItems={(search) =>
+                  fetchReligions({ search: search || undefined, page_size: 200 })
+                }
                 onValueChange={(v) =>
                   patch({ religion_id: v === "all" ? "" : v, caste_id: "" })
                 }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="All religions" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All religions</SelectItem>
-                  {religions.map((r) => (
-                    <SelectItem key={r.id} value={String(r.id)}>
-                      {r.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              />
             </Field>
 
             <Field label="Caste">
-              <Select
-                value={value.caste_id || "all"}
-                onValueChange={(v) => patch({ caste_id: v === "all" ? "" : v })}
+              <MasterSearchCombobox
+                value={value.caste_id}
+                allowAll
+                allLabel="All castes"
+                placeholder={value.religion_id ? "All castes" : "Select religion first"}
+                searchPlaceholder="Search caste..."
+                emptyText="No caste found."
+                enabled={!!value.religion_id}
                 disabled={!value.religion_id}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={value.religion_id ? "All castes" : "Select religion first"} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All castes</SelectItem>
-                  {castes.map((c) => (
-                    <SelectItem key={c.id} value={String(c.id)}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                queryKey={["master", "castes", "profile-search", value.religion_id]}
+                fetchItems={(search) =>
+                  fetchCastes({
+                    religion_id: Number(value.religion_id),
+                    search: search || undefined,
+                    page_size: 300,
+                  })
+                }
+                onValueChange={(v) => patch({ caste_id: v === "all" ? "" : v })}
+              />
             </Field>
 
             <Field label="State">
@@ -349,41 +321,36 @@ export default function ProfileSearchFilters({
             </Field>
 
             <Field label="Education">
-              <Select
-                value={value.education_id || "all"}
+              <MasterSearchCombobox
+                value={value.education_id}
+                allowAll
+                allLabel="All education"
+                placeholder="All education"
+                searchPlaceholder="Search education..."
+                emptyText="No education found."
+                queryKey={["master", "educations", "profile-search"]}
+                fetchItems={(search) =>
+                  fetchEducations({ search: search || undefined, page_size: 200 })
+                }
                 onValueChange={(v) => patch({ education_id: v === "all" ? "" : v })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="All education" />
-                </SelectTrigger>
-                <SelectContent className="max-h-64">
-                  <SelectItem value="all">All education</SelectItem>
-                  {educations.map((e) => (
-                    <SelectItem key={e.id} value={String(e.id)}>
-                      {e.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              />
             </Field>
 
             <Field label="Occupation">
-              <Select
-                value={value.occupation_id || "all"}
+              <MasterSearchCombobox
+                value={value.occupation_id}
+                allowAll
+                allLabel="All occupations"
+                placeholder="All occupations"
+                searchPlaceholder="Search occupation..."
+                emptyText="No occupation found."
+                queryKey={["master", "occupations", "profile-search"]}
+                fetchItems={(search) =>
+                  fetchOccupations({ search: search || undefined, limit: 200 })
+                }
+                formatOptionLabel={displayOccupationName}
                 onValueChange={(v) => patch({ occupation_id: v === "all" ? "" : v })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="All occupations" />
-                </SelectTrigger>
-                <SelectContent className="max-h-64">
-                  <SelectItem value="all">All occupations</SelectItem>
-                  {occupations.map((o) => (
-                    <SelectItem key={o.id} value={String(o.id)}>
-                      {o.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              />
             </Field>
 
             <Field label="Marital status">

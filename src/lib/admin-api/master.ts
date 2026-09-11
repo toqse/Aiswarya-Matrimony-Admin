@@ -162,6 +162,24 @@ function neverMarriedFirst<T extends { name?: string | null }>(items: T[]): T[] 
   });
 }
 
+export function activeMasterItems<T extends { is_active?: boolean }>(items: T[]): T[] {
+  return items.filter((item) => item.is_active !== false);
+}
+
+/** Keep a saved inactive value visible in edit selects without listing other inactive rows. */
+export function withCurrentMasterOption<T extends { id: number; name: string }>(
+  items: T[],
+  currentId: string,
+  currentName?: string,
+): T[] {
+  if (!currentId) return items;
+  if (items.some((item) => String(item.id) === currentId)) return items;
+  const id = Number(currentId);
+  if (!Number.isFinite(id) || id <= 0) return items;
+  const name = (currentName ?? "").trim() || "Current (inactive)";
+  return [{ id, name, is_active: false } as T, ...items];
+}
+
 export async function fetchReligions(params?: { search?: string; page?: number; page_size?: number }) {
   const q = new URLSearchParams();
   if (params?.search) q.set("search", params.search);
@@ -169,6 +187,20 @@ export async function fetchReligions(params?: { search?: string; page?: number; 
   if (params?.page_size) q.set("page_size", String(params.page_size));
   const qs = q.toString();
   const res = await adminRequest<never>(qs ? `v1/admin/master/religions/?${qs}` : "v1/admin/master/religions/");
+  return parsePaginated<MasterItem>(res);
+}
+
+export async function fetchPublicReligions(params?: {
+  search?: string;
+  page?: number;
+  page_size?: number;
+  limit?: number;
+}) {
+  const q = new URLSearchParams();
+  if (params?.search) q.set("search", params.search);
+  appendPublicMasterPaging(q, params);
+  const qs = q.toString();
+  const res = await adminRequest<never>(qs ? `v1/master/religions/?${qs}` : "v1/master/religions/");
   return parsePaginated<MasterItem>(res);
 }
 
@@ -210,6 +242,22 @@ export async function fetchCastes(params: {
   if (params.page_size) q.set("page_size", String(params.page_size));
   const qs = q.toString();
   const res = await adminRequest<never>(`v1/admin/master/castes/?${qs}`);
+  return parsePaginated<MasterItem>(res);
+}
+
+export async function fetchPublicCastes(params: {
+  religion_id: number;
+  search?: string;
+  page?: number;
+  page_size?: number;
+  limit?: number;
+}) {
+  const q = new URLSearchParams();
+  q.set("religion_id", String(params.religion_id));
+  if (params.search) q.set("search", params.search);
+  appendPublicMasterPaging(q, params);
+  const qs = q.toString();
+  const res = await adminRequest<never>(`v1/master/castes/?${qs}`);
   return parsePaginated<MasterItem>(res);
 }
 

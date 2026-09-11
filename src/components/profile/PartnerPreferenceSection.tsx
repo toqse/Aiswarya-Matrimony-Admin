@@ -9,7 +9,7 @@ import ProfileFormField, {
   invalidInputClass,
   type ProfileFieldErrors,
 } from "@/components/profile/ProfileFormField";
-import { fetchCastes } from "@/lib/admin-api/master";
+import { activeMasterItems, fetchPublicCastes } from "@/lib/admin-api/master";
 import { validatePartnerFieldErrors } from "@/lib/profile-validation";
 import { cn } from "@/lib/utils";
 
@@ -60,6 +60,7 @@ const PREFERENCE_CARDS: {
 interface ReligionOption {
   id: number;
   name: string;
+  is_active?: boolean;
 }
 
 interface PartnerPreferenceSectionProps {
@@ -107,6 +108,7 @@ export default function PartnerPreferenceSection({
 }: PartnerPreferenceSectionProps) {
   const ownReligionId = religionId ? Number(religionId) : 0;
   const ownCasteId = casteId ? Number(casteId) : 0;
+  const activeReligions = useMemo(() => activeMasterItems(religions), [religions]);
   const selectedType = values.partnerPreferenceType;
   const partnerReligionIdsKey = values.partnerReligionIds.join(",");
   const selectedPartnerReligionIds = useMemo(
@@ -131,8 +133,8 @@ export default function PartnerPreferenceSection({
   const fetchingPartnerCastesRef = useRef<Set<number>>(new Set());
 
   const ownCastesQ = useQuery({
-    queryKey: ["master", "castes", "own-religion", religionId],
-    queryFn: () => fetchCastes({ religion_id: ownReligionId, page_size: 500 }),
+    queryKey: ["master", "castes", "own-religion-active", religionId],
+    queryFn: () => fetchPublicCastes({ religion_id: ownReligionId, page_size: 500 }),
     enabled: ownReligionId > 0,
   });
 
@@ -243,8 +245,8 @@ export default function PartnerPreferenceSection({
     Promise.all(
       missing.map(async (id) => {
         try {
-          const res = await fetchCastes({ religion_id: id, page_size: 500 });
-          return { id, list: res.results ?? [] };
+          const res = await fetchPublicCastes({ religion_id: id, page_size: 500 });
+          return { id, list: activeMasterItems(res.results ?? []) };
         } catch {
           return { id, list: [] as { id: number; name: string }[] };
         }
@@ -282,7 +284,7 @@ export default function PartnerPreferenceSection({
     apply({ partnerCastePreferences: ownOnly });
   }, [selectedType, ownReligionId, ownCasteId, ownCastePrefKey]);
 
-  const ownCastes = ownCastesQ.data?.results ?? [];
+  const ownCastes = activeMasterItems(ownCastesQ.data?.results ?? []);
 
   return (
     <FormSectionCard title="Partner Preference">
@@ -337,7 +339,7 @@ export default function PartnerPreferenceSection({
                 <p className="text-sm font-medium">Select religions you&apos;re open to</p>
                 <p className="text-xs text-muted-foreground mb-2">You can select one or more</p>
                 <div className="flex flex-wrap gap-2">
-                  {religions.map((rel) => {
+                  {activeReligions.map((rel) => {
                     const isSelected = values.partnerReligionIds.includes(String(rel.id));
                     return (
                       <button

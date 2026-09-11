@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -46,15 +46,16 @@ import OccupationCombobox from "@/components/profile/OccupationCombobox";
 import LocationMasterCombobox from "@/components/profile/LocationMasterCombobox";
 import CityCombobox from "@/components/profile/CityCombobox";
 import {
-  fetchCastes,
+  activeMasterItems,
   fetchComplexions,
   fetchEducations,
   fetchEducationSubjects,
   fetchEmploymentStatuses,
   fetchIncomeRanges,
   fetchMaritalStatuses,
+  fetchPublicCastes,
   fetchPublicMotherTongues,
-  fetchReligions,
+  fetchPublicReligions,
 } from "@/lib/admin-api/master";
 
 const profileForOptions = ADMIN_PROFILE_FOR_OPTIONS;
@@ -321,13 +322,13 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
   };
 
   const religionsQ = useQuery({
-    queryKey: ["master", "religions", "profile-form"],
-    queryFn: () => fetchReligions({ page_size: 200 }),
+    queryKey: ["master", "religions", "profile-form-active"],
+    queryFn: () => fetchPublicReligions({ page_size: 200 }),
   });
 
   const castesQ = useQuery({
-    queryKey: ["master", "castes", "profile-form", form.religionId],
-    queryFn: () => fetchCastes({ religion_id: Number(form.religionId), page_size: 500 }),
+    queryKey: ["master", "castes", "profile-form-active", form.religionId],
+    queryFn: () => fetchPublicCastes({ religion_id: Number(form.religionId), page_size: 500 }),
     enabled: !!form.religionId,
   });
 
@@ -378,8 +379,16 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
     setForm((prev) => ({ ...prev, [key]: file }));
   };
 
+  const religionOptions = useMemo(
+    () => activeMasterItems(religionsQ.data?.results ?? []),
+    [religionsQ.data?.results],
+  );
+  const casteOptions = useMemo(
+    () => activeMasterItems(castesQ.data?.results ?? []),
+    [castesQ.data?.results],
+  );
   const activeReligionName =
-    (religionsQ.data?.results ?? []).find((r) => String(r.id) === form.religionId)?.name ?? "";
+    religionOptions.find((r) => String(r.id) === form.religionId)?.name ?? "";
   const dobErr = fieldError(fieldErrors, "dob") || profileAgeError(form.dob);
 
   const handleAboutHelpMeWrite = () => {
@@ -633,7 +642,7 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
                   <SelectValue placeholder="Select religion" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(religionsQ.data?.results ?? []).map((r) => (
+                  {religionOptions.map((r) => (
                     <SelectItem key={r.id} value={String(r.id)}>
                       {r.name}
                     </SelectItem>
@@ -648,7 +657,7 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
                   <SelectValue placeholder={form.religionId ? "Select caste" : "Select religion first"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {(castesQ.data?.results ?? []).map((c) => (
+                  {casteOptions.map((c) => (
                     <SelectItem key={c.id} value={String(c.id)}>
                       {c.name}
                     </SelectItem>
@@ -888,7 +897,7 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
             religionId={form.religionId}
             casteId={form.casteId}
             religionName={activeReligionName}
-            religions={religionsQ.data?.results ?? []}
+            religions={religionOptions}
             values={form}
             onChange={updatePartnerPreference}
             onBatchChange={batchPartnerPreference}

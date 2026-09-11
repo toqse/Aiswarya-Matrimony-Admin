@@ -302,6 +302,8 @@ export interface WizardFormValues extends FamilyFormFields, PartnerPreferenceFie
   address: string;
   religionId: string;
   casteId: string;
+  religionName?: string;
+  casteName?: string;
   motherTongueId: string;
   maritalStatus: string;
   reasonForDivorce: string;
@@ -421,6 +423,8 @@ export function mapDetailToWizardForm(
     address: String(location.address ?? ""),
     religionId: idToString(religion.religion_id),
     casteId: idToString(religion.caste_id),
+    religionName: String(religion.religion ?? ""),
+    casteName: String(religion.caste ?? ""),
     motherTongueId: idToString(religion.mother_tongue_id),
     maritalStatus: String(personal.marital_status ?? ""),
     reasonForDivorce: String(personal.reason_for_divorce ?? ""),

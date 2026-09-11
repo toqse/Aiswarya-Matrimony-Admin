@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -44,15 +44,17 @@ import {
   profileAgeError,
 } from "@/lib/profileAge";
 import {
-  fetchCastes,
+  activeMasterItems,
   fetchComplexions,
   fetchEducations,
   fetchEducationSubjects,
   fetchEmploymentStatuses,
   fetchIncomeRanges,
   fetchMaritalStatuses,
+  fetchPublicCastes,
   fetchPublicMotherTongues,
-  fetchReligions,
+  fetchPublicReligions,
+  withCurrentMasterOption,
 } from "@/lib/admin-api/master";
 import { generateProfileAboutByRole } from "@/lib/admin-api/profiles";
 import { useRole } from "@/contexts/RoleContext";
@@ -88,6 +90,8 @@ function emptyForm(): WizardFormValues {
     address: "",
     religionId: "",
     casteId: "",
+    religionName: "",
+    casteName: "",
     motherTongueId: "",
     maritalStatus: "",
     reasonForDivorce: "",
@@ -200,13 +204,13 @@ export default function EditProfileWizard({
   };
 
   const religionsQ = useQuery({
-    queryKey: ["master", "religions", "edit-form"],
-    queryFn: () => fetchReligions({ page_size: 200 }),
+    queryKey: ["master", "religions", "edit-form-active"],
+    queryFn: () => fetchPublicReligions({ page_size: 200 }),
     enabled: open,
   });
   const castesQ = useQuery({
-    queryKey: ["master", "castes", "edit-form", form.religionId],
-    queryFn: () => fetchCastes({ religion_id: Number(form.religionId), page_size: 500 }),
+    queryKey: ["master", "castes", "edit-form-active", form.religionId],
+    queryFn: () => fetchPublicCastes({ religion_id: Number(form.religionId), page_size: 500 }),
     enabled: open && !!form.religionId,
   });
   const motherTonguesQ = useQuery({
@@ -245,8 +249,30 @@ export default function EditProfileWizard({
     enabled: open,
   });
 
+  const religionOptions = useMemo(
+    () =>
+      withCurrentMasterOption(
+        activeMasterItems(religionsQ.data?.results ?? []),
+        form.religionId,
+        form.religionName,
+      ),
+    [religionsQ.data?.results, form.religionId, form.religionName],
+  );
+  const casteOptions = useMemo(
+    () =>
+      withCurrentMasterOption(
+        activeMasterItems(castesQ.data?.results ?? []),
+        form.casteId,
+        form.casteName,
+      ),
+    [castesQ.data?.results, form.casteId, form.casteName],
+  );
+  const partnerReligionOptions = useMemo(
+    () => activeMasterItems(religionsQ.data?.results ?? []),
+    [religionsQ.data?.results],
+  );
   const activeReligionName =
-    (religionsQ.data?.results ?? []).find((r) => String(r.id) === form.religionId)?.name ?? "";
+    religionOptions.find((r) => String(r.id) === form.religionId)?.name ?? "";
 
   const handleAboutHelpMeWrite = async () => {
     try {
@@ -532,7 +558,7 @@ export default function EditProfileWizard({
                   <SelectValue placeholder="Select religion" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(religionsQ.data?.results ?? []).map((r) => (
+                  {religionOptions.map((r) => (
                     <SelectItem key={r.id} value={String(r.id)}>
                       {r.name}
                     </SelectItem>
@@ -547,7 +573,7 @@ export default function EditProfileWizard({
                   <SelectValue placeholder={form.religionId ? "Select caste" : "Select religion first"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {(castesQ.data?.results ?? []).map((c) => (
+                  {casteOptions.map((c) => (
                     <SelectItem key={c.id} value={String(c.id)}>
                       {c.name}
                     </SelectItem>
@@ -783,7 +809,7 @@ export default function EditProfileWizard({
             religionId={form.religionId}
             casteId={form.casteId}
             religionName={activeReligionName}
-            religions={religionsQ.data?.results ?? []}
+            religions={partnerReligionOptions}
             values={form}
             onChange={updatePartnerPreference}
             onBatchChange={batchPartnerPreference}

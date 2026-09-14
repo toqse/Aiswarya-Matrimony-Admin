@@ -32,7 +32,16 @@ describe("validateProfileForm photos", () => {
     expect(validateProfileForm(validForm())).toEqual({});
   });
 
-  it("requires profile_photo and full_photo on create", () => {
+  it("does not require photos on create", () => {
+    const errs = validateProfileForm(validForm(), {
+      requireProfileFor: true,
+      requireMobile: true,
+    });
+    expect(errs.profile_photo).toBeUndefined();
+    expect(errs.full_photo).toBeUndefined();
+  });
+
+  it("requires profile_photo and full_photo when requirePhotos is true", () => {
     const errs = validateProfileForm(validForm(), { requirePhotos: true });
     expect(errs.profile_photo).toBe("Profile Photo is required.");
     expect(errs.full_photo).toBe("Full Photo is required.");

@@ -234,7 +234,7 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
     const errs = validateProfileForm(form, {
       requireProfileFor: true,
       requireMobile: true,
-      requirePhotos: true,
+      requirePhotos: false,
     });
     setFieldErrors(errs);
     if (Object.keys(errs).length > 0) {
@@ -1013,7 +1013,6 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
               aadhaar_back: form.aadhaar_back,
             }}
             errors={fieldErrors}
-            requirePhotos
             onFileChange={updatePhoto}
             onCroppingChange={setIsCropping}
           />

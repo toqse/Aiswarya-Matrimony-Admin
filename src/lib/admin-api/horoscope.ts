@@ -704,9 +704,19 @@ export async function runPoruthamBatch(options: RunPoruthamBatchOptions): Promis
   });
 }
 
+export function normalizePoruthamMode(raw: string): PoruthamFixedMode | null {
+  const m = raw.trim().toLowerCase().replace(/_/g, "-");
+  if (m === "fixed-bride") return "fixed-bride";
+  if (m === "fixed-groom") return "fixed-groom";
+  return null;
+}
+
 export interface SavedPoruthamMatchRow {
   id: number;
   mode: string;
+  fixed_profile_id: number | null;
+  fixed_matri_id: string;
+  fixed_name: string;
   partner_profile_id: number | null;
   partner_matri_id: string;
   partner_name: string;
@@ -719,18 +729,21 @@ export interface SavedPoruthamMatchRow {
   updated_at: string;
 }
 
+function parseOptionalId(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && /^\d+$/.test(value)) return Number(value);
+  return null;
+}
+
 function normalizeSavedPoruthamRow(row: unknown): SavedPoruthamMatchRow {
   const r = (row && typeof row === "object" ? row : {}) as Record<string, unknown>;
-  const pid = r.partner_profile_id;
   return {
     id: pickNum(r.id),
-    mode: pickStr(r.mode),
-    partner_profile_id:
-      typeof pid === "number" && !Number.isNaN(pid)
-        ? pid
-        : typeof pid === "string" && /^\d+$/.test(pid)
-          ? Number(pid)
-          : null,
+    mode: normalizePoruthamMode(pickStr(r.mode)) ?? pickStr(r.mode),
+    fixed_profile_id: parseOptionalId(r.fixed_profile_id),
+    fixed_matri_id: pickStr(r.fixed_matri_id),
+    fixed_name: pickStr(r.fixed_name),
+    partner_profile_id: parseOptionalId(r.partner_profile_id),
     partner_matri_id: pickStr(r.partner_matri_id),
     partner_name: pickStr(r.partner_name),
     score: pickNum(r.score),
@@ -755,14 +768,16 @@ function isMissingSavedEndpoint(error: unknown): boolean {
 
 export async function fetchSavedPoruthamMatches(
   role: UserRole,
-  fixedProfileId: number,
+  fixedProfileId?: number,
 ): Promise<SavedPoruthamMatchRow[]> {
   if (savedPoruthamApiAvailable === false) {
     return listLocalSavedPoruthamMatches(fixedProfileId);
   }
   try {
     const base = horoscopeBasePath(role);
-    const q = toQs({ fixed_profile_id: fixedProfileId });
+    const q = toQs({
+      fixed_profile_id: fixedProfileId,
+    });
     const res = await adminRequest<unknown>(`${base}porutham/saved/${q}`);
     const data = await unwrap(res);
     savedPoruthamApiAvailable = true;
@@ -784,6 +799,8 @@ export type SavePoruthamMatchesBody = {
   partner_profile_ids: number[];
   /** Used when API is unavailable (local browser save). */
   partners?: LocalSavePartnerInput[];
+  fixed_matri_id?: string;
+  fixed_name?: string;
 };
 
 export async function savePoruthamMatches(
@@ -799,6 +816,8 @@ export async function savePoruthamMatches(
     return saveLocalPoruthamMatches({
       mode: body.mode,
       fixed_profile_id: body.fixed_profile_id,
+      fixed_matri_id: body.fixed_matri_id,
+      fixed_name: body.fixed_name,
       partners: localPartners,
     });
   }
@@ -824,6 +843,8 @@ export async function savePoruthamMatches(
       return saveLocalPoruthamMatches({
         mode: body.mode,
         fixed_profile_id: body.fixed_profile_id,
+        fixed_matri_id: body.fixed_matri_id,
+        fixed_name: body.fixed_name,
         partners: localPartners,
       });
     }

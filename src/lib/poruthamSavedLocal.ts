@@ -24,9 +24,30 @@ function writeStore(store: LocalStore): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
 }
 
-export function listLocalSavedPoruthamMatches(fixedProfileId: number): SavedPoruthamMatchRow[] {
-  const rows = readStore()[storeKey(fixedProfileId)] ?? [];
-  return [...rows].sort((a, b) => (b.updated_at || "").localeCompare(a.updated_at || ""));
+export function listLocalSavedPoruthamMatches(fixedProfileId?: number): SavedPoruthamMatchRow[] {
+  const store = readStore();
+  const withFixedId = (rows: SavedPoruthamMatchRow[], fallbackId: number): SavedPoruthamMatchRow[] =>
+    rows.map((r) => ({
+      ...r,
+      fixed_profile_id: r.fixed_profile_id ?? fallbackId,
+    }));
+
+  if (fixedProfileId != null) {
+    return withFixedId(store[storeKey(fixedProfileId)] ?? [], fixedProfileId).sort((a, b) =>
+      (b.updated_at || "").localeCompare(a.updated_at || ""),
+    );
+  }
+
+  const all: SavedPoruthamMatchRow[] = [];
+  for (const [key, rows] of Object.entries(store)) {
+    const fid = Number(key);
+    if (!Number.isFinite(fid)) {
+      all.push(...rows);
+      continue;
+    }
+    all.push(...withFixedId(rows, fid));
+  }
+  return all.sort((a, b) => (b.updated_at || "").localeCompare(a.updated_at || ""));
 }
 
 export type LocalSavePartnerInput = {
@@ -42,10 +63,19 @@ export type LocalSavePartnerInput = {
 export function saveLocalPoruthamMatches(options: {
   mode: PoruthamFixedMode;
   fixed_profile_id: number;
+  fixed_matri_id?: string;
+  fixed_name?: string;
   partners: LocalSavePartnerInput[];
   saved_by_name?: string;
 }): SavedPoruthamMatchRow[] {
-  const { mode, fixed_profile_id, partners, saved_by_name = "" } = options;
+  const {
+    mode,
+    fixed_profile_id,
+    fixed_matri_id = "",
+    fixed_name = "",
+    partners,
+    saved_by_name = "",
+  } = options;
   const store = readStore();
   const key = storeKey(fixed_profile_id);
   const existing = store[key] ?? [];
@@ -61,7 +91,10 @@ export function saveLocalPoruthamMatches(options: {
     const prev = byPartner.get(p.profile_id);
     const row: SavedPoruthamMatchRow = {
       id: prev?.id ?? Date.now() + p.profile_id,
-      mode: mode === "fixed-bride" ? "fixed_bride" : "fixed_groom",
+      mode,
+      fixed_profile_id,
+      fixed_matri_id: fixed_matri_id || prev?.fixed_matri_id || "",
+      fixed_name: fixed_name || prev?.fixed_name || "",
       partner_profile_id: p.profile_id,
       partner_matri_id: p.matri_id ?? prev?.partner_matri_id ?? "",
       partner_name: p.profile_name ?? prev?.partner_name ?? `Profile ${p.profile_id}`,

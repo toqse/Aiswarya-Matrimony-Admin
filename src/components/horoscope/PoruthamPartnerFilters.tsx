@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { RotateCcw, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -10,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { fetchCastes, fetchReligions } from "@/lib/admin-api/master";
+import { activeMasterItems, fetchCastes, fetchReligions } from "@/lib/admin-api/master";
 import {
   EMPTY_PORUTHAM_PARTNER_FILTERS,
   type PoruthamPartnerFiltersState,
@@ -57,8 +58,14 @@ export default function PoruthamPartnerFilters({
     enabled: !!value.religion_id,
   });
 
-  const religions = religionsQuery.data?.results ?? [];
-  const castes = castesQuery.data?.results ?? [];
+  const religions = useMemo(
+    () => activeMasterItems(religionsQuery.data?.results ?? []),
+    [religionsQuery.data?.results],
+  );
+  const castes = useMemo(
+    () => activeMasterItems(castesQuery.data?.results ?? []),
+    [castesQuery.data?.results],
+  );
 
   return (
     <form

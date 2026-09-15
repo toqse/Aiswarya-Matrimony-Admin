@@ -29,6 +29,7 @@ import {
   type PoruthamFixedMode,
   type PoruthamNavSelectionItem,
   type SavedPoruthamMatchRow,
+  normalizePoruthamMode,
 } from "@/lib/admin-api/horoscope";
 import {
   Star, Eye, FileText,
@@ -133,7 +134,7 @@ export default function HoroscopeManagement() {
   );
   const [partnerFilterVersion, setPartnerFilterVersion] = useState(0);
   const [savingMatches, setSavingMatches] = useState(false);
-  const [unsavingPartnerId, setUnsavingPartnerId] = useState<number | null>(null);
+  const [unsavingMatchId, setUnsavingMatchId] = useState<number | null>(null);
   const [saveGeneration, setSaveGeneration] = useState(0);
 
   const isAdmin = role === "admin";
@@ -293,7 +294,8 @@ export default function HoroscopeManagement() {
     }
   }, [fixedProfile, eligiblePartners, poruthamMode, role, queryClient, toast]);
 
-  const savedMatchesQueryKey = ["horoscope", role, "porutham-saved", fixedProfile?.profile_id];
+  const savedMatchesQueryKey = ["horoscope", role, "porutham-saved", "all"];
+  const savedForFixedQueryKey = ["horoscope", role, "porutham-saved", fixedProfile?.profile_id];
 
   const {
     data: savedMatches = [],
@@ -301,6 +303,12 @@ export default function HoroscopeManagement() {
     refetch: refetchSavedMatches,
   } = useQuery({
     queryKey: savedMatchesQueryKey,
+    queryFn: () => fetchSavedPoruthamMatches(role),
+    enabled: activeTab === "matches",
+  });
+
+  const { data: savedForFixed = [] } = useQuery({
+    queryKey: savedForFixedQueryKey,
     queryFn: () => fetchSavedPoruthamMatches(role, fixedProfile!.profile_id),
     enabled: activeTab === "matches" && fixedProfile != null,
   });
@@ -308,11 +316,11 @@ export default function HoroscopeManagement() {
   const savedPartnerIds = useMemo(
     () =>
       new Set(
-        savedMatches
+        savedForFixed
           .map((r) => r.partner_profile_id)
           .filter((id): id is number => id != null),
       ),
-    [savedMatches],
+    [savedForFixed],
   );
 
   const handleSaveSelectedMatches = useCallback(
@@ -336,7 +344,10 @@ export default function HoroscopeManagement() {
           fixed_profile_id: fixedProfile.profile_id,
           partner_profile_ids: partnerProfileIds,
           partners,
+          fixed_matri_id: fixedProfile.matri_id,
+          fixed_name: fixedProfile.profile_name,
         });
+        await queryClient.invalidateQueries({ queryKey: ["horoscope", role, "porutham-saved"] });
         await refetchSavedMatches();
         setSaveGeneration((g) => g + 1);
         toast({
@@ -353,18 +364,19 @@ export default function HoroscopeManagement() {
         setSavingMatches(false);
       }
     },
-    [fixedProfile, collectedMatches, poruthamMode, role, refetchSavedMatches, toast],
+    [fixedProfile, collectedMatches, poruthamMode, role, queryClient, refetchSavedMatches, toast],
   );
 
   const handleUnsaveMatch = useCallback(
-    async (partnerProfileId: number) => {
-      if (!fixedProfile) return;
-      setUnsavingPartnerId(partnerProfileId);
+    async (row: SavedPoruthamMatchRow) => {
+      if (row.fixed_profile_id == null || row.partner_profile_id == null) return;
+      setUnsavingMatchId(row.id);
       try {
         await deleteSavedPoruthamMatches(role, {
-          fixed_profile_id: fixedProfile.profile_id,
-          partner_profile_ids: [partnerProfileId],
+          fixed_profile_id: row.fixed_profile_id,
+          partner_profile_ids: [row.partner_profile_id],
         });
+        await queryClient.invalidateQueries({ queryKey: ["horoscope", role, "porutham-saved"] });
         await refetchSavedMatches();
         toast({ title: "Match removed from saved list" });
       } catch (e) {
@@ -374,20 +386,21 @@ export default function HoroscopeManagement() {
           variant: "destructive",
         });
       } finally {
-        setUnsavingPartnerId(null);
+        setUnsavingMatchId(null);
       }
     },
-    [fixedProfile, role, refetchSavedMatches, toast],
+    [role, queryClient, refetchSavedMatches, toast],
   );
 
   const handleViewSavedMatch = useCallback(
     async (row: SavedPoruthamMatchRow) => {
-      if (!fixedProfile || row.partner_profile_id == null) return;
+      if (row.fixed_profile_id == null || row.partner_profile_id == null) return;
+      const mode = normalizePoruthamMode(row.mode) ?? "fixed-bride";
       try {
         const bride_profile_id =
-          poruthamMode === "fixed-bride" ? fixedProfile.profile_id : row.partner_profile_id;
+          mode === "fixed-bride" ? row.fixed_profile_id : row.partner_profile_id;
         const groom_profile_id =
-          poruthamMode === "fixed-bride" ? row.partner_profile_id : fixedProfile.profile_id;
+          mode === "fixed-bride" ? row.partner_profile_id : row.fixed_profile_id;
         const payload = await postHoroscopePorutham(role, { bride_profile_id, groom_profile_id });
         setCollectedDetailIndex(null);
         setPoruthamResult(payload);
@@ -400,7 +413,7 @@ export default function HoroscopeManagement() {
         });
       }
     },
-    [fixedProfile, poruthamMode, role, toast],
+    [role, toast],
   );
 
   const detailBrideMatri =
@@ -657,6 +670,14 @@ export default function HoroscopeManagement() {
         </TabsContent>
 
         <TabsContent value="matches" className="space-y-4">
+          <PoruthamSavedMatches
+            rows={savedMatches}
+            loading={savedMatchesLoading}
+            onView={handleViewSavedMatch}
+            onUnsave={handleUnsaveMatch}
+            unsavingId={unsavingMatchId}
+          />
+
           <Card className="shadow-elegant border-0">
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2"><Heart className="h-4 w-4 text-primary" /> Porutham (compatibility)</CardTitle>
@@ -785,17 +806,6 @@ export default function HoroscopeManagement() {
               saving={savingMatches}
               savedPartnerIds={savedPartnerIds}
               saveGeneration={saveGeneration}
-            />
-          ) : null}
-
-          {fixedProfile ? (
-            <PoruthamSavedMatches
-              mode={poruthamMode}
-              rows={savedMatches}
-              loading={savedMatchesLoading}
-              onView={handleViewSavedMatch}
-              onUnsave={handleUnsaveMatch}
-              unsavingId={unsavingPartnerId}
             />
           ) : null}
         </TabsContent>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronUp, RotateCcw, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { fetchBranchList } from "@/lib/admin-api/branches";
-import { fetchCastes, fetchReligions } from "@/lib/admin-api/master";
+import { activeMasterItems, fetchCastes, fetchReligions } from "@/lib/admin-api/master";
 import {
   EMPTY_HOROSCOPE_SEARCH,
   type HoroscopeSearchFiltersState,
@@ -82,8 +82,14 @@ export default function HoroscopeSearchFilters({
     enabled: isAdmin,
   });
 
-  const religions = religionsQuery.data?.results ?? [];
-  const castes = castesQuery.data?.results ?? [];
+  const religions = useMemo(
+    () => activeMasterItems(religionsQuery.data?.results ?? []),
+    [religionsQuery.data?.results],
+  );
+  const castes = useMemo(
+    () => activeMasterItems(castesQuery.data?.results ?? []),
+    [castesQuery.data?.results],
+  );
   const branches = branchesQuery.data?.results ?? [];
 
   return (

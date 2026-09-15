@@ -3,6 +3,8 @@ import { ApiError, unwrap } from "@/lib/admin-api/http";
 import type { UserRole } from "@/types/user-role";
 import {
   deleteLocalSavedPoruthamMatches,
+  groupSavedPoruthamRows,
+  listLocalSavedPoruthamGroups,
   listLocalSavedPoruthamMatches,
   saveLocalPoruthamMatches,
   type LocalSavePartnerInput,
@@ -759,6 +761,50 @@ function normalizeSavedPoruthamRow(row: unknown): SavedPoruthamMatchRow {
   };
 }
 
+export interface SavedPoruthamGroupRow {
+  fixed_profile_id: number | null;
+  fixed_user_id: string;
+  fixed_name: string;
+  fixed_matri_id: string;
+  mode: string;
+  match_count: number;
+  last_saved_at: string;
+  saved_by_name: string;
+}
+
+export interface SavedPoruthamPageEnvelope<T> {
+  count: number;
+  page: number;
+  page_size: number;
+  results: T[];
+}
+
+function paginateLocal<T>(rows: T[], page: number, pageSize: number): SavedPoruthamPageEnvelope<T> {
+  const size = Math.max(1, Math.min(100, pageSize));
+  const p = Math.max(1, page);
+  const start = (p - 1) * size;
+  return {
+    count: rows.length,
+    page: p,
+    page_size: size,
+    results: rows.slice(start, start + size),
+  };
+}
+
+function normalizeSavedPoruthamGroup(row: unknown): SavedPoruthamGroupRow {
+  const r = (row && typeof row === "object" ? row : {}) as Record<string, unknown>;
+  return {
+    fixed_profile_id: parseOptionalId(r.fixed_profile_id),
+    fixed_user_id: pickStr(r.fixed_user_id),
+    fixed_name: pickStr(r.fixed_name),
+    fixed_matri_id: pickStr(r.fixed_matri_id),
+    mode: normalizePoruthamMode(pickStr(r.mode)) ?? pickStr(r.mode),
+    match_count: pickNum(r.match_count),
+    last_saved_at: pickStr(r.last_saved_at),
+    saved_by_name: pickStr(r.saved_by_name),
+  };
+}
+
 /** Cached: production may not have /porutham/saved/ yet — fall back to browser storage. */
 let savedPoruthamApiAvailable: boolean | null = null;
 
@@ -770,24 +816,100 @@ export async function fetchSavedPoruthamMatches(
   role: UserRole,
   fixedProfileId?: number,
 ): Promise<SavedPoruthamMatchRow[]> {
+  const page = await fetchSavedPoruthamMatchesPage(role, {
+    fixed_profile_id: fixedProfileId,
+  });
+  return page.results;
+}
+
+export async function fetchSavedPoruthamMatchesPage(
+  role: UserRole,
+  params?: {
+    fixed_profile_id?: number;
+    page?: number;
+    page_size?: number;
+    search?: string;
+  },
+): Promise<SavedPoruthamPageEnvelope<SavedPoruthamMatchRow>> {
+  const page = params?.page;
+  const pageSize = params?.page_size ?? 20;
   if (savedPoruthamApiAvailable === false) {
-    return listLocalSavedPoruthamMatches(fixedProfileId);
+    let rows = listLocalSavedPoruthamMatches(params?.fixed_profile_id);
+    const q = (params?.search || "").trim().toLowerCase();
+    if (q) {
+      rows = rows.filter((r) =>
+        [r.fixed_name, r.fixed_matri_id, r.partner_name, r.partner_matri_id]
+          .join(" ")
+          .toLowerCase()
+          .includes(q),
+      );
+    }
+    if (page == null) {
+      return { count: rows.length, page: 1, page_size: rows.length || 20, results: rows };
+    }
+    return paginateLocal(rows, page, pageSize);
   }
   try {
     const base = horoscopeBasePath(role);
     const q = toQs({
-      fixed_profile_id: fixedProfileId,
+      fixed_profile_id: params?.fixed_profile_id,
+      page,
+      page_size: page != null ? pageSize : undefined,
+      search: params?.search,
     });
     const res = await adminRequest<unknown>(`${base}porutham/saved/${q}`);
     const data = await unwrap(res);
     savedPoruthamApiAvailable = true;
     const root = (data && typeof data === "object" ? data : {}) as Record<string, unknown>;
-    const results = Array.isArray(root.results) ? root.results : [];
-    return results.map(normalizeSavedPoruthamRow);
+    const results = Array.isArray(root.results) ? root.results.map(normalizeSavedPoruthamRow) : [];
+    return {
+      count: pickNum(root.count, results.length),
+      page: pickNum(root.page, page ?? 1) || 1,
+      page_size: pickNum(root.page_size, pageSize) || pageSize,
+      results,
+    };
   } catch (e) {
     if (isMissingSavedEndpoint(e)) {
       savedPoruthamApiAvailable = false;
-      return listLocalSavedPoruthamMatches(fixedProfileId);
+      return fetchSavedPoruthamMatchesPage(role, params);
+    }
+    throw e;
+  }
+}
+
+export async function fetchSavedPoruthamGroups(
+  role: UserRole,
+  params?: { page?: number; page_size?: number; search?: string },
+): Promise<SavedPoruthamPageEnvelope<SavedPoruthamGroupRow>> {
+  const page = params?.page ?? 1;
+  const pageSize = params?.page_size ?? 20;
+  if (savedPoruthamApiAvailable === false) {
+    return paginateLocal(listLocalSavedPoruthamGroups(params?.search), page, pageSize);
+  }
+  try {
+    const base = horoscopeBasePath(role);
+    const q = toQs({
+      page,
+      page_size: pageSize,
+      search: params?.search,
+    });
+    const res = await adminRequest<unknown>(`${base}porutham/saved/groups/${q}`);
+    const data = await unwrap(res);
+    savedPoruthamApiAvailable = true;
+    const root = (data && typeof data === "object" ? data : {}) as Record<string, unknown>;
+    const results = Array.isArray(root.results)
+      ? root.results.map(normalizeSavedPoruthamGroup)
+      : [];
+    return {
+      count: pickNum(root.count, results.length),
+      page: pickNum(root.page, page) || 1,
+      page_size: pickNum(root.page_size, pageSize) || pageSize,
+      results,
+    };
+  } catch (e) {
+    if (isMissingSavedEndpoint(e)) {
+      const rows = await fetchSavedPoruthamMatches(role);
+      return paginateLocal(groupSavedPoruthamRows(rows, params?.search), page, pageSize);
     }
     throw e;
   }

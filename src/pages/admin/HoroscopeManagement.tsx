@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +20,6 @@ import {
   fetchHoroscopeRecords,
   fetchHoroscopeSummary,
   fetchSavedPoruthamMatches,
-  deleteSavedPoruthamMatches,
   normalizeHoroscopeRecord,
   postHoroscopePorutham,
   runPoruthamBatch,
@@ -28,20 +28,17 @@ import {
   type HoroscopeRecordRow,
   type PoruthamFixedMode,
   type PoruthamNavSelectionItem,
-  type SavedPoruthamMatchRow,
-  normalizePoruthamMode,
 } from "@/lib/admin-api/horoscope";
 import {
   Star, Eye, FileText,
   Clock, Heart, Sparkles,
-  Shield, Loader2, ChevronLeft, ChevronRight, ExternalLink, Link2,
+  Shield, Loader2, ChevronLeft, ChevronRight, ExternalLink, Link2, Bookmark,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import HoroscopeSearchFilters from "@/components/horoscope/HoroscopeSearchFilters";
 import PoruthamProfileMultiPicker from "@/components/horoscope/PoruthamProfileMultiPicker";
 import PoruthamPartnerFilters from "@/components/horoscope/PoruthamPartnerFilters";
 import PoruthamCollectedMatches from "@/components/horoscope/PoruthamCollectedMatches";
-import PoruthamSavedMatches from "@/components/horoscope/PoruthamSavedMatches";
 import { PoruthamResultView } from "@/components/horoscope/PoruthamResultView";
 import { JathagamTab } from "@/components/horoscope/JathagamTab";
 import { ProfileDetailPanel } from "@/components/profile/ProfileDetailPanel";
@@ -134,7 +131,6 @@ export default function HoroscopeManagement() {
   );
   const [partnerFilterVersion, setPartnerFilterVersion] = useState(0);
   const [savingMatches, setSavingMatches] = useState(false);
-  const [unsavingMatchId, setUnsavingMatchId] = useState<number | null>(null);
   const [saveGeneration, setSaveGeneration] = useState(0);
 
   const isAdmin = role === "admin";
@@ -294,18 +290,7 @@ export default function HoroscopeManagement() {
     }
   }, [fixedProfile, eligiblePartners, poruthamMode, role, queryClient, toast]);
 
-  const savedMatchesQueryKey = ["horoscope", role, "porutham-saved", "all"];
   const savedForFixedQueryKey = ["horoscope", role, "porutham-saved", fixedProfile?.profile_id];
-
-  const {
-    data: savedMatches = [],
-    isLoading: savedMatchesLoading,
-    refetch: refetchSavedMatches,
-  } = useQuery({
-    queryKey: savedMatchesQueryKey,
-    queryFn: () => fetchSavedPoruthamMatches(role),
-    enabled: activeTab === "matches",
-  });
 
   const { data: savedForFixed = [] } = useQuery({
     queryKey: savedForFixedQueryKey,
@@ -348,11 +333,10 @@ export default function HoroscopeManagement() {
           fixed_name: fixedProfile.profile_name,
         });
         await queryClient.invalidateQueries({ queryKey: ["horoscope", role, "porutham-saved"] });
-        await refetchSavedMatches();
         setSaveGeneration((g) => g + 1);
         toast({
           title: "Matches saved",
-          description: `${partnerProfileIds.length} match${partnerProfileIds.length === 1 ? "" : "es"} saved for later review.`,
+          description: `${partnerProfileIds.length} match${partnerProfileIds.length === 1 ? "" : "es"} saved. Open Saved Porutham to review them later.`,
         });
       } catch (e) {
         toast({
@@ -364,56 +348,7 @@ export default function HoroscopeManagement() {
         setSavingMatches(false);
       }
     },
-    [fixedProfile, collectedMatches, poruthamMode, role, queryClient, refetchSavedMatches, toast],
-  );
-
-  const handleUnsaveMatch = useCallback(
-    async (row: SavedPoruthamMatchRow) => {
-      if (row.fixed_profile_id == null || row.partner_profile_id == null) return;
-      setUnsavingMatchId(row.id);
-      try {
-        await deleteSavedPoruthamMatches(role, {
-          fixed_profile_id: row.fixed_profile_id,
-          partner_profile_ids: [row.partner_profile_id],
-        });
-        await queryClient.invalidateQueries({ queryKey: ["horoscope", role, "porutham-saved"] });
-        await refetchSavedMatches();
-        toast({ title: "Match removed from saved list" });
-      } catch (e) {
-        toast({
-          title: "Unsave failed",
-          description: getApiErrorMessage(e),
-          variant: "destructive",
-        });
-      } finally {
-        setUnsavingMatchId(null);
-      }
-    },
-    [role, queryClient, refetchSavedMatches, toast],
-  );
-
-  const handleViewSavedMatch = useCallback(
-    async (row: SavedPoruthamMatchRow) => {
-      if (row.fixed_profile_id == null || row.partner_profile_id == null) return;
-      const mode = normalizePoruthamMode(row.mode) ?? "fixed-bride";
-      try {
-        const bride_profile_id =
-          mode === "fixed-bride" ? row.fixed_profile_id : row.partner_profile_id;
-        const groom_profile_id =
-          mode === "fixed-bride" ? row.partner_profile_id : row.fixed_profile_id;
-        const payload = await postHoroscopePorutham(role, { bride_profile_id, groom_profile_id });
-        setCollectedDetailIndex(null);
-        setPoruthamResult(payload);
-        setPoruthamResultOpen(true);
-      } catch (e) {
-        toast({
-          title: "Could not load match",
-          description: getApiErrorMessage(e),
-          variant: "destructive",
-        });
-      }
-    },
-    [role, toast],
+    [fixedProfile, collectedMatches, poruthamMode, role, queryClient, toast],
   );
 
   const detailBrideMatri =
@@ -670,13 +605,17 @@ export default function HoroscopeManagement() {
         </TabsContent>
 
         <TabsContent value="matches" className="space-y-4">
-          <PoruthamSavedMatches
-            rows={savedMatches}
-            loading={savedMatchesLoading}
-            onView={handleViewSavedMatch}
-            onUnsave={handleUnsaveMatch}
-            unsavingId={unsavingMatchId}
-          />
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-muted-foreground">
+              Saved matches are listed on a separate page, grouped by profile.
+            </p>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/horoscope/saved-porutham">
+                <Bookmark className="h-3.5 w-3.5 mr-1" />
+                Open saved porutham matches
+              </Link>
+            </Button>
+          </div>
 
           <Card className="shadow-elegant border-0">
             <CardHeader>

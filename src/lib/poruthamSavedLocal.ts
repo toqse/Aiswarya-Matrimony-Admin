@@ -50,6 +50,62 @@ export function listLocalSavedPoruthamMatches(fixedProfileId?: number): SavedPor
   return all.sort((a, b) => (b.updated_at || "").localeCompare(a.updated_at || ""));
 }
 
+export type SavedPoruthamGroupLocalRow = {
+  fixed_profile_id: number | null;
+  fixed_user_id: string;
+  fixed_name: string;
+  fixed_matri_id: string;
+  mode: string;
+  match_count: number;
+  last_saved_at: string;
+  saved_by_name: string;
+};
+
+export function groupSavedPoruthamRows(
+  all: SavedPoruthamMatchRow[],
+  search?: string,
+): SavedPoruthamGroupLocalRow[] {
+  const q = (search || "").trim().toLowerCase();
+  const filtered = q
+    ? all.filter((r) =>
+        [r.fixed_name, r.fixed_matri_id, r.partner_name, r.partner_matri_id]
+          .join(" ")
+          .toLowerCase()
+          .includes(q),
+      )
+    : all;
+  const byFixed = new Map<number, SavedPoruthamMatchRow[]>();
+  for (const row of filtered) {
+    const id = row.fixed_profile_id;
+    if (id == null) continue;
+    const list = byFixed.get(id) ?? [];
+    list.push(row);
+    byFixed.set(id, list);
+  }
+  const groups: SavedPoruthamGroupLocalRow[] = [];
+  for (const [id, rows] of byFixed) {
+    const latest = [...rows].sort((a, b) =>
+      (b.updated_at || "").localeCompare(a.updated_at || ""),
+    )[0];
+    if (!latest) continue;
+    groups.push({
+      fixed_profile_id: id,
+      fixed_user_id: "",
+      fixed_name: latest.fixed_name,
+      fixed_matri_id: latest.fixed_matri_id,
+      mode: latest.mode,
+      match_count: rows.length,
+      last_saved_at: latest.updated_at,
+      saved_by_name: latest.saved_by_name,
+    });
+  }
+  return groups.sort((a, b) => (b.last_saved_at || "").localeCompare(a.last_saved_at || ""));
+}
+
+export function listLocalSavedPoruthamGroups(search?: string): SavedPoruthamGroupLocalRow[] {
+  return groupSavedPoruthamRows(listLocalSavedPoruthamMatches(), search);
+}
+
 export type LocalSavePartnerInput = {
   profile_id: number;
   matri_id?: string;

@@ -19,6 +19,7 @@ import {
   FileText,
   Quote,
   Sparkles,
+  Heart,
   MapPinned,
   Church,
   ScrollText,
@@ -62,6 +63,7 @@ const adminGroups: NavGroup[] = [
       { title: "Dashboard", url: "/", icon: LayoutDashboard },
       { title: "Profile Admin", url: "/profiles", icon: UserCircle },
       { title: "Horoscope", url: "/horoscope", icon: Sparkles },
+      { title: "Saved Porutham", url: "/horoscope/saved-porutham", icon: Heart },
       { title: "Bulk Upload", url: "/bulk-upload", icon: Upload },
       { title: "Enquiries", url: "/enquiries", icon: MessageSquare },
       { title: "Profile Reports", url: "/profile-reports", icon: Flag },
@@ -138,6 +140,7 @@ const staffGroups: NavGroup[] = [
       { title: "My Salary", url: "/my-salary", icon: IndianRupee },
       { title: "My Profiles", url: "/my-profiles", icon: UserCircle },
       { title: "Horoscope", url: "/horoscope", icon: Sparkles },
+      { title: "Saved Porutham", url: "/horoscope/saved-porutham", icon: Heart },
       { title: "Enquiries", url: "/my-enquiries", icon: MessageSquare },
       { title: "Subscriptions", url: "/my-subscriptions", icon: CreditCard },
       { title: "Cash Payment Entry", url: "/cash-entry", icon: Banknote },
@@ -158,6 +161,7 @@ const branchManagerGroups: NavGroup[] = [
       { title: "My Salary", url: "/my-salary", icon: IndianRupee },
       { title: "My Profiles", url: "/my-profiles", icon: UserCircle },
       { title: "Horoscope", url: "/horoscope", icon: Sparkles },
+      { title: "Saved Porutham", url: "/horoscope/saved-porutham", icon: Heart },
     ],
   },
 ];
@@ -170,7 +174,10 @@ const roleLabels = {
 
 function groupLabelForPath(groups: NavGroup[], pathname: string): string {
   const match = groups.find((group) =>
-    group.items.some((item) => (item.url === "/" ? pathname === "/" : pathname === item.url)),
+    group.items.some((item) => {
+      if (item.url === "/") return pathname === "/";
+      return pathname === item.url || pathname.startsWith(`${item.url}/`);
+    }),
   );
   return match?.label ?? "";
 }
@@ -183,7 +190,7 @@ function NavItemList({ items, collapsed }: { items: NavItem[]; collapsed: boolea
           <SidebarMenuButton asChild>
             <NavLink
               to={item.url}
-              end={item.url === "/"}
+              end={item.url === "/" || item.url === "/horoscope"}
               className="text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
               activeClassName="bg-sidebar-accent text-sidebar-primary font-semibold"
             >

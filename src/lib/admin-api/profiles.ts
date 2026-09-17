@@ -97,6 +97,7 @@ export type ProfilesQuery = {
   district_id?: number;
   education_id?: number;
   occupation_id?: number;
+  occupation_search?: string;
   marital_status_id?: number;
   has_photo?: boolean | string;
   plan_id?: number | string;
@@ -157,6 +158,7 @@ function buildProfilesQuery(params?: ProfilesQuery): string {
   if (params.district_id != null) q.set("district_id", String(params.district_id));
   if (params.education_id != null) q.set("education_id", String(params.education_id));
   if (params.occupation_id != null) q.set("occupation_id", String(params.occupation_id));
+  if (params.occupation_search) q.set("occupation_search", String(params.occupation_search));
   if (params.marital_status_id != null)
     q.set("marital_status_id", String(params.marital_status_id));
   if (params.has_photo != null) q.set("has_photo", String(params.has_photo));

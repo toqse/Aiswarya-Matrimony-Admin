@@ -29,9 +29,9 @@ import ProfileFormField, {
 } from "@/components/profile/ProfileFormField";
 import { ADMIN_PROFILE_FOR_OPTIONS } from "@/lib/profile-for-options";
 import { filterValidComplexions, isValidComplexionName, normalizeComplexionOption } from "@/lib/complexion-options";
-import OccupationCombobox from "@/components/profile/OccupationCombobox";
 import LocationMasterCombobox from "@/components/profile/LocationMasterCombobox";
 import CityCombobox from "@/components/profile/CityCombobox";
+import EducationSubjectCombobox from "@/components/profile/EducationSubjectCombobox";
 import type { WizardFormValues } from "@/lib/admin-api/profile-registration";
 import { firstErrorField, validateProfileForm } from "@/lib/profile-validation";
 import ProfilePhotosSection, {
@@ -47,7 +47,6 @@ import {
   activeMasterItems,
   fetchComplexions,
   fetchEducations,
-  fetchEducationSubjects,
   fetchEmploymentStatuses,
   fetchIncomeRanges,
   fetchMaritalStatuses,
@@ -105,6 +104,7 @@ function emptyForm(): WizardFormValues {
     annualIncomeId: "",
     highestEducationId: "",
     educationSubjectId: "",
+    educationSubjectName: "",
     employmentStatus: "",
     occupationId: "",
     occupationName: "",
@@ -144,7 +144,6 @@ export default function EditProfileWizard({
   const [scrollToField, setScrollToField] = useState<string | null>(null);
   const [isCropping, setIsCropping] = useState(false);
   const [form, setForm] = useState<WizardFormValues>(emptyForm());
-  const [occupationName, setOccupationName] = useState("");
   const [aboutSuggestions, setAboutSuggestions] = useState<string[]>([]);
   const [aboutSuggestionIndex, setAboutSuggestionIndex] = useState(0);
   const [aboutLoading, setAboutLoading] = useState(false);
@@ -155,10 +154,10 @@ export default function EditProfileWizard({
       setForm({
         ...initial,
         complexion: normalizeComplexionOption(initial.complexion),
+        occupationName: String(initial.occupationName ?? "").slice(0, 100),
       });
       setFieldErrors({});
       setScrollToField(null);
-      setOccupationName("");
       setAboutSuggestions([]);
       setAboutSuggestionIndex(0);
     }
@@ -220,11 +219,6 @@ export default function EditProfileWizard({
     queryKey: ["master", "educations", "edit-form"],
     queryFn: () => fetchEducations({ page_size: 500 }),
     enabled: open,
-  });
-  const subjectsQ = useQuery({
-    queryKey: ["master", "education-subjects", "edit-form", form.highestEducationId],
-    queryFn: () => fetchEducationSubjects({ education_id: Number(form.highestEducationId), page_size: 500 }),
-    enabled: open && !!form.highestEducationId,
   });
   const employmentQ = useQuery({
     queryKey: ["master", "employment-statuses", "edit-form"],
@@ -292,7 +286,7 @@ export default function EditProfileWizard({
             city: form.cityName || "",
             state: form.stateName || "",
             education: educationName,
-            occupation: displayOccupationName(occupationName || form.occupationName || ""),
+            occupation: displayOccupationName(form.occupationName || ""),
             religion: activeReligionName,
             motherTongue: motherTongueName,
             maritalStatus: form.maritalStatus,
@@ -782,7 +776,12 @@ export default function EditProfileWizard({
                 value={form.highestEducationId}
                 onValueChange={(v) => {
                   clearFieldError("highestEducationId");
-                  setForm((p) => ({ ...p, highestEducationId: v, educationSubjectId: "" }));
+                  setForm((p) => ({
+                    ...p,
+                    highestEducationId: v,
+                    educationSubjectId: "",
+                    educationSubjectName: "",
+                  }));
                 }}
               >
                 <SelectTrigger
@@ -803,22 +802,19 @@ export default function EditProfileWizard({
             </ProfileFormField>
             <div>
               <Label>Education Subject</Label>
-              <Select
-                value={form.educationSubjectId}
-                onValueChange={(v) => update("educationSubjectId", v)}
-                disabled={!form.highestEducationId}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={form.highestEducationId ? "Select subject" : "Select education first"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {(subjectsQ.data?.results ?? []).map((s) => (
-                    <SelectItem key={s.id} value={String(s.id)}>
-                      {s.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <EducationSubjectCombobox
+                educationId={form.highestEducationId}
+                subjectId={form.educationSubjectId}
+                subjectName={form.educationSubjectName}
+                onChange={({ subjectId, subjectName }) => {
+                  clearFieldError("educationSubjectId");
+                  setForm((p) => ({
+                    ...p,
+                    educationSubjectId: subjectId,
+                    educationSubjectName: subjectName,
+                  }));
+                }}
+              />
             </div>
             <ProfileFormField
               label="Employment Status"
@@ -844,14 +840,22 @@ export default function EditProfileWizard({
             </ProfileFormField>
             <div>
               <Label>Occupation</Label>
-              <OccupationCombobox
-                value={form.occupationId}
-                onValueChange={(v, name) => {
-                  setOccupationName(name ?? "");
-                  update("occupationId", v);
+              <Input
+                maxLength={100}
+                value={form.occupationName}
+                onChange={(e) => {
+                  const next = e.target.value.slice(0, 100);
+                  setForm((p) => ({
+                    ...p,
+                    occupationName: next,
+                    occupationId: "",
+                  }));
                 }}
-                initialLabel={form.occupationName || occupationName}
+                placeholder="Enter occupation"
               />
+              <p className="mt-1 text-xs text-muted-foreground">
+                {form.occupationName.length}/100 characters
+              </p>
             </div>
             </div>
           </FormSectionCard>

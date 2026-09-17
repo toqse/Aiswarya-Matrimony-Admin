@@ -15,6 +15,7 @@ export interface ProfileSearchFiltersState {
   district_id: string;
   education_id: string;
   occupation_id: string;
+  occupation_search: string;
   marital_status_id: string;
   profile_status: string;
   staff_id: string;
@@ -51,6 +52,7 @@ export const EMPTY_PROFILE_SEARCH: ProfileSearchFiltersState = {
   district_id: "",
   education_id: "",
   occupation_id: "",
+  occupation_search: "",
   marital_status_id: "",
   profile_status: "all",
   staff_id: "",
@@ -192,6 +194,9 @@ export function profileSearchToQuery(
   if (filters.district_id) assign("district_id", Number(filters.district_id));
   if (filters.education_id) assign("education_id", Number(filters.education_id));
   if (filters.occupation_id) assign("occupation_id", Number(filters.occupation_id));
+  else if (filters.occupation_search.trim()) {
+    assign("occupation_search", filters.occupation_search.trim());
+  }
   if (filters.marital_status_id) assign("marital_status_id", Number(filters.marital_status_id));
   if (filters.staff_id) assign("staff_id", Number(filters.staff_id));
   if (filters.plan_id) assign("plan_id", filters.plan_id);
@@ -239,6 +244,7 @@ export function hasActiveProfileSearch(filters: ProfileSearchFiltersState): bool
     || !!filters.district_id
     || !!filters.education_id
     || !!filters.occupation_id
+    || !!filters.occupation_search.trim()
     || !!filters.marital_status_id
     || (filters.profile_status && filters.profile_status !== "all")
     || !!filters.staff_id

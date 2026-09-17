@@ -32,6 +32,9 @@ interface MasterSearchComboboxProps {
   disabled?: boolean;
   formatOptionLabel?: (name: string) => string;
   initialLabel?: string;
+  /** When set, show "Filter using …" for unmatched search text. */
+  freeTextFilterValue?: string;
+  onFreeTextFilter?: (query: string) => void;
 }
 
 export default function MasterSearchCombobox({
@@ -48,6 +51,8 @@ export default function MasterSearchCombobox({
   disabled = false,
   formatOptionLabel,
   initialLabel,
+  freeTextFilterValue = "",
+  onFreeTextFilter,
 }: MasterSearchComboboxProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -86,10 +91,26 @@ export default function MasterSearchCombobox({
   }, [q.data]);
 
   const items = q.data?.results ?? [];
-  const showAllSelected = allowAll && !disabled && (value === "all" || value === "");
-  const rawLabel = showAllSelected ? allLabel : value ? (labels[value] ?? "") : "";
-  const selectedDisplay = rawLabel && formatOptionLabel ? formatOptionLabel(rawLabel) : rawLabel;
+  const showAllSelected = allowAll && !disabled && (value === "all" || value === "") && !freeTextFilterValue;
+  const freeTextActive = Boolean(freeTextFilterValue.trim());
+  const rawLabel = freeTextActive
+    ? `Filter: ${freeTextFilterValue.trim()}`
+    : showAllSelected
+      ? allLabel
+      : value
+        ? (labels[value] ?? "")
+        : "";
+  const selectedDisplay = rawLabel && formatOptionLabel && !freeTextActive
+    ? formatOptionLabel(rawLabel)
+    : rawLabel;
   const showListSpinner = q.isFetching && items.length === 0;
+  const query = search.trim();
+  const showFreeTextAction =
+    Boolean(onFreeTextFilter) &&
+    !!query &&
+    !showListSpinner &&
+    items.length === 0 &&
+    !q.isFetching;
 
   const handleOpenChange = (nextOpen: boolean) => {
     setOpen(nextOpen);
@@ -135,7 +156,7 @@ export default function MasterSearchCombobox({
               </div>
             ) : (
               <>
-                <CommandEmpty>{emptyText}</CommandEmpty>
+                {!showFreeTextAction ? <CommandEmpty>{emptyText}</CommandEmpty> : null}
                 <CommandGroup>
                   {q.isFetching && items.length > 0 ? (
                     <p className="px-2 py-1.5 text-xs text-muted-foreground">Updating list…</p>
@@ -144,6 +165,7 @@ export default function MasterSearchCombobox({
                     <CommandItem
                       value="all"
                       onSelect={() => {
+                        onFreeTextFilter?.("");
                         onValueChange("all");
                         setOpen(false);
                       }}
@@ -151,7 +173,9 @@ export default function MasterSearchCombobox({
                       <Check
                         className={cn(
                           "mr-2 h-4 w-4",
-                          value === "all" || value === "" ? "opacity-100" : "opacity-0",
+                          !freeTextActive && (value === "all" || value === "")
+                            ? "opacity-100"
+                            : "opacity-0",
                         )}
                       />
                       {allLabel}
@@ -162,6 +186,7 @@ export default function MasterSearchCombobox({
                       key={row.id}
                       value={`${row.id}-${row.name}`}
                       onSelect={() => {
+                        onFreeTextFilter?.("");
                         onValueChange(String(row.id), row.name);
                         setLabels((prev) => ({ ...prev, [String(row.id)]: row.name }));
                         setOpen(false);
@@ -170,12 +195,34 @@ export default function MasterSearchCombobox({
                       <Check
                         className={cn(
                           "mr-2 h-4 w-4",
-                          value === String(row.id) ? "opacity-100" : "opacity-0",
+                          !freeTextActive && value === String(row.id) ? "opacity-100" : "opacity-0",
                         )}
                       />
                       {formatOptionLabel ? formatOptionLabel(row.name) : row.name}
                     </CommandItem>
                   ))}
+                  {showFreeTextAction ? (
+                    <CommandItem
+                      value={`free-text-${query}`}
+                      onSelect={() => {
+                        onFreeTextFilter?.(query);
+                        onValueChange("all");
+                        setOpen(false);
+                      }}
+                    >
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          freeTextActive && freeTextFilterValue.trim() === query
+                            ? "opacity-100"
+                            : "opacity-0",
+                        )}
+                      />
+                      <span className="font-medium text-primary">
+                        Filter using &quot;{query}&quot;
+                      </span>
+                    </CommandItem>
+                  ) : null}
                 </CommandGroup>
               </>
             )}

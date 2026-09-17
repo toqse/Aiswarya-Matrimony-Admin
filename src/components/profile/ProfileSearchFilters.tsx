@@ -349,7 +349,16 @@ export default function ProfileSearchFilters({
                   fetchOccupations({ search: search || undefined, limit: 200 })
                 }
                 formatOptionLabel={displayOccupationName}
-                onValueChange={(v) => patch({ occupation_id: v === "all" ? "" : v })}
+                freeTextFilterValue={value.occupation_search}
+                onFreeTextFilter={(query) =>
+                  patch({ occupation_search: query, occupation_id: "" })
+                }
+                onValueChange={(v) =>
+                  patch({
+                    occupation_id: v === "all" ? "" : v,
+                    occupation_search: "",
+                  })
+                }
               />
             </Field>
 

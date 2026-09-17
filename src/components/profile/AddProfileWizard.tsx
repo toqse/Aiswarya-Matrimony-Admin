@@ -41,14 +41,13 @@ import { ADMIN_PROFILE_FOR_OPTIONS } from "@/lib/profile-for-options";
 import { buildAboutMeSuggestionsFromLabels } from "@/lib/buildAboutMeFromForm";
 import { displayOccupationName } from "@/lib/displayOccupationName";
 import { filterValidComplexions, isValidComplexionName } from "@/lib/complexion-options";
-import OccupationCombobox from "@/components/profile/OccupationCombobox";
 import LocationMasterCombobox from "@/components/profile/LocationMasterCombobox";
 import CityCombobox from "@/components/profile/CityCombobox";
+import EducationSubjectCombobox from "@/components/profile/EducationSubjectCombobox";
 import {
   activeMasterItems,
   fetchComplexions,
   fetchEducations,
-  fetchEducationSubjects,
   fetchEmploymentStatuses,
   fetchIncomeRanges,
   fetchMaritalStatuses,
@@ -71,7 +70,6 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
   const [scrollToField, setScrollToField] = useState<string | null>(null);
   const [isCropping, setIsCropping] = useState(false);
   const [stateName, setStateName] = useState("");
-  const [occupationName, setOccupationName] = useState("");
   const [aboutSuggestions, setAboutSuggestions] = useState<string[]>([]);
   const [aboutSuggestionIndex, setAboutSuggestionIndex] = useState(0);
   const [form, setForm] = useState({
@@ -108,8 +106,10 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
     annualIncomeId: "",
     highestEducationId: "",
     educationSubjectId: "",
+    educationSubjectName: "",
     employmentStatus: "",
     occupationId: "",
+    occupationName: "",
     state: "",
     city: "",
     aboutMe: "",
@@ -140,7 +140,6 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
     setFieldErrors({});
     setScrollToField(null);
     setStateName("");
-    setOccupationName("");
     setAboutSuggestions([]);
     setAboutSuggestionIndex(0);
     setForm({
@@ -177,8 +176,10 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
       annualIncomeId: "",
       highestEducationId: "",
       educationSubjectId: "",
+      educationSubjectName: "",
       employmentStatus: "",
       occupationId: "",
+      occupationName: "",
       state: "",
       city: "",
       aboutMe: "",
@@ -279,8 +280,10 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
       annualIncomeId: form.annualIncomeId,
       highestEducationId: form.highestEducationId,
       educationSubjectId: form.educationSubjectId,
+      educationSubjectName: form.educationSubjectName,
       employmentStatus: form.employmentStatus,
       occupationId: form.occupationId,
+      occupationName: form.occupationName,
       state: form.state,
       city: form.city,
       aboutMe: form.aboutMe,
@@ -334,12 +337,6 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
   const educationsQ = useQuery({
     queryKey: ["master", "educations", "profile-form"],
     queryFn: () => fetchEducations({ page_size: 500 }),
-  });
-
-  const subjectsQ = useQuery({
-    queryKey: ["master", "education-subjects", "profile-form", form.highestEducationId],
-    queryFn: () => fetchEducationSubjects({ education_id: Number(form.highestEducationId), page_size: 500 }),
-    enabled: !!form.highestEducationId,
   });
 
   const employmentQ = useQuery({
@@ -402,7 +399,9 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
         city: form.cityName || form.city,
         state: stateName || form.state,
         education: educationName,
-        occupation: occupationName ? displayOccupationName(occupationName) : "",
+        occupation: form.occupationName
+          ? displayOccupationName(form.occupationName)
+          : "",
         religion: activeReligionName,
         motherTongue: motherTongueName,
         maritalStatus: maritalLabel,
@@ -861,6 +860,7 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
                     ...p,
                     highestEducationId: v,
                     educationSubjectId: "",
+                    educationSubjectName: "",
                   }));
                 }}
               >
@@ -882,22 +882,19 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
             </ProfileFormField>
             <div>
               <Label>Education Subject</Label>
-              <Select
-                value={form.educationSubjectId}
-                onValueChange={(v) => update("educationSubjectId", v)}
-                disabled={!form.highestEducationId}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={form.highestEducationId ? "Select subject" : "Select education first"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {(subjectsQ.data?.results ?? []).map((s) => (
-                    <SelectItem key={s.id} value={String(s.id)}>
-                      {s.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <EducationSubjectCombobox
+                educationId={form.highestEducationId}
+                subjectId={form.educationSubjectId}
+                subjectName={form.educationSubjectName}
+                onChange={({ subjectId, subjectName }) => {
+                  clearFieldError("educationSubjectId");
+                  setForm((p) => ({
+                    ...p,
+                    educationSubjectId: subjectId,
+                    educationSubjectName: subjectName,
+                  }));
+                }}
+              />
             </div>
             <ProfileFormField
               label="Employment Status"
@@ -923,13 +920,22 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
             </ProfileFormField>
             <div>
               <Label>Occupation</Label>
-              <OccupationCombobox
-                value={form.occupationId}
-                onValueChange={(v, name) => {
-                  setOccupationName(name ?? "");
-                  update("occupationId", v);
+              <Input
+                maxLength={100}
+                value={form.occupationName}
+                onChange={(e) => {
+                  const next = e.target.value.slice(0, 100);
+                  setForm((p) => ({
+                    ...p,
+                    occupationName: next,
+                    occupationId: "",
+                  }));
                 }}
+                placeholder="Enter occupation"
               />
+              <p className="mt-1 text-xs text-muted-foreground">
+                {form.occupationName.length}/100 characters
+              </p>
             </div>
             </div>
           </FormSectionCard>

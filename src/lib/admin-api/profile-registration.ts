@@ -68,6 +68,34 @@ function phoneFromApi(value: unknown): string {
   return digitsOnlyMobile(s);
 }
 
+export function buildEducationSubjectPayload(form: {
+  educationSubjectId?: string;
+  educationSubjectName?: string;
+}): Record<string, unknown> {
+  if (form.educationSubjectId) {
+    return { education_subject_id: Number(form.educationSubjectId) };
+  }
+  const name = String(form.educationSubjectName ?? "").trim();
+  if (name) {
+    return { education_subject_id: null, education_subject_name: name };
+  }
+  return {};
+}
+
+export function buildOccupationPayload(form: {
+  occupationId?: string;
+  occupationName?: string;
+}): Record<string, unknown> {
+  const name = String(form.occupationName ?? "").trim().slice(0, 100);
+  if (name) {
+    return { occupation_id: null, occupation_name: name };
+  }
+  if (form.occupationId) {
+    return { occupation_id: Number(form.occupationId) };
+  }
+  return {};
+}
+
 export function buildFamilyDetailsPayload(form: FamilyFormFields): Record<string, unknown> {
   const payload: Record<string, unknown> = {
     father_name: form.fatherName.trim() || undefined,
@@ -262,9 +290,9 @@ export async function buildProfileRegistrationFormData(
     },
     education_details: {
       highest_education_id: form.highestEducationId ? Number(form.highestEducationId) : undefined,
-      education_subject_id: form.educationSubjectId ? Number(form.educationSubjectId) : undefined,
+      ...buildEducationSubjectPayload(form),
       employment_status: form.employmentStatus || undefined,
-      occupation_id: form.occupationId ? Number(form.occupationId) : undefined,
+      ...buildOccupationPayload(form),
       annual_income_id: form.annualIncomeId ? Number(form.annualIncomeId) : undefined,
     },
     family_details: buildFamilyDetailsPayload(form as unknown as FamilyFormFields),
@@ -316,9 +344,10 @@ export interface WizardFormValues extends FamilyFormFields, PartnerPreferenceFie
   annualIncomeId: string;
   highestEducationId: string;
   educationSubjectId: string;
+  educationSubjectName: string;
   employmentStatus: string;
   occupationId: string;
-  occupationName?: string;
+  occupationName: string;
   aboutMe: string;
   full_photo: File | null;
   passport_photo: File | null;
@@ -454,9 +483,18 @@ export function mapDetailToWizardForm(
     annualIncomeId: idToString(education.annual_income_id),
     highestEducationId: idToString(education.highest_education_id),
     educationSubjectId: idToString(education.education_subject_id),
+    educationSubjectName: String(
+      education.education_subject_id
+        ? (education.education_subject ?? education.education_subject_name ?? "")
+        : (education.education_subject_name ?? education.education_subject ?? ""),
+    ),
     employmentStatus: String(education.employment_status ?? ""),
     occupationId: idToString(education.occupation_id),
-    occupationName: String(education.occupation ?? ""),
+    occupationName: String(
+      education.occupation_name
+        ?? education.occupation
+        ?? "",
+    ).slice(0, 100),
     aboutMe: String(detail.about_me ?? ""),
     ...mapFamilyDetailsToForm(family),
     full_photo: null,
@@ -540,9 +578,9 @@ export async function buildProfileEditFormData(form: WizardFormValues): Promise<
     },
     education_details: {
       highest_education_id: form.highestEducationId ? Number(form.highestEducationId) : undefined,
-      education_subject_id: form.educationSubjectId ? Number(form.educationSubjectId) : undefined,
+      ...buildEducationSubjectPayload(form),
       employment_status: form.employmentStatus || undefined,
-      occupation_id: form.occupationId ? Number(form.occupationId) : undefined,
+      ...buildOccupationPayload(form),
       annual_income_id: form.annualIncomeId ? Number(form.annualIncomeId) : undefined,
     },
     family_details: buildFamilyDetailsPayload(form),

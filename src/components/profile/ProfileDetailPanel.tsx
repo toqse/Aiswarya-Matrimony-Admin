@@ -147,7 +147,9 @@ export function ProfileDetailPanel({ detail, showAdmin = true }: ProfileDetailPa
           rows={[
             ["Profile for", basic.profile_for ?? detail.profile_for],
             ["Name", basic.name],
-            ["Mobile", formatPhoneDisplay(basic.phone)],
+            ["Primary Number (Login)", formatPhoneDisplay(basic.phone)],
+            ["Secondary Phone", formatPhoneDisplay(family.family_contact as string | null | undefined)],
+            ["Whatsapp Number", formatPhoneDisplay(family.family_contact_2 as string | null | undefined)],
             ["Email", basic.email],
             ["Date of birth", formatDate(basic.dob)],
             ["Age", basic.age],
@@ -264,8 +266,6 @@ export function ProfileDetailPanel({ detail, showAdmin = true }: ProfileDetailPa
             ["Sister's occupation", family.sister_occupation],
             ["Family type", family.family_type],
             ["Family status", family.family_status],
-            ["Family contact", family.family_contact],
-            ["Family contact 2", family.family_contact_2],
             ["About family", family.about_family],
           ]}
         />

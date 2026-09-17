@@ -3,10 +3,8 @@ import ProfileFormField, {
   invalidInputClass,
   type ProfileFieldErrors,
 } from "@/components/profile/ProfileFormField";
-import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { PhoneInput } from "@/components/ui/phone-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import FormSectionCard from "@/components/profile/FormSectionCard";
 import { validateFamilyFieldErrors } from "@/lib/profile-validation";
@@ -231,26 +229,6 @@ export default function FamilyDetailsSection({ values, onChange, errors }: Famil
               ))}
             </SelectContent>
           </Select>
-        </ProfileFormField>
-        <ProfileFormField
-          label="Family Contact Number (Optional)"
-          error={fieldError(errors, "familyContact")}
-        >
-          <PhoneInput
-            value={values.familyContact}
-            onChange={(v) => onChange("familyContact", v)}
-            invalid={Boolean(fieldError(errors, "familyContact"))}
-          />
-        </ProfileFormField>
-        <ProfileFormField
-          label="Whatsapp Number (Optional)"
-          error={fieldError(errors, "familyContact2")}
-        >
-          <PhoneInput
-            value={values.familyContact2}
-            onChange={(v) => onChange("familyContact2", v)}
-            invalid={Boolean(fieldError(errors, "familyContact2"))}
-          />
         </ProfileFormField>
         <ProfileFormField
           label="About My Family"

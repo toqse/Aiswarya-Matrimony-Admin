@@ -38,10 +38,10 @@ export function validateFamilyFieldErrors(values: FamilyFormFields): ProfileFiel
     errs.aboutFamily = "About My Family must be 500 characters or fewer.";
   }
   if (values.familyContact && values.familyContact.length !== 10) {
-    errs.familyContact = "Family Contact Number must be a 10-digit mobile number.";
+    errs.familyContact = "Secondary Phone must be a 10-digit mobile number.";
   }
   if (values.familyContact2 && values.familyContact2.length !== 10) {
-    errs.familyContact2 = "Family Contact Number 2 must be a 10-digit mobile number.";
+    errs.familyContact2 = "Whatsapp Number must be a 10-digit mobile number.";
   }
 
   const countOrNull = (value: string) => {
@@ -116,7 +116,7 @@ export function validateProfileForm(
   }
   if (requireMobile) {
     if (!form.mobile || form.mobile.length !== 10) {
-      errs.mobile = "Enter a valid 10-digit mobile number.";
+      errs.mobile = "Enter a valid 10-digit primary number.";
     }
   }
   if (!form.dob) {

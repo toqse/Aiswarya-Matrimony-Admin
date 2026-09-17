@@ -4,16 +4,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { PhoneInput } from "@/components/ui/phone-input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, Loader2, Sparkles } from "lucide-react";
+import { Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import PlacesAutocomplete from "@/components/profile/PlacesAutocomplete";
 import { TimeOfBirthPicker } from "@/components/profile/TimeOfBirthPicker";
 import FormSectionCard from "@/components/profile/FormSectionCard";
+import ProfileContactNumbersSection from "@/components/profile/ProfileContactNumbersSection";
 import FamilyDetailsSection, {
   EMPTY_FAMILY_FIELDS,
   type FamilyFormFields,
@@ -68,7 +67,6 @@ interface AddProfileWizardProps {
 }
 
 export default function AddProfileWizard({ open, onOpenChange, onComplete, submitting = false }: AddProfileWizardProps) {
-  const [horoExpanded, setHoroExpanded] = useState(true);
   const [fieldErrors, setFieldErrors] = useState<ProfileFieldErrors>({});
   const [scrollToField, setScrollToField] = useState<string | null>(null);
   const [isCropping, setIsCropping] = useState(false);
@@ -238,9 +236,6 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
     });
     setFieldErrors(errs);
     if (Object.keys(errs).length > 0) {
-      if (form.hasHoroscope && (errs.timeOfBirth || errs.placeOfBirth || errs.dob)) {
-        setHoroExpanded(true);
-      }
       const first = firstErrorField(errs);
       if (first) {
         setScrollToField(first);
@@ -481,18 +476,16 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
                 aria-invalid={Boolean(fieldError(fieldErrors, "fullName"))}
               />
             </ProfileFormField>
-            <ProfileFormField
-              label="Mobile"
-              required
-              error={fieldError(fieldErrors, "mobile")}
-            >
-              <PhoneInput
-                id="profile-field-mobile"
-                value={form.mobile}
-                onChange={(v) => update("mobile", v)}
-                invalid={Boolean(fieldError(fieldErrors, "mobile"))}
-              />
-            </ProfileFormField>
+            <ProfileContactNumbersSection
+              mobile={form.mobile}
+              familyContact={form.familyContact}
+              familyContact2={form.familyContact2}
+              errors={fieldErrors}
+              onChange={(field, value) => {
+                if (field === "mobile") update("mobile", value);
+                else updateFamily(field, value);
+              }}
+            />
             <ProfileFormField label="Email">
               <Input value={form.email} onChange={(e) => update("email", e.target.value)} />
             </ProfileFormField>
@@ -500,6 +493,7 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
               label="Date of Birth"
               required
               error={dobErr}
+              className={form.hasHoroscope ? "sm:col-span-2" : undefined}
             >
               <Input
                 id="profile-field-dob"
@@ -521,6 +515,56 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
                 />
                 <span>I have horoscope details</span>
               </label>
+              {form.hasHoroscope && (
+                <div className="mt-3 rounded-lg border border-border bg-muted/30 p-4">
+                  <p className="mb-3 text-sm font-medium text-muted-foreground">Horoscope Details</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <ProfileFormField
+                      label="Time of Birth"
+                      required
+                      error={fieldError(fieldErrors, "timeOfBirth")}
+                    >
+                      <TimeOfBirthPicker
+                        value={form.timeOfBirth}
+                        onChange={(v) => update("timeOfBirth", v)}
+                      />
+                    </ProfileFormField>
+                    <ProfileFormField
+                      label="Place of Birth"
+                      required
+                      className="sm:col-span-2"
+                      error={fieldError(fieldErrors, "placeOfBirth")}
+                    >
+                      <PlacesAutocomplete
+                        value={form.placeOfBirth}
+                        onChange={(v) => update("placeOfBirth", v)}
+                        onPlaceSelect={(place) =>
+                          setForm((p) => ({
+                            ...p,
+                            placeOfBirth: place.placeName || p.placeOfBirth,
+                            birthLatitude: place.latitude != null ? String(place.latitude) : p.birthLatitude,
+                            birthLongitude: place.longitude != null ? String(place.longitude) : p.birthLongitude,
+                            birthTimezone: place.timezone || p.birthTimezone,
+                          }))
+                        }
+                        placeholder="Start typing the birth place..."
+                      />
+                    </ProfileFormField>
+                    <div>
+                      <Label>Latitude</Label>
+                      <Input value={form.birthLatitude} readOnly placeholder="Auto-filled" />
+                    </div>
+                    <div>
+                      <Label>Longitude</Label>
+                      <Input value={form.birthLongitude} readOnly placeholder="Auto-filled" />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <Label>Timezone</Label>
+                      <Input value={form.birthTimezone} readOnly placeholder="Auto-filled" />
+                    </div>
+                  </div>
+                </div>
+              )}
             </ProfileFormField>
             <ProfileFormField
               label="Gender"
@@ -903,81 +947,6 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
             onBatchChange={batchPartnerPreference}
             errors={fieldErrors}
           />
-
-          {form.hasHoroscope && (
-            <Collapsible
-              open={horoExpanded}
-              onOpenChange={setHoroExpanded}
-              className="rounded-lg border border-border bg-muted/30"
-            >
-              <CollapsibleTrigger asChild>
-                <button
-                  type="button"
-                  className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left"
-                >
-                  <span className="flex items-center gap-2 text-sm font-semibold">
-                    <Sparkles className="h-4 w-4 text-primary" />
-                    Horoscope Information
-                  </span>
-                  <ChevronDown
-                    className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 ${
-                      horoExpanded ? "rotate-180" : ""
-                    }`}
-                  />
-                </button>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <div className="border-t border-border p-4">
-                  <p className="mb-3 text-sm font-medium text-muted-foreground">Horoscope Details</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <ProfileFormField
-                      label="Time of Birth"
-                      required
-                      error={fieldError(fieldErrors, "timeOfBirth")}
-                    >
-                      <TimeOfBirthPicker
-                        value={form.timeOfBirth}
-                        onChange={(v) => update("timeOfBirth", v)}
-                      />
-                    </ProfileFormField>
-                    <ProfileFormField
-                      label="Place of Birth"
-                      required
-                      className="sm:col-span-2"
-                      error={fieldError(fieldErrors, "placeOfBirth")}
-                    >
-                      <PlacesAutocomplete
-                        value={form.placeOfBirth}
-                        onChange={(v) => update("placeOfBirth", v)}
-                        onPlaceSelect={(place) =>
-                          setForm((p) => ({
-                            ...p,
-                            placeOfBirth: place.placeName || p.placeOfBirth,
-                            birthLatitude: place.latitude != null ? String(place.latitude) : p.birthLatitude,
-                            birthLongitude: place.longitude != null ? String(place.longitude) : p.birthLongitude,
-                            birthTimezone: place.timezone || p.birthTimezone,
-                          }))
-                        }
-                        placeholder="Start typing the birth place..."
-                      />
-                    </ProfileFormField>
-                    <div>
-                      <Label>Latitude</Label>
-                      <Input value={form.birthLatitude} readOnly placeholder="Auto-filled" />
-                    </div>
-                    <div>
-                      <Label>Longitude</Label>
-                      <Input value={form.birthLongitude} readOnly placeholder="Auto-filled" />
-                    </div>
-                    <div className="sm:col-span-2">
-                      <Label>Timezone</Label>
-                      <Input value={form.birthTimezone} readOnly placeholder="Auto-filled" />
-                    </div>
-                  </div>
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
-          )}
 
           <div>
             <Label>About Me</Label>

@@ -402,7 +402,7 @@ export function mapDetailToWizardForm(
   return {
     profileFor: titleCaseProfileFor(detail.profile_for ?? basic.profile_for),
     fullName: String(basic.name ?? row?.name ?? ""),
-    mobile: String(basic.phone ?? ""),
+    mobile: phoneFromApi(basic.phone),
     email: String(basic.email ?? ""),
     dob: ddmmyyyyToIso(basic.dob),
     gender: normalizeGenderLabel(basic.gender ?? row?.gender),
@@ -472,7 +472,7 @@ export function mapDetailToWizardForm(
 
 /**
  * Build the PATCH FormData for editing an existing member. Unlike the create
- * builder, identity fields (name/email/gender/dob/profile_for) go inside
+ * builder, identity fields (name/phone/email/gender/dob/profile_for) go inside
  * basic_details because the edit pipeline applies section handlers and skips
  * top-level identity keys.
  */
@@ -497,6 +497,7 @@ export async function buildProfileEditFormData(form: WizardFormValues): Promise<
     profile_for: String(form.profileFor ?? "myself").toLowerCase() || undefined,
     basic_details: {
       name: form.fullName?.trim() || undefined,
+      phone: form.mobile ? formatPhoneForApi(String(form.mobile)) : undefined,
       email: form.email ? String(form.email).trim() : undefined,
       gender: gender !== "O" ? gender : undefined,
       dob: form.dob || undefined,

@@ -137,7 +137,6 @@ export default function AddProfileWizard({ open, onOpenChange, onComplete, submi
   };
 
   const reset = () => {
-    setHoroExpanded(true);
     setFieldErrors({});
     setScrollToField(null);
     setStateName("");

@@ -158,7 +158,6 @@ export default function EditProfileWizard({
       });
       setFieldErrors({});
       setScrollToField(null);
-      setHoroExpanded(true);
       setOccupationName("");
       setAboutSuggestions([]);
       setAboutSuggestionIndex(0);

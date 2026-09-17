@@ -198,6 +198,8 @@ export interface HoroscopeRecordsFilters {
   search?: string;
   matri_id?: string;
   name?: string;
+  age_from?: number | string;
+  age_to?: number | string;
   religion_id?: number;
   caste_id?: number;
   branch_id?: number;
@@ -238,6 +240,14 @@ export async function fetchHoroscopeRecords(role: UserRole, filters?: HoroscopeR
     search: filters?.search?.trim() || undefined,
     matri_id: filters?.matri_id?.trim() || undefined,
     name: filters?.name?.trim() || undefined,
+    age_from:
+      filters?.age_from != null && String(filters.age_from).trim() !== ""
+        ? String(filters.age_from)
+        : undefined,
+    age_to:
+      filters?.age_to != null && String(filters.age_to).trim() !== ""
+        ? String(filters.age_to)
+        : undefined,
     religion_id: filters?.religion_id,
     caste_id: filters?.caste_id,
     branch_id: filters?.branch_id,

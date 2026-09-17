@@ -86,7 +86,7 @@ export default function PoruthamPartnerFilters({
           </Button>
         </div>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7 gap-3">
         <Field label="Name / Matri ID">
           <Input
             value={value.search}
@@ -99,6 +99,26 @@ export default function PoruthamPartnerFilters({
               }
             }}
           />
+        </Field>
+        <Field label="Age range">
+          <div className="flex gap-2">
+            <Input
+              type="number"
+              min={18}
+              max={99}
+              value={value.age_from}
+              onChange={(e) => patch({ age_from: e.target.value })}
+              placeholder="From"
+            />
+            <Input
+              type="number"
+              min={18}
+              max={99}
+              value={value.age_to}
+              onChange={(e) => patch({ age_to: e.target.value })}
+              placeholder="To"
+            />
+          </div>
         </Field>
         <Field label="Religion">
           <Select

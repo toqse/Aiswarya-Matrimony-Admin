@@ -3,6 +3,8 @@ import type { HoroscopeRecordsFilters } from "@/lib/admin-api/horoscope";
 /** Partner search filters on Porutham Matches tab. */
 export interface PoruthamPartnerFiltersState {
   search: string;
+  age_from: string;
+  age_to: string;
   religion_id: string;
   caste_id: string;
   pr_star: string;
@@ -12,6 +14,8 @@ export interface PoruthamPartnerFiltersState {
 
 export const EMPTY_PORUTHAM_PARTNER_FILTERS: PoruthamPartnerFiltersState = {
   search: "",
+  age_from: "",
+  age_to: "",
   religion_id: "",
   caste_id: "",
   pr_star: "",
@@ -34,6 +38,10 @@ export function poruthamPartnerFiltersToQuery(
   };
   const search = filters.search.trim();
   if (search) q.search = search;
+  const ageFrom = filters.age_from.trim();
+  if (ageFrom && /^\d+$/.test(ageFrom)) q.age_from = Number(ageFrom);
+  const ageTo = filters.age_to.trim();
+  if (ageTo && /^\d+$/.test(ageTo)) q.age_to = Number(ageTo);
   if (filters.religion_id) q.religion_id = Number(filters.religion_id);
   if (filters.caste_id) q.caste_id = Number(filters.caste_id);
   const starNum = Number(filters.pr_star);
@@ -54,6 +62,8 @@ export function poruthamPartnerFiltersToQuery(
 export function hasActivePoruthamPartnerFilters(filters: PoruthamPartnerFiltersState): boolean {
   return (
     !!filters.search.trim()
+    || !!filters.age_from.trim()
+    || !!filters.age_to.trim()
     || !!filters.religion_id
     || !!filters.caste_id
     || !!filters.pr_star

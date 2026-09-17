@@ -89,6 +89,8 @@ export default function PoruthamProfileMultiPicker({
     partnerFilters.religion_id,
     partnerFilters.caste_id,
     partnerFilters.search,
+    partnerFilters.age_from,
+    partnerFilters.age_to,
   ]);
 
   const gender = instanceId === "bride" ? "F" : "M";
@@ -114,6 +116,8 @@ export default function PoruthamProfileMultiPicker({
       page,
       filterVersion,
       partnerFilters.search,
+      partnerFilters.age_from,
+      partnerFilters.age_to,
       partnerFilters.religion_id,
       partnerFilters.caste_id,
       partnerFilters.pr_star,
@@ -206,7 +210,7 @@ export default function PoruthamProfileMultiPicker({
             <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
             <Input
               className="h-9 border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
-              placeholder="Search by name…"
+              placeholder="Search by name or Matri ID…"
               value={searchDraft}
               onChange={(e) => setSearchDraft(e.target.value)}
             />

@@ -17,13 +17,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PoruthamResultView } from "@/components/horoscope/PoruthamResultView";
+import { ProfileDetailPanel } from "@/components/profile/ProfileDetailPanel";
 import { useRole } from "@/contexts/RoleContext";
 import { getApiErrorMessage } from "@/lib/admin-api/http";
 import {
@@ -33,10 +36,22 @@ import {
   postHoroscopePorutham,
   type SavedPoruthamMatchRow,
 } from "@/lib/admin-api/horoscope";
+import {
+  fetchAdminProfileDetail,
+  fetchBranchMyProfileDetail,
+  fetchStaffProfileDetail,
+} from "@/lib/admin-api/profiles";
 import { formatDateTime } from "@/lib/format-date";
 import { useToast } from "@/hooks/use-toast";
+import type { UserRole } from "@/types/user-role";
 
 const PAGE_SIZE = 20;
+
+function fetchMemberProfileDetail(role: UserRole, matriId: string) {
+  if (role === "branch-manager") return fetchBranchMyProfileDetail(matriId);
+  if (role === "staff") return fetchStaffProfileDetail(matriId);
+  return fetchAdminProfileDetail(matriId);
+}
 
 function profileLabel(name: string, matriId: string): string {
   const n = name.trim();
@@ -68,8 +83,11 @@ export default function SavedPoruthamDetailPage() {
   const [poruthamResultOpen, setPoruthamResultOpen] = useState(false);
   const [poruthamResult, setPoruthamResult] = useState<unknown>(null);
   const [viewRow, setViewRow] = useState<SavedPoruthamMatchRow | null>(null);
+  const [profileMatriId, setProfileMatriId] = useState<string | null>(null);
+  const [profileName, setProfileName] = useState("");
 
   const validId = Number.isFinite(fixedProfileId) && fixedProfileId > 0;
+  const isAdmin = role === "admin";
 
   const queryKey = [
     "horoscope",
@@ -115,6 +133,31 @@ export default function SavedPoruthamDetailPage() {
       ? viewRow.fixed_matri_id
       : viewRow.partner_matri_id;
   }, [viewRow]);
+  const detailBrideName = useMemo(() => {
+    if (!viewRow) return "";
+    return normalizePoruthamMode(viewRow.mode) === "fixed-groom"
+      ? viewRow.partner_name
+      : viewRow.fixed_name;
+  }, [viewRow]);
+  const detailGroomName = useMemo(() => {
+    if (!viewRow) return "";
+    return normalizePoruthamMode(viewRow.mode) === "fixed-groom"
+      ? viewRow.fixed_name
+      : viewRow.partner_name;
+  }, [viewRow]);
+
+  const openMemberProfile = useCallback((matriId: string, name?: string) => {
+    const id = (matriId || "").trim();
+    if (!id) return;
+    setProfileMatriId(id);
+    setProfileName((name || "").trim() || id);
+  }, []);
+
+  const { data: memberProfile, isLoading: memberProfileLoading, error: memberProfileError } = useQuery({
+    queryKey: ["horoscope", role, "member-profile", profileMatriId],
+    queryFn: () => fetchMemberProfileDetail(role, profileMatriId!),
+    enabled: !!profileMatriId,
+  });
 
   const handlePoruthamResultOpenChange = useCallback((open: boolean) => {
     setPoruthamResultOpen(open);
@@ -402,26 +445,8 @@ export default function SavedPoruthamDetailPage() {
 
       <Dialog open={poruthamResultOpen} onOpenChange={handlePoruthamResultOpenChange}>
         <DialogContent className="w-[96vw] max-w-6xl max-h-[88vh] overflow-y-auto">
-          <DialogHeader className="relative flex flex-row items-center justify-between gap-2 space-y-0 pr-8">
-            <DialogTitle className="shrink-0">Porutham result</DialogTitle>
-            {viewRow ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="absolute left-1/2 -translate-x-1/2 text-destructive hover:text-destructive"
-                disabled={unsavingId === viewRow.id || viewLoading}
-                onClick={() => void handleRemoveFromDialog()}
-              >
-                {unsavingId === viewRow.id ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-1" />
-                ) : (
-                  <Trash2 className="h-4 w-4 mr-1" />
-                )}
-                Remove
-              </Button>
-            ) : null}
-            <span className="w-16 shrink-0" aria-hidden />
+          <DialogHeader>
+            <DialogTitle>Porutham result</DialogTitle>
           </DialogHeader>
           {viewLoading && poruthamResult == null ? (
             <div className="py-10 flex justify-center text-muted-foreground">
@@ -434,6 +459,35 @@ export default function SavedPoruthamDetailPage() {
               role={role}
               brideMatriId={detailBrideMatri}
               groomMatriId={detailGroomMatri}
+              onViewBrideProfile={
+                detailBrideMatri
+                  ? () => openMemberProfile(detailBrideMatri, detailBrideName)
+                  : undefined
+              }
+              onViewGroomProfile={
+                detailGroomMatri
+                  ? () => openMemberProfile(detailGroomMatri, detailGroomName)
+                  : undefined
+              }
+              headerActions={
+                viewRow ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:text-destructive"
+                    disabled={unsavingId === viewRow.id || viewLoading}
+                    onClick={() => void handleRemoveFromDialog()}
+                  >
+                    {unsavingId === viewRow.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                    ) : (
+                      <Trash2 className="h-4 w-4 mr-1" />
+                    )}
+                    Remove
+                  </Button>
+                ) : null
+              }
             />
           ) : null}
           <DialogFooter className="flex-col sm:flex-row gap-2 sm:justify-between">
@@ -474,6 +528,38 @@ export default function SavedPoruthamDetailPage() {
               Close
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!profileMatriId}
+        onOpenChange={(o) => {
+          if (!o) {
+            setProfileMatriId(null);
+            setProfileName("");
+          }
+        }}
+      >
+        <DialogContent className="max-w-4xl h-[90vh] max-h-[90vh] flex flex-col gap-0 overflow-hidden p-0">
+          <DialogHeader className="px-6 pt-6 pb-2 shrink-0">
+            <DialogTitle>Profile Details — {profileMatriId}</DialogTitle>
+            <DialogDescription className="sr-only">
+              View {profileName || "member"} profile.
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="min-h-0 flex-1 px-6 pb-6">
+            {memberProfileLoading ? (
+              <div className="flex items-center gap-2 py-8 text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" /> Loading profile…
+              </div>
+            ) : memberProfileError ? (
+              <p className="text-sm text-destructive py-4">{getApiErrorMessage(memberProfileError)}</p>
+            ) : memberProfile ? (
+              <ProfileDetailPanel detail={memberProfile} showAdmin={isAdmin} />
+            ) : (
+              <p className="text-sm text-muted-foreground py-4">No profile found.</p>
+            )}
+          </ScrollArea>
         </DialogContent>
       </Dialog>
     </div>

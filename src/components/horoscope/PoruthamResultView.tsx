@@ -1,5 +1,5 @@
-import { useState, type CSSProperties } from "react";
-import { CheckCircle, XCircle, Equal, ListChecks, Download, Loader2, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { useState, type CSSProperties, type ReactNode } from "react";
+import { CheckCircle, XCircle, Equal, ListChecks, Download, Loader2, ChevronLeft, ChevronRight, X, Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -256,15 +256,20 @@ function PersonPanel({
   horoscope,
   lang,
   nav,
+  profileMatriId,
+  onViewProfile,
 }: {
   roleLabel: string;
   horoscope: Record<string, unknown> | null;
   lang: HoroscopeLang;
   nav?: PersonNavSide;
+  /** Prefer parent matri when horoscope payload lacks identity. */
+  profileMatriId?: string;
+  onViewProfile?: () => void;
 }) {
   const h = horoscope ?? {};
   const name = pickStr(h.name, h.pr_name, h.profile_name, h.full_name) || roleLabel;
-  const matriId = pickStr(h.matri_id, h.matriid, h.profile_matri_id);
+  const matriId = pickStr(h.matri_id, h.matriid, h.profile_matri_id, profileMatriId);
   const photo = pickStr(h.photo_url, h.profile_photo, h.image, h.avatar, h.photo);
 
   const charts = extractHoroscopeCharts(h);
@@ -293,6 +298,7 @@ function PersonPanel({
   const mlFont = lang === "ml" ? MALAYALAM_FONT : undefined;
 
   const showNav = Boolean(nav?.onPrev || nav?.onNext);
+  const canViewProfile = Boolean(onViewProfile && matriId);
 
   return (
     <div className="relative rounded-xl border bg-card p-3 sm:p-4 space-y-3">
@@ -360,11 +366,24 @@ function PersonPanel({
             initials(name)
           )}
         </div>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="truncate font-semibold leading-tight" title={name} style={{ fontFamily: mlFont }}>
             {name}
           </p>
           {matriId ? <p className="font-mono text-xs text-muted-foreground">{matriId}</p> : null}
+          {onViewProfile ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mt-1.5 h-7 px-2 text-xs"
+              disabled={!canViewProfile}
+              onClick={onViewProfile}
+            >
+              <Eye className="h-3.5 w-3.5 mr-1" />
+              View profile
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -412,13 +431,27 @@ export interface PoruthamResultViewProps {
   groomMatriId?: string;
   /** Profiles left in bride/groom navigation; decreases when either side is dismissed. */
   remainingCount?: number;
+  /** Optional actions shown on the left of the Report / language toolbar (e.g. Remove). */
+  headerActions?: ReactNode;
+  onViewBrideProfile?: () => void;
+  onViewGroomProfile?: () => void;
   personNav?: {
     bride?: PersonNavSide;
     groom?: PersonNavSide;
   };
 }
 
-export function PoruthamResultView({ result, role, brideMatriId, groomMatriId, remainingCount, personNav }: PoruthamResultViewProps) {
+export function PoruthamResultView({
+  result,
+  role,
+  brideMatriId,
+  groomMatriId,
+  remainingCount,
+  headerActions,
+  onViewBrideProfile,
+  onViewGroomProfile,
+  personNav,
+}: PoruthamResultViewProps) {
   const [lang, setLang] = useState<HoroscopeLang>("ml");
   const [downloading, setDownloading] = useState(false);
   const { toast } = useToast();
@@ -531,55 +564,58 @@ export function PoruthamResultView({ result, role, brideMatriId, groomMatriId, r
 
   return (
     <div className="space-y-4 text-sm">
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        {showRemainingCount ? (
-          <div
-            className="inline-flex items-center gap-2 rounded-md border px-3 py-1.5 font-semibold tabular-nums"
-            style={{ borderColor: MAROON, color: MAROON, fontFamily: mlFont }}
-            aria-live="polite"
-            aria-label={`${t(lang, "remaining")}: ${remainingCount}`}
-          >
-            <span className="text-[11px] font-medium uppercase tracking-wide opacity-80">
-              {t(lang, "remaining")}
-            </span>
-            <span className="text-lg leading-none">{remainingCount}</span>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">{headerActions}</div>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {showRemainingCount ? (
+            <div
+              className="inline-flex items-center gap-2 rounded-md border px-3 py-1.5 font-semibold tabular-nums"
+              style={{ borderColor: MAROON, color: MAROON, fontFamily: mlFont }}
+              aria-live="polite"
+              aria-label={`${t(lang, "remaining")}: ${remainingCount}`}
+            >
+              <span className="text-[11px] font-medium uppercase tracking-wide opacity-80">
+                {t(lang, "remaining")}
+              </span>
+              <span className="text-lg leading-none">{remainingCount}</span>
+            </div>
+          ) : null}
+          {canDownload ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleDownload}
+              disabled={downloading}
+              className="gap-1.5"
+              title="Download match report"
+            >
+              {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              <span className="hidden sm:inline">Report</span>
+            </Button>
+          ) : null}
+          <div className="inline-flex rounded-md border p-0.5" role="group" aria-label="Language">
+            {(["en", "ml"] as HoroscopeLang[]).map((l) => {
+              const selected = lang === l;
+              return (
+                <button
+                  key={l}
+                  type="button"
+                  onClick={() => setLang(l)}
+                  aria-pressed={selected}
+                  className="rounded px-3 py-1 text-xs font-medium transition-colors"
+                  style={{
+                    fontFamily: l === "ml" ? MALAYALAM_FONT : undefined,
+                    ...(selected
+                      ? { background: MAROON, color: "#fff" }
+                      : { color: MAROON, background: "transparent" }),
+                  }}
+                >
+                  {l === "ml" ? "മലയാളം" : "English"}
+                </button>
+              );
+            })}
           </div>
-        ) : null}
-        {canDownload ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleDownload}
-            disabled={downloading}
-            className="gap-1.5"
-            title="Download match report"
-          >
-            {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            <span className="hidden sm:inline">Report</span>
-          </Button>
-        ) : null}
-        <div className="inline-flex rounded-md border p-0.5" role="group" aria-label="Language">
-          {(["en", "ml"] as HoroscopeLang[]).map((l) => {
-            const selected = lang === l;
-            return (
-              <button
-                key={l}
-                type="button"
-                onClick={() => setLang(l)}
-                aria-pressed={selected}
-                className="rounded px-3 py-1 text-xs font-medium transition-colors"
-                style={{
-                  fontFamily: l === "ml" ? MALAYALAM_FONT : undefined,
-                  ...(selected
-                    ? { background: MAROON, color: "#fff" }
-                    : { color: MAROON, background: "transparent" }),
-                }}
-              >
-                {l === "ml" ? "മലയാളം" : "English"}
-              </button>
-            );
-          })}
         </div>
       </div>
 
@@ -589,6 +625,8 @@ export function PoruthamResultView({ result, role, brideMatriId, groomMatriId, r
           horoscope={brideH}
           lang={lang}
           nav={personNav?.bride}
+          profileMatriId={brideMatriId}
+          onViewProfile={onViewBrideProfile}
         />
 
         <div className="relative space-y-4" style={{ fontFamily: mlFont }}>
@@ -668,6 +706,8 @@ export function PoruthamResultView({ result, role, brideMatriId, groomMatriId, r
           horoscope={groomH}
           lang={lang}
           nav={personNav?.groom}
+          profileMatriId={groomMatriId}
+          onViewProfile={onViewGroomProfile}
         />
       </div>
     </div>

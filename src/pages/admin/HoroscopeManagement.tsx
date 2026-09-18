@@ -531,6 +531,14 @@ export default function HoroscopeManagement() {
     poruthamMode === "fixed-groom"
       ? collectedFixed?.matri_id ?? ""
       : detailMatch?.partner.matri_id ?? "";
+  const detailBrideName =
+    poruthamMode === "fixed-bride"
+      ? collectedFixed?.profile_name ?? ""
+      : detailMatch?.partner.profile_name ?? "";
+  const detailGroomName =
+    poruthamMode === "fixed-groom"
+      ? collectedFixed?.profile_name ?? ""
+      : detailMatch?.partner.profile_name ?? "";
 
   const { data: summary, isLoading: summaryLoading, error: summaryError } = useQuery({
     queryKey: ["horoscope", role, "summary", horoscopeBranchId],
@@ -1154,21 +1162,8 @@ export default function HoroscopeManagement() {
 
       <Dialog open={poruthamResultOpen} onOpenChange={handlePoruthamResultOpenChange}>
         <DialogContent className="w-[96vw] max-w-6xl max-h-[88vh] overflow-y-auto">
-          <DialogHeader className="relative flex flex-row items-center justify-between gap-2 space-y-0 pr-8">
-            <DialogTitle className="shrink-0">Porutham result</DialogTitle>
-            {detailMatch ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="absolute left-1/2 -translate-x-1/2 text-destructive hover:text-destructive"
-                onClick={() => handleRemoveCollectedMatch(detailMatch.partner.profile_id)}
-              >
-                <Trash2 className="h-4 w-4 mr-1" />
-                Remove
-              </Button>
-            ) : null}
-            <span className="w-16 shrink-0" aria-hidden />
+          <DialogHeader>
+            <DialogTitle>Porutham result</DialogTitle>
           </DialogHeader>
           {poruthamResult != null ? (
             <PoruthamResultView
@@ -1176,6 +1171,30 @@ export default function HoroscopeManagement() {
               role={role}
               brideMatriId={detailBrideMatri}
               groomMatriId={detailGroomMatri}
+              onViewBrideProfile={
+                detailBrideMatri
+                  ? () => openMemberProfile(detailBrideMatri, detailBrideName)
+                  : undefined
+              }
+              onViewGroomProfile={
+                detailGroomMatri
+                  ? () => openMemberProfile(detailGroomMatri, detailGroomName)
+                  : undefined
+              }
+              headerActions={
+                detailMatch ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => handleRemoveCollectedMatch(detailMatch.partner.profile_id)}
+                  >
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    Remove
+                  </Button>
+                ) : null
+              }
             />
           ) : null}
           <DialogFooter className="flex-col sm:flex-row gap-2 sm:justify-between">

@@ -14,7 +14,13 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PoruthamResultView } from "@/components/horoscope/PoruthamResultView";
@@ -58,6 +64,7 @@ export default function SavedPoruthamDetailPage() {
   const [searchDraft, setSearchDraft] = useState("");
   const [search, setSearch] = useState("");
   const [unsavingId, setUnsavingId] = useState<number | null>(null);
+  const [viewLoading, setViewLoading] = useState(false);
   const [poruthamResultOpen, setPoruthamResultOpen] = useState(false);
   const [poruthamResult, setPoruthamResult] = useState<unknown>(null);
   const [viewRow, setViewRow] = useState<SavedPoruthamMatchRow | null>(null);
@@ -91,6 +98,11 @@ export default function SavedPoruthamDetailPage() {
   const headerRow = rows[0];
   const errMsg = error ? getApiErrorMessage(error) : "";
 
+  const viewRowIndex = useMemo(() => {
+    if (!viewRow) return -1;
+    return rows.findIndex((r) => r.id === viewRow.id);
+  }, [rows, viewRow]);
+
   const detailBrideMatri = useMemo(() => {
     if (!viewRow) return "";
     return normalizePoruthamMode(viewRow.mode) === "fixed-groom"
@@ -104,10 +116,19 @@ export default function SavedPoruthamDetailPage() {
       : viewRow.partner_matri_id;
   }, [viewRow]);
 
+  const handlePoruthamResultOpenChange = useCallback((open: boolean) => {
+    setPoruthamResultOpen(open);
+    if (!open) {
+      setPoruthamResult(null);
+      setViewRow(null);
+    }
+  }, []);
+
   const handleView = useCallback(
     async (row: SavedPoruthamMatchRow) => {
       if (row.fixed_profile_id == null || row.partner_profile_id == null) return;
       const mode = normalizePoruthamMode(row.mode) ?? "fixed-bride";
+      setViewLoading(true);
       try {
         const bride_profile_id =
           mode === "fixed-bride" ? row.fixed_profile_id : row.partner_profile_id;
@@ -123,9 +144,21 @@ export default function SavedPoruthamDetailPage() {
           description: getApiErrorMessage(e),
           variant: "destructive",
         });
+      } finally {
+        setViewLoading(false);
       }
     },
     [role, toast],
+  );
+
+  const handleDetailNav = useCallback(
+    (delta: -1 | 1) => {
+      if (viewRowIndex < 0) return;
+      const next = viewRowIndex + delta;
+      if (next < 0 || next >= rows.length) return;
+      void handleView(rows[next]!);
+    },
+    [viewRowIndex, rows, handleView],
   );
 
   const handleUnsave = useCallback(
@@ -151,6 +184,42 @@ export default function SavedPoruthamDetailPage() {
     },
     [role, queryClient, toast],
   );
+
+  const handleRemoveFromDialog = useCallback(async () => {
+    if (!viewRow || viewRow.fixed_profile_id == null || viewRow.partner_profile_id == null) return;
+    const removedAt = rows.findIndex((r) => r.id === viewRow.id);
+    const nextRows = rows.filter((r) => r.id !== viewRow.id);
+
+    setUnsavingId(viewRow.id);
+    try {
+      await deleteSavedPoruthamMatches(role, {
+        fixed_profile_id: viewRow.fixed_profile_id,
+        partner_profile_ids: [viewRow.partner_profile_id],
+      });
+      await queryClient.invalidateQueries({ queryKey: ["horoscope", role, "porutham-saved"] });
+      toast({ title: "Match removed from saved list" });
+
+      if (nextRows.length === 0) {
+        handlePoruthamResultOpenChange(false);
+        return;
+      }
+
+      // Prefer the partner that was after the removed one; else the previous.
+      const pick =
+        removedAt >= 0 && removedAt < nextRows.length
+          ? removedAt
+          : Math.max(0, nextRows.length - 1);
+      await handleView(nextRows[pick]!);
+    } catch (e) {
+      toast({
+        title: "Unsave failed",
+        description: getApiErrorMessage(e),
+        variant: "destructive",
+      });
+    } finally {
+      setUnsavingId(null);
+    }
+  }, [viewRow, rows, role, queryClient, toast, handlePoruthamResultOpenChange, handleView]);
 
   if (!validId) {
     return (
@@ -331,21 +400,35 @@ export default function SavedPoruthamDetailPage() {
         </CardContent>
       </Card>
 
-      <Dialog
-        open={poruthamResultOpen}
-        onOpenChange={(open) => {
-          setPoruthamResultOpen(open);
-          if (!open) {
-            setPoruthamResult(null);
-            setViewRow(null);
-          }
-        }}
-      >
+      <Dialog open={poruthamResultOpen} onOpenChange={handlePoruthamResultOpenChange}>
         <DialogContent className="w-[96vw] max-w-6xl max-h-[88vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Porutham result</DialogTitle>
+          <DialogHeader className="relative flex flex-row items-center justify-between gap-2 space-y-0 pr-8">
+            <DialogTitle className="shrink-0">Porutham result</DialogTitle>
+            {viewRow ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="absolute left-1/2 -translate-x-1/2 text-destructive hover:text-destructive"
+                disabled={unsavingId === viewRow.id || viewLoading}
+                onClick={() => void handleRemoveFromDialog()}
+              >
+                {unsavingId === viewRow.id ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                ) : (
+                  <Trash2 className="h-4 w-4 mr-1" />
+                )}
+                Remove
+              </Button>
+            ) : null}
+            <span className="w-16 shrink-0" aria-hidden />
           </DialogHeader>
-          {poruthamResult != null ? (
+          {viewLoading && poruthamResult == null ? (
+            <div className="py-10 flex justify-center text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin mr-2" />
+              Loading match…
+            </div>
+          ) : poruthamResult != null ? (
             <PoruthamResultView
               result={poruthamResult}
               role={role}
@@ -353,6 +436,44 @@ export default function SavedPoruthamDetailPage() {
               groomMatriId={detailGroomMatri}
             />
           ) : null}
+          <DialogFooter className="flex-col sm:flex-row gap-2 sm:justify-between">
+            {rows.length > 1 && viewRowIndex >= 0 ? (
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={viewRowIndex <= 0 || viewLoading || unsavingId != null}
+                  onClick={() => handleDetailNav(-1)}
+                >
+                  <ChevronLeft className="h-4 w-4 mr-1" /> Previous match
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  {viewRowIndex + 1} / {rows.length}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={
+                    viewRowIndex >= rows.length - 1 || viewLoading || unsavingId != null
+                  }
+                  onClick={() => handleDetailNav(1)}
+                >
+                  Next match <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              </div>
+            ) : (
+              <span />
+            )}
+            <Button
+              variant="outline"
+              disabled={unsavingId != null}
+              onClick={() => handlePoruthamResultOpenChange(false)}
+            >
+              Close
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

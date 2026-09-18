@@ -237,20 +237,46 @@ export default function HoroscopeManagement() {
 
   const handleRemoveCollectedMatch = useCallback(
     (partnerProfileId: number) => {
-      setCollectedMatches((prev) => prev.filter((m) => m.partner.profile_id !== partnerProfileId));
+      const removingViewed =
+        collectedDetailIndex != null &&
+        collectedMatches[collectedDetailIndex]?.partner.profile_id === partnerProfileId;
+      const removedAt = collectedDetailIndex;
+
+      const nextMatches = collectedMatches.filter(
+        (m) => m.partner.profile_id !== partnerProfileId,
+      );
+      setCollectedMatches(nextMatches);
       if (poruthamMode === "fixed-bride") {
         setSelectedGrooms((prev) => prev.filter((p) => p.profile_id !== partnerProfileId));
       } else {
         setSelectedBrides((prev) => prev.filter((p) => p.profile_id !== partnerProfileId));
       }
-      if (collectedDetailIndex != null) {
-        const current = collectedMatches[collectedDetailIndex];
-        if (current?.partner.profile_id === partnerProfileId) {
-          handlePoruthamResultOpenChange(false);
-        }
+
+      if (!removingViewed || !poruthamResultOpen || removedAt == null) return;
+
+      const viewable = nextMatches
+        .map((m, i) => (m.error ? -1 : i))
+        .filter((i) => i >= 0);
+      if (viewable.length === 0) {
+        handlePoruthamResultOpenChange(false);
+        return;
       }
+
+      // Prefer the match that was after the removed one (indices shift left).
+      const after = viewable.find((i) => i >= removedAt);
+      const before = [...viewable].reverse().find((i) => i < removedAt);
+      const pick = after ?? before ?? viewable[0]!;
+      const match = nextMatches[pick]!;
+      setCollectedDetailIndex(pick);
+      setPoruthamResult(match.payload);
     },
-    [poruthamMode, collectedDetailIndex, collectedMatches, handlePoruthamResultOpenChange],
+    [
+      collectedDetailIndex,
+      collectedMatches,
+      poruthamMode,
+      poruthamResultOpen,
+      handlePoruthamResultOpenChange,
+    ],
   );
 
   const handleCollectedDetailNav = useCallback(

@@ -29,13 +29,14 @@ export function emptyPoruthamPartnerFilters(): PoruthamPartnerFiltersState {
 
 export function poruthamPartnerFiltersToQuery(
   filters: PoruthamPartnerFiltersState,
-  paging?: { page?: number; page_size?: number },
+  paging?: { page?: number; page_size?: number; exe_done?: boolean },
 ): HoroscopeRecordsFilters {
   const q: HoroscopeRecordsFilters = {
     page: paging?.page ?? 1,
     page_size: paging?.page_size ?? 100,
-    exe_done: true,
   };
+  const exeDone = paging?.exe_done !== false;
+  if (exeDone) q.exe_done = true;
   const search = filters.search.trim();
   if (search) q.search = search;
   const ageFrom = filters.age_from.trim();

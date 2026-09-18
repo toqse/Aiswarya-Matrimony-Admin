@@ -44,6 +44,10 @@ const SavedPoruthamPage = lazyRetry(() => import("@/pages/admin/SavedPoruthamPag
 const SavedPoruthamDetailPage = lazyRetry(
   () => import("@/pages/admin/SavedPoruthamDetailPage"),
 );
+const SavedSelectionsPage = lazyRetry(() => import("@/pages/admin/SavedSelectionsPage"));
+const SavedSelectionsDetailPage = lazyRetry(
+  () => import("@/pages/admin/SavedSelectionsDetailPage"),
+);
 const SuccessStories = lazyRetry(() => import("@/pages/admin/SuccessStories"));
 const Testimonials = lazyRetry(() => import("@/pages/admin/Testimonials"));
 const DistrictAnalysis = lazyRetry(() => import("@/pages/admin/DistrictAnalysis"));
@@ -153,6 +157,11 @@ const Index = () => {
             <Route
               path="/horoscope/saved-porutham/:fixedProfileId"
               element={<SavedPoruthamDetailPage />}
+            />
+            <Route path="/horoscope/saved-selections" element={<SavedSelectionsPage />} />
+            <Route
+              path="/horoscope/saved-selections/:fixedProfileId"
+              element={<SavedSelectionsDetailPage />}
             />
             <Route path="/district-analysis" element={<DistrictAnalysis />} />
             <Route path="/country" element={<CountryManagement />} />

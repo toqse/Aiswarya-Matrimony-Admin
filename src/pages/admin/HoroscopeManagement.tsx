@@ -19,10 +19,12 @@ import {
   fetchHoroscopeRecordDetail,
   fetchHoroscopeRecords,
   fetchHoroscopeSummary,
+  fetchGeneralSelections,
   fetchSavedPoruthamMatches,
   normalizeHoroscopeRecord,
   postHoroscopePorutham,
   runPoruthamBatch,
+  saveGeneralSelections,
   savePoruthamMatches,
   type CollectedPoruthamMatch,
   type HoroscopeRecordRow,
@@ -39,6 +41,9 @@ import HoroscopeSearchFilters from "@/components/horoscope/HoroscopeSearchFilter
 import PoruthamProfileMultiPicker from "@/components/horoscope/PoruthamProfileMultiPicker";
 import PoruthamPartnerFilters from "@/components/horoscope/PoruthamPartnerFilters";
 import PoruthamCollectedMatches from "@/components/horoscope/PoruthamCollectedMatches";
+import GeneralCollectedSelections, {
+  type GeneralMarkedSelection,
+} from "@/components/horoscope/GeneralCollectedSelections";
 import { PoruthamResultView } from "@/components/horoscope/PoruthamResultView";
 import { JathagamTab } from "@/components/horoscope/JathagamTab";
 import { ProfileDetailPanel } from "@/components/profile/ProfileDetailPanel";
@@ -96,6 +101,8 @@ function formatLastEdited(label: string): string {
   return label;
 }
 
+type SelectionKind = "horoscope" | "general";
+
 export default function HoroscopeManagement() {
   const { role, branch } = useRole();
   const { toast } = useToast();
@@ -133,6 +140,24 @@ export default function HoroscopeManagement() {
   const [savingMatches, setSavingMatches] = useState(false);
   const [saveGeneration, setSaveGeneration] = useState(0);
 
+  /** Horoscope based Selection vs General Selection (separate draft state). */
+  const [selectionKind, setSelectionKind] = useState<SelectionKind>("horoscope");
+
+  const [genSelectedBrides, setGenSelectedBrides] = useState<PoruthamNavSelectionItem[]>([]);
+  const [genSelectedGrooms, setGenSelectedGrooms] = useState<PoruthamNavSelectionItem[]>([]);
+  const [genMode, setGenMode] = useState<PoruthamFixedMode>("fixed-bride");
+  const [genMarked, setGenMarked] = useState<GeneralMarkedSelection[]>([]);
+  const [genMarkedFixed, setGenMarkedFixed] = useState<PoruthamNavSelectionItem | null>(null);
+  const [genFilterDraft, setGenFilterDraft] = useState<PoruthamPartnerFiltersState>(
+    emptyPoruthamPartnerFilters,
+  );
+  const [genFilterApplied, setGenFilterApplied] = useState<PoruthamPartnerFiltersState>(
+    emptyPoruthamPartnerFilters,
+  );
+  const [genFilterVersion, setGenFilterVersion] = useState(0);
+  const [genSaving, setGenSaving] = useState(false);
+  const [genSaveGeneration, setGenSaveGeneration] = useState(0);
+
   const isAdmin = role === "admin";
   const isBranchManager = role === "branch-manager";
 
@@ -154,6 +179,17 @@ export default function HoroscopeManagement() {
         ? partnerProfiles.filter((p) => p.profile_id !== fixedProfile.profile_id)
         : partnerProfiles,
     [fixedProfile, partnerProfiles],
+  );
+
+  const genFixedProfile =
+    genMode === "fixed-bride" ? genSelectedBrides[0] ?? null : genSelectedGrooms[0] ?? null;
+  const genPartnerProfiles = genMode === "fixed-bride" ? genSelectedGrooms : genSelectedBrides;
+  const genEligiblePartners = useMemo(
+    () =>
+      genFixedProfile
+        ? genPartnerProfiles.filter((p) => p.profile_id !== genFixedProfile.profile_id)
+        : genPartnerProfiles,
+    [genFixedProfile, genPartnerProfiles],
   );
 
   const detailMatch =
@@ -351,6 +387,116 @@ export default function HoroscopeManagement() {
     [fixedProfile, collectedMatches, poruthamMode, role, queryClient, toast],
   );
 
+  const handleGenModeChange = useCallback((mode: PoruthamFixedMode) => {
+    setGenMode(mode);
+    setGenSelectedBrides([]);
+    setGenSelectedGrooms([]);
+    setGenMarked([]);
+    setGenMarkedFixed(null);
+    setGenFilterDraft(emptyPoruthamPartnerFilters());
+    setGenFilterApplied(emptyPoruthamPartnerFilters());
+    setGenFilterVersion((v) => v + 1);
+  }, []);
+
+  const handleMarkGeneralSelection = useCallback(() => {
+    if (!genFixedProfile) {
+      toast({
+        title: "Select fixed profile",
+        description:
+          genMode === "fixed-bride"
+            ? "Choose exactly one bride profile."
+            : "Choose exactly one groom profile.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (genEligiblePartners.length === 0) {
+      toast({
+        title: "Select partners",
+        description:
+          genMode === "fixed-bride"
+            ? "Choose at least one groom profile."
+            : "Choose at least one bride profile.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setGenMarkedFixed(genFixedProfile);
+    setGenMarked((prev) => {
+      const byId = new Map(prev.map((r) => [r.partner.profile_id, r]));
+      for (const partner of genEligiblePartners) {
+        byId.set(partner.profile_id, { partner });
+      }
+      return [...byId.values()];
+    });
+    toast({
+      title: "Selection marked",
+      description: `${genEligiblePartners.length} partner${genEligiblePartners.length === 1 ? "" : "s"} added to the list.`,
+    });
+  }, [genFixedProfile, genEligiblePartners, genMode, toast]);
+
+  const handleRemoveGeneralMarked = useCallback(
+    (partnerProfileId: number) => {
+      setGenMarked((prev) => prev.filter((m) => m.partner.profile_id !== partnerProfileId));
+      if (genMode === "fixed-bride") {
+        setGenSelectedGrooms((prev) => prev.filter((p) => p.profile_id !== partnerProfileId));
+      } else {
+        setGenSelectedBrides((prev) => prev.filter((p) => p.profile_id !== partnerProfileId));
+      }
+    },
+    [genMode],
+  );
+
+  const savedGenQueryKey = ["horoscope", role, "general-selections", genFixedProfile?.profile_id];
+
+  const { data: savedGenForFixed = [] } = useQuery({
+    queryKey: savedGenQueryKey,
+    queryFn: () => fetchGeneralSelections(role, genFixedProfile!.profile_id),
+    enabled: activeTab === "matches" && selectionKind === "general" && genFixedProfile != null,
+  });
+
+  const savedGenPartnerIds = useMemo(
+    () =>
+      new Set(
+        savedGenForFixed
+          .map((r) => r.partner_profile_id)
+          .filter((id): id is number => id != null),
+      ),
+    [savedGenForFixed],
+  );
+
+  const handleSaveGeneralSelected = useCallback(
+    async (partnerProfileIds: number[]) => {
+      if (!genFixedProfile) return;
+      setGenSaving(true);
+      try {
+        await saveGeneralSelections(role, {
+          mode: genMode,
+          fixed_profile_id: genFixedProfile.profile_id,
+          partner_profile_ids: partnerProfileIds,
+        });
+        await queryClient.invalidateQueries({ queryKey: ["horoscope", role, "general-selections"] });
+        setGenSaveGeneration((g) => g + 1);
+        toast({
+          title: "Selections saved",
+          description: `${partnerProfileIds.length} selection${partnerProfileIds.length === 1 ? "" : "s"} saved. Open Saved Selections to review them later.`,
+        });
+      } catch (e) {
+        toast({
+          title: "Save failed",
+          description: getApiErrorMessage(e),
+          variant: "destructive",
+        });
+      } finally {
+        setGenSaving(false);
+      }
+    },
+    [genFixedProfile, genMode, role, queryClient, toast],
+  );
+
+  const canMarkGeneral =
+    Boolean(genFixedProfile) && genEligiblePartners.length > 0;
+
   const detailBrideMatri =
     poruthamMode === "fixed-bride"
       ? collectedFixed?.matri_id ?? ""
@@ -486,7 +632,7 @@ export default function HoroscopeManagement() {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="horoscopes" className="text-xs gap-1"><Star className="h-3 w-3" /> Horoscopes</TabsTrigger>
-          <TabsTrigger value="matches" className="text-xs gap-1"><Heart className="h-3 w-3" /> Porutham Matches</TabsTrigger>
+          <TabsTrigger value="matches" className="text-xs gap-1"><Heart className="h-3 w-3" /> Porutham &amp; Selection</TabsTrigger>
           <TabsTrigger value="jathagam" className="text-xs gap-1"><FileText className="h-3 w-3" /> Thalakkuri</TabsTrigger>
         </TabsList>
 
@@ -607,16 +753,48 @@ export default function HoroscopeManagement() {
         <TabsContent value="matches" className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs text-muted-foreground">
-              Saved matches are listed on a separate page, grouped by profile.
+              Horoscope-based porutham and general partner shortlists are saved separately.
             </p>
-            <Button asChild variant="outline" size="sm">
-              <Link to="/horoscope/saved-porutham">
-                <Bookmark className="h-3.5 w-3.5 mr-1" />
-                Open saved porutham matches
-              </Link>
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button asChild variant="outline" size="sm">
+                <Link to="/horoscope/saved-porutham">
+                  <Bookmark className="h-3.5 w-3.5 mr-1" />
+                  Open saved porutham matches
+                </Link>
+              </Button>
+              <Button asChild variant="outline" size="sm">
+                <Link to="/horoscope/saved-selections">
+                  <Bookmark className="h-3.5 w-3.5 mr-1" />
+                  Open saved general selections
+                </Link>
+              </Button>
+            </div>
           </div>
 
+          <div className="space-y-2 max-w-3xl">
+            <Label>Selection type</Label>
+            <RadioGroup
+              value={selectionKind}
+              onValueChange={(v) => setSelectionKind(v as SelectionKind)}
+              className="flex flex-wrap gap-4"
+            >
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="horoscope" id="selection-kind-horoscope" />
+                <Label htmlFor="selection-kind-horoscope" className="font-normal cursor-pointer">
+                  Horoscope based Selection
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="general" id="selection-kind-general" />
+                <Label htmlFor="selection-kind-general" className="font-normal cursor-pointer">
+                  General Selection
+                </Label>
+              </div>
+            </RadioGroup>
+          </div>
+
+          {selectionKind === "horoscope" ? (
+            <>
           <Card className="shadow-elegant border-0">
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2"><Heart className="h-4 w-4 text-primary" /> Porutham (compatibility)</CardTitle>
@@ -687,11 +865,12 @@ export default function HoroscopeManagement() {
                     }
                     role={role}
                     branchId={horoscopeBranchId}
-                    tabActive={activeTab === "matches"}
+                    tabActive={activeTab === "matches" && selectionKind === "horoscope"}
                     instanceId="bride"
                     maxSelection={poruthamMode === "fixed-bride" ? 1 : undefined}
                     partnerFilters={partnerFilterApplied}
                     filterVersion={partnerFilterVersion}
+                    requireExeDone
                   />
                 </div>
                 <div className="space-y-2">
@@ -708,11 +887,12 @@ export default function HoroscopeManagement() {
                     }
                     role={role}
                     branchId={horoscopeBranchId}
-                    tabActive={activeTab === "matches"}
+                    tabActive={activeTab === "matches" && selectionKind === "horoscope"}
                     instanceId="groom"
                     maxSelection={poruthamMode === "fixed-groom" ? 1 : undefined}
                     partnerFilters={partnerFilterApplied}
                     filterVersion={partnerFilterVersion}
+                    requireExeDone
                   />
                 </div>
               </div>
@@ -747,8 +927,130 @@ export default function HoroscopeManagement() {
               saveGeneration={saveGeneration}
             />
           ) : null}
-        </TabsContent>
+            </>
+          ) : (
+            <>
+          <Card className="shadow-elegant border-0">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2"><Heart className="h-4 w-4 text-primary" /> General Selection</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-xs text-muted-foreground max-w-3xl">
+                Shortlist bride and groom partners with the same filters. No horoscope calculation —
+                mark selections and save them for later review.
+              </p>
 
+              <div className="space-y-2 max-w-3xl">
+                <Label>Match mode</Label>
+                <RadioGroup
+                  value={genMode}
+                  onValueChange={(v) => handleGenModeChange(v as PoruthamFixedMode)}
+                  className="flex flex-wrap gap-4"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="fixed-bride" id="gen-fixed-bride" />
+                    <Label htmlFor="gen-fixed-bride" className="font-normal cursor-pointer">
+                      Fixed bride — select many grooms
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="fixed-groom" id="gen-fixed-groom" />
+                    <Label htmlFor="gen-fixed-groom" className="font-normal cursor-pointer">
+                      Fixed groom — select many brides
+                    </Label>
+                  </div>
+                </RadioGroup>
+              </div>
+
+              <PoruthamPartnerFilters
+                key={`gen-${genFilterVersion}`}
+                value={genFilterDraft}
+                onChange={(next) => {
+                  setGenFilterDraft(next);
+                  setGenFilterApplied({ ...next });
+                }}
+                onApply={() => {
+                  setGenFilterApplied({ ...genFilterDraft });
+                  setGenFilterVersion((v) => v + 1);
+                }}
+                onReset={() => {
+                  const empty = emptyPoruthamPartnerFilters();
+                  setGenFilterDraft(empty);
+                  setGenFilterApplied(empty);
+                  setGenFilterVersion((v) => v + 1);
+                }}
+              />
+
+              <div className="grid gap-4 sm:grid-cols-2 max-w-3xl">
+                <div className="space-y-2">
+                  <Label>
+                    {genMode === "fixed-bride" ? "Fixed bride (select one)" : "Partner brides (select many)"}
+                  </Label>
+                  <PoruthamProfileMultiPicker
+                    selected={genSelectedBrides}
+                    onSelectedChange={setGenSelectedBrides}
+                    placeholder={
+                      genMode === "fixed-bride"
+                        ? "Search and select one bride…"
+                        : "Search and select brides…"
+                    }
+                    role={role}
+                    branchId={horoscopeBranchId}
+                    tabActive={activeTab === "matches" && selectionKind === "general"}
+                    instanceId="bride"
+                    maxSelection={genMode === "fixed-bride" ? 1 : undefined}
+                    partnerFilters={genFilterApplied}
+                    filterVersion={genFilterVersion}
+                    requireExeDone={false}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>
+                    {genMode === "fixed-groom" ? "Fixed groom (select one)" : "Partner grooms (select many)"}
+                  </Label>
+                  <PoruthamProfileMultiPicker
+                    selected={genSelectedGrooms}
+                    onSelectedChange={setGenSelectedGrooms}
+                    placeholder={
+                      genMode === "fixed-groom"
+                        ? "Search and select one groom…"
+                        : "Search and select grooms…"
+                    }
+                    role={role}
+                    branchId={horoscopeBranchId}
+                    tabActive={activeTab === "matches" && selectionKind === "general"}
+                    instanceId="groom"
+                    maxSelection={genMode === "fixed-groom" ? 1 : undefined}
+                    partnerFilters={genFilterApplied}
+                    filterVersion={genFilterVersion}
+                    requireExeDone={false}
+                  />
+                </div>
+              </div>
+
+              <div className="max-w-3xl">
+                <Button type="button" onClick={handleMarkGeneralSelection} disabled={!canMarkGeneral}>
+                  Mark selection
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {genMarkedFixed && genMarked.length > 0 ? (
+            <GeneralCollectedSelections
+              mode={genMode}
+              fixed={genMarkedFixed}
+              selections={genMarked}
+              onRemove={handleRemoveGeneralMarked}
+              onSaveSelected={handleSaveGeneralSelected}
+              saving={genSaving}
+              savedPartnerIds={savedGenPartnerIds}
+              saveGeneration={genSaveGeneration}
+            />
+          ) : null}
+            </>
+          )}
+        </TabsContent>
         <TabsContent value="jathagam" className="space-y-4">
           <div>
             <h2 className="text-base font-semibold flex items-center gap-2">

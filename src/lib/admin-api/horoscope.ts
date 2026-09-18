@@ -1013,6 +1013,174 @@ export async function deleteSavedPoruthamMatches(
   }
 }
 
+// --- General Selection shortlist (no porutham calculation) ---
+
+export interface GeneralSelectionRow {
+  id: number;
+  mode: string;
+  fixed_profile_id: number | null;
+  fixed_matri_id: string;
+  fixed_name: string;
+  partner_profile_id: number | null;
+  partner_matri_id: string;
+  partner_name: string;
+  saved_by_name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GeneralSelectionGroupRow {
+  fixed_user_id: string;
+  fixed_profile_id: number | null;
+  fixed_name: string;
+  fixed_matri_id: string;
+  mode: string;
+  match_count: number;
+  last_saved_at: string | null;
+  saved_by_name: string;
+}
+
+function normalizeGeneralSelectionRow(row: unknown): GeneralSelectionRow {
+  const r = (row && typeof row === "object" ? row : {}) as Record<string, unknown>;
+  return {
+    id: pickNum(r.id),
+    mode: pickStr(r.mode),
+    fixed_profile_id: parseOptionalId(r.fixed_profile_id),
+    fixed_matri_id: pickStr(r.fixed_matri_id),
+    fixed_name: pickStr(r.fixed_name),
+    partner_profile_id: parseOptionalId(r.partner_profile_id),
+    partner_matri_id: pickStr(r.partner_matri_id),
+    partner_name: pickStr(r.partner_name),
+    saved_by_name: pickStr(r.saved_by_name),
+    created_at: pickStr(r.created_at),
+    updated_at: pickStr(r.updated_at),
+  };
+}
+
+function normalizeGeneralSelectionGroup(row: unknown): GeneralSelectionGroupRow {
+  const r = (row && typeof row === "object" ? row : {}) as Record<string, unknown>;
+  return {
+    fixed_user_id: pickStr(r.fixed_user_id),
+    fixed_profile_id: parseOptionalId(r.fixed_profile_id),
+    fixed_name: pickStr(r.fixed_name),
+    fixed_matri_id: pickStr(r.fixed_matri_id),
+    mode: pickStr(r.mode),
+    match_count: pickNum(r.match_count),
+    last_saved_at: pickStr(r.last_saved_at) || null,
+    saved_by_name: pickStr(r.saved_by_name),
+  };
+}
+
+export async function fetchGeneralSelections(
+  role: UserRole,
+  fixedProfileId: number,
+): Promise<GeneralSelectionRow[]> {
+  const page = await fetchGeneralSelectionsPage(role, {
+    fixed_profile_id: fixedProfileId,
+    page: 1,
+    page_size: 100,
+  });
+  return page.results;
+}
+
+export async function fetchGeneralSelectionsPage(
+  role: UserRole,
+  params?: {
+    fixed_profile_id?: number;
+    page?: number;
+    page_size?: number;
+    search?: string;
+  },
+): Promise<SavedPoruthamPageEnvelope<GeneralSelectionRow>> {
+  const base = horoscopeBasePath(role);
+  const page = params?.page ?? 1;
+  const pageSize = params?.page_size ?? 20;
+  const q = toQs({
+    fixed_profile_id: params?.fixed_profile_id,
+    page,
+    page_size: pageSize,
+    search: params?.search?.trim() || undefined,
+  });
+  const res = await adminRequest<unknown>(`${base}selections/${q}`);
+  const data = await unwrap(res);
+  const root = (data && typeof data === "object" ? data : {}) as Record<string, unknown>;
+  const results = Array.isArray(root.results)
+    ? root.results.map(normalizeGeneralSelectionRow)
+    : [];
+  return {
+    count: pickNum(root.count, results.length),
+    page: pickNum(root.page, page) || page,
+    page_size: pickNum(root.page_size, pageSize) || pageSize,
+    results,
+  };
+}
+
+export async function fetchGeneralSelectionGroups(
+  role: UserRole,
+  params?: { page?: number; page_size?: number; search?: string },
+): Promise<SavedPoruthamPageEnvelope<GeneralSelectionGroupRow>> {
+  const base = horoscopeBasePath(role);
+  const page = params?.page ?? 1;
+  const pageSize = params?.page_size ?? 20;
+  const q = toQs({
+    page,
+    page_size: pageSize,
+    search: params?.search?.trim() || undefined,
+  });
+  const res = await adminRequest<unknown>(`${base}selections/groups/${q}`);
+  const data = await unwrap(res);
+  const root = (data && typeof data === "object" ? data : {}) as Record<string, unknown>;
+  const results = Array.isArray(root.results)
+    ? root.results.map(normalizeGeneralSelectionGroup)
+    : [];
+  return {
+    count: pickNum(root.count, results.length),
+    page: pickNum(root.page, page) || page,
+    page_size: pickNum(root.page_size, pageSize) || pageSize,
+    results,
+  };
+}
+
+export async function saveGeneralSelections(
+  role: UserRole,
+  body: {
+    mode: PoruthamFixedMode;
+    fixed_profile_id: number;
+    partner_profile_ids: number[];
+  },
+): Promise<GeneralSelectionRow[]> {
+  const base = horoscopeBasePath(role);
+  const res = await adminRequest<unknown>(`${base}selections/`, {
+    method: "POST",
+    body: {
+      mode: body.mode,
+      fixed_profile_id: body.fixed_profile_id,
+      partner_profile_ids: body.partner_profile_ids,
+    },
+  });
+  const data = await unwrap(res);
+  const root = (data && typeof data === "object" ? data : {}) as Record<string, unknown>;
+  const saved = Array.isArray(root.saved) ? root.saved : [];
+  return saved.map(normalizeGeneralSelectionRow);
+}
+
+export async function deleteGeneralSelections(
+  role: UserRole,
+  body: {
+    fixed_profile_id: number;
+    partner_profile_ids: number[];
+  },
+): Promise<number> {
+  const base = horoscopeBasePath(role);
+  const res = await adminRequest<unknown>(`${base}selections/`, {
+    method: "DELETE",
+    body,
+  });
+  const data = await unwrap(res);
+  const root = (data && typeof data === "object" ? data : {}) as Record<string, unknown>;
+  return pickNum(root.deleted);
+}
+
 export interface JathakamPdfRow {
   matri_id: string;
   profile_name: string;

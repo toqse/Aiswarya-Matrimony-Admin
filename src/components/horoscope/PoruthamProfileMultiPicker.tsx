@@ -39,6 +39,8 @@ type PoruthamProfileMultiPickerProps = {
   partnerFilters?: PoruthamPartnerFiltersState;
   /** Bump when user clicks Search on partner filters to refetch. */
   filterVersion?: number;
+  /** When true (default), only EXE-done horoscope profiles. */
+  requireExeDone?: boolean;
 };
 
 export default function PoruthamProfileMultiPicker({
@@ -52,6 +54,7 @@ export default function PoruthamProfileMultiPicker({
   maxSelection,
   partnerFilters = emptyPoruthamPartnerFilters(),
   filterVersion = 0,
+  requireExeDone = true,
 }: PoruthamProfileMultiPickerProps) {
   const [open, setOpen] = useState(false);
   const [searchDraft, setSearchDraft] = useState("");
@@ -101,7 +104,7 @@ export default function PoruthamProfileMultiPicker({
       ...partnerFilters,
       search: debouncedSearch || partnerFilters.search,
     },
-    { page, page_size: PICKER_PAGE_SIZE },
+    { page, page_size: PICKER_PAGE_SIZE, exe_done: requireExeDone },
   );
 
   const { data, isLoading, isFetching } = useQuery({
@@ -115,6 +118,7 @@ export default function PoruthamProfileMultiPicker({
       gender,
       page,
       filterVersion,
+      requireExeDone,
       partnerFilters.search,
       partnerFilters.age_from,
       partnerFilters.age_to,
@@ -129,7 +133,6 @@ export default function PoruthamProfileMultiPicker({
         ...filterQuery,
         branch_id: branchId,
         gender,
-        exe_done: true,
         page,
         page_size: PICKER_PAGE_SIZE,
       }),
